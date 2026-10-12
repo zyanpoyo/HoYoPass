@@ -9,7 +9,8 @@
     "generate-icons": "node scripts/generate-icons.js",
     "download-game-icons": "node scripts/download-game-icons.js",
     "process-genshin-icon": "powershell -ExecutionPolicy Bypass -File scripts/process-genshin-icon.ps1",
-    "setup": "npm run generate-icons && npm run download-game-icons"
+    "setup": "npm run generate-icons && npm run download-game-icons",
+    "package": "node scripts/package.js"
   },
   "keywords": [
     "genshin",

@@ -152,6 +152,19 @@ npm test
 npm run check-secrets
 ```
 
+### ストア公開用パッケージ (ZIP) の作成
+Chrome Web Store 申請用の配布パッケージ（不要な開発ファイル・テスト・ドキュメントを完全除外したクリーンなZIP）は、以下のコマンドで一括生成できます：
+
+```bash
+npm run package
+```
+
+- **出力先**: `dist/hoyopass-v1.0.0.zip`
+- **処理内容**:
+  1. プリフライト検証（`npm test` および `npm run check-secrets` の自動実行）
+  2. 本番実行に不要なファイル（`spike/`, `test/`, `scripts/`, `docs/`, `CHROMEWEBSTORE.md` 等）の除外
+  3. 必要なアセット（`manifest.json`, `src/`, `icons/`, `assets/`, `LICENSE`, `NOTICE`）のみをホワイトリスト抽出してZIPアーカイブ化
+
 ---
 
 ## 📄 免責事項・ライセンス
