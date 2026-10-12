@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatRedeemResult } from '../src/utils/message-formatter.js';
+import { formatRedeemResult, formatLogTimestamp } from '../src/utils/message-formatter.js';
+
 
 test('formatRedeemResult: 空または不正なレスポンス', () => {
   const res = formatRedeemResult(null);
@@ -123,3 +124,20 @@ test('formatRedeemResult: 複数ゲーム巡回結果 (全ゲーム未プレイ)
   assert.match(res.message, /キャラクターが作成されているゲームが見つかりませんでした/);
   assert.match(res.message, /・原神: 未プレイのためスキップ/);
 });
+
+test('formatLogTimestamp: MM/DD HH:mm 形式へのフォーマットとゼロ埋め', () => {
+  // 2026-10-12 14:30
+  const d1 = new Date(2026, 9, 12, 14, 30, 0).getTime();
+  assert.equal(formatLogTimestamp(d1), '10/12 14:30');
+
+  // 2026-01-05 09:03 (ゼロ埋め確認)
+  const d2 = new Date(2026, 0, 5, 9, 3, 0).getTime();
+  assert.equal(formatLogTimestamp(d2), '01/05 09:03');
+
+  // 不正値・空値
+  assert.equal(formatLogTimestamp(null), '');
+  assert.equal(formatLogTimestamp(undefined), '');
+  assert.equal(formatLogTimestamp(''), '');
+  assert.equal(formatLogTimestamp('invalid_date'), '');
+});
+

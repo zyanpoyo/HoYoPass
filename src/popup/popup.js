@@ -1,9 +1,10 @@
 import { GAMES, DOCS_URLS } from '../config/constants.js';
 import { getSettings, updateSettings } from '../services/storage-service.js';
 import { getUserGameRoles } from '../services/hoyo-api.js';
-import { formatRedeemResult } from '../utils/message-formatter.js';
+import { formatRedeemResult, formatLogTimestamp } from '../utils/message-formatter.js';
 
 let currentGameKey = 'GENSHIN';
+
 
 document.addEventListener('DOMContentLoaded', async () => {
   const optInModal = document.getElementById('optin-modal');
@@ -174,10 +175,11 @@ async function renderLogs() {
   logs.forEach(log => {
     const item = document.createElement('div');
     item.className = 'log-item';
-    const time = new Date(log.timestamp).toLocaleTimeString();
+    const time = formatLogTimestamp(log.timestamp);
     item.textContent = `[${time}] ${log.message || log.type}`;
     container.appendChild(item);
   });
+
 }
 
 function showAlertModal(title, message, detail = null) {

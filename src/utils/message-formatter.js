@@ -131,3 +131,24 @@ export function formatRedeemResult(resp) {
     detail: rawDetail
   };
 }
+
+/**
+ * ログタイムスタンプを短縮日時表記 (MM/DD HH:mm) に整形する
+ * 例: 10/12 14:30
+ * 
+ * @param {number|string|Date} timestamp - ミリ秒タイムスタンプ
+ * @returns {string} 整形された日時文字列（不正時は空文字）
+ */
+export function formatLogTimestamp(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${month}/${day} ${hours}:${minutes}`;
+}
+
