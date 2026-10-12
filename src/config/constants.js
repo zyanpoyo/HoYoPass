@@ -62,5 +62,5 @@ export const ALLOWED_REGIONS = [
 
 export const DOCS_URLS = {
   README: 'https://github.com/zyanpoyo/HoYoPass#readme',
-  PRIVACY_POLICY: 'https://github.com/zyanpoyo/HoYoPass/blob/main/docs/legal/privacy_policy.md'
+  PRIVACY_POLICY: 'https://github.com/zyanpoyo/HoYoPass/blob/master/docs/legal/privacy_policy.md'
 };
