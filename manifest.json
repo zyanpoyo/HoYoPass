@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "HoYoPass - 交換コード自動引き換えツール",
+  "short_name": "HoYoPass",
+  "version": "1.0.0",
+  "description": "HoYoverseゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）の交換コードを自動引き換えする非公式拡張機能です。",
+  "minimum_chrome_version": "114",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://api-os-takumi.hoyoverse.com/*",
+    "https://sg-hk4e-api.hoyoverse.com/*",
+    "https://sg-hkrpg-api.hoyoverse.com/*",
+    "https://public-operation-nap.hoyoverse.com/*",
+    "https://sg-act-nap-api.hoyoverse.com/*",
+    "https://hoyo-codes.seria.moe/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; img-src 'self' data:;"
+  }
+}

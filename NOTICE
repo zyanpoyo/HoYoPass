@@ -1,0 +1,40 @@
+HoYoPass
+Copyright (c) 2026 zyanpoyo
+
+This product includes software developed by zyanpoyo.
+
+================================================================================
+Trademarks and Game Assets Notice / 商標およびゲーム著作権に関する表記
+================================================================================
+This application is an unofficial, fan-made open-source tool and is NOT affiliated
+with, endorsed by, or sponsored by COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd.
+
+- "Genshin Impact" (原神), "Honkai: Star Rail" (崩壊：スターレイル), and
+  "Zenless Zone Zero" (ゼンレスゾーンゼロ), as well as related game logos,
+  graphics, characters, and trademarks, are copyrights and trademarks of
+  COGNOSPHERE PTE. LTD. and/or miHoYo Co., Ltd.
+- App icons and related game assets downloaded or referenced by this project
+  belong to their respective copyright owners.
+
+本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE PTE. LTD. および
+miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。
+本ツール内で参照・使用されている各ゲームタイトル、ロゴ、画像、商標等の権利は、
+各権利者（COGNOSPHERE / miHoYo）に帰属します。
+
+================================================================================
+Third-Party Data and APIs / 外部データおよびAPI提供元
+================================================================================
+- hoyo-codes API (https://hoyo-codes.seria.moe / GitHub: https://github.com/seriaati/hoyo-codes)
+  Used for retrieving current gift redemption codes.
+  交換コード一覧の取得元として活用させていただいています。
+
+================================================================================
+Software Dependencies / ソフトウェア依存関係
+================================================================================
+This project does not include external third-party runtime or npm dependencies
+and operates solely on standard Node.js and WebExtensions APIs.
+For detailed legal and open source license compliance analysis, see docs/legal/license_compliance_report.md.
+
+本プロジェクトは外部のサードパーティ製 npm パッケージに依存しておらず、
+Node.js 標準ライブラリおよび WebExtensions 標準 API のみで動作しています。
+詳細な法的およびオープンソースライセンス適合性の検証結果については docs/legal/license_compliance_report.md をご覧ください。

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HoYoPass - 交換コード自動引き換えツール</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- 初回オプトイン同意モーダル -->
+  <div id="optin-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>利用開始のご確認</h2>
+      <p class="modal-desc">
+        本拡張機能（HoYoPass）をご利用いただく前に、以下の内容をご確認・同意してください。
+      </p>
+      <div class="disclaimer-box">
+        <strong>【免責事項】</strong><br>
+        本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE / HoYoverseとは関係ありません。本ツール内で使用されているゲーム画像・商標の権利は、各権利者に帰属します。
+      </div>
+      <p class="security-note">
+        ※ 本拡張機能はお使いのブラウザに保存された公式ログインCookieをローカルでのみ利用し、外部サーバーへのCookie送信・収集は一切行いません。詳細は<a href="https://github.com/zyanpoyo/HoYoPass/blob/main/docs/legal/privacy_policy.md" target="_blank" rel="noopener noreferrer" class="link-inline" id="optin-privacy-link">プライバシーポリシー</a>をご確認ください。
+      </p>
+      <button id="optin-accept-btn" class="btn btn-primary btn-block">同意して利用を開始する</button>
+    </div>
+  </div>
+
+  <!-- 通知・結果ダイアログモーダル -->
+  <div id="alert-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="alert-modal-title">
+    <div class="modal-card dialog-card">
+      <h2 id="alert-modal-title">コード交換結果</h2>
+      <p id="alert-modal-message" class="modal-desc dialog-message"></p>
+      
+      <!-- 詳細情報アコーディオン（エラー時・詳細がある場合のみ表示） -->
+      <details id="alert-modal-details" class="dialog-details hidden">
+        <summary class="details-summary">詳細情報</summary>
+        <div id="alert-modal-detail-text" class="details-content"></div>
+      </details>
+      
+      <button id="alert-modal-ok-btn" class="btn btn-primary btn-block">OK</button>
+    </div>
+  </div>
+
+  <!-- メインUI -->
+  <div class="app-container">
+    <!-- ゲーム選択タブ [R2-1] -->
+    <nav class="game-tabs" id="game-tabs">
+      <button class="tab-btn active" data-game="GENSHIN">原神</button>
+      <button class="tab-btn" data-game="STAR_RAIL">スタレ</button>
+      <button class="tab-btn" data-game="ZZZ">ZZZ</button>
+    </nav>
+
+    <header class="app-header">
+      <div class="header-title">
+        <!-- 画像とフォールバック文字バッジ [R2-2] -->
+        <div class="icon-wrapper" id="game-icon-wrapper" role="button" tabindex="0" title="コード交換サイトを開く" aria-label="コード交換サイトを開く">
+          <img id="game-icon" src="/assets/icons/genshin.png" alt="Icon" class="game-badge-icon" onerror="this.style.display='none'; document.getElementById('icon-fallback').style.display='flex';">
+          <div id="icon-fallback" class="fallback-badge" style="display: none;">原</div>
+        </div>
+        <h1 id="game-title">原神</h1>
+      </div>
+      <span id="login-status-badge" class="badge">確認中...</span>
+    </header>
+
+    <main class="main-content">
+      <div class="control-card">
+        <div class="toggle-row">
+          <span>定期自動引き換え (4時間毎)</span>
+          <label class="switch">
+            <input type="checkbox" id="auto-redeem-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button id="manual-trigger-btn" class="btn btn-primary btn-block">今すぐ引き換え実行</button>
+      </div>
+
+      <section class="logs-section">
+        <h2>実行ログ (直近)</h2>
+        <div id="logs-container" class="logs-list"></div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-links">
+        <a href="https://github.com/zyanpoyo/HoYoPass#readme" id="footer-link-readme" class="footer-link" target="_blank" rel="noopener noreferrer">使い方・README</a>
+        <span class="footer-separator">•</span>
+        <a href="https://github.com/zyanpoyo/HoYoPass/blob/main/docs/legal/privacy_policy.md" id="footer-link-privacy" class="footer-link" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
+      </div>
+      <p class="footer-disclaimer">
+        非公式ファンメイドツール（COGNOSPHERE / HoYoverseとは関係ありません）
+      </p>
+    </footer>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

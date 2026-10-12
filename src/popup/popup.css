@@ -1,0 +1,387 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 340px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #12141a;
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+.app-container {
+  padding: 14px;
+}
+
+/* ゲームタブ */
+.game-tabs {
+  display: flex;
+  gap: 6px;
+  background-color: #1a1e28;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 6px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+/* ヘッダー */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-wrapper {
+  width: 32px;
+  height: 32px;
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+}
+
+.icon-wrapper:hover {
+  transform: scale(1.08);
+  opacity: 0.9;
+}
+
+.icon-wrapper:active {
+  transform: scale(0.95);
+}
+
+.icon-wrapper:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.game-badge-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  background-color: transparent;
+}
+
+.fallback-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: #3b82f6;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge.online {
+  background-color: #065f46;
+  color: #34d399;
+}
+
+.badge.offline {
+  background-color: #7f1d1d;
+  color: #f87171;
+}
+
+/* コントロールカード */
+.control-card {
+  background-color: #1e2230;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.btn {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.btn-primary {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* トグルスイッチ */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #475569;
+  border-radius: 20px;
+  transition: 0.3s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .slider {
+  background-color: #2563eb;
+}
+
+input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* ログ */
+.logs-section h2 {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.logs-list {
+  background-color: #1a1e28;
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 140px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.log-item {
+  padding: 4px 0;
+  border-bottom: 1px solid #2d3748;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+/* フッター免責表記・リンク */
+.app-footer {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.footer-link {
+  font-size: 11px;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: color 0.15s ease-in-out;
+  cursor: pointer;
+}
+
+.footer-link:hover,
+.footer-link:focus-visible {
+  color: #38bdf8;
+  text-decoration: underline;
+  outline: none;
+}
+
+.footer-separator {
+  font-size: 10px;
+  color: #475569;
+  user-select: none;
+}
+
+.link-inline {
+  color: #38bdf8;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-inline:hover {
+  color: #7dd3fc;
+}
+
+.footer-disclaimer {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+/* 同意モーダル */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-card {
+  background-color: #1e2230;
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+}
+
+.modal-card h2 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.modal-desc {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+}
+
+.disclaimer-box {
+  background-color: #0f172a;
+  border-left: 3px solid #f59e0b;
+  padding: 8px;
+  font-size: 11px;
+  color: #e2e8f0;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.security-note {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+/* 結果通知ダイアログ用スタイル */
+.dialog-card {
+  text-align: left;
+}
+
+.dialog-card h2 {
+  text-align: center;
+}
+
+.dialog-message {
+  white-space: pre-line;
+  line-height: 1.5;
+  margin: 12px 0 16px 0;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.dialog-details {
+  margin-bottom: 16px;
+  background-color: #141721;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.dialog-details.hidden {
+  display: none;
+}
+
+.details-summary {
+  padding: 6px 10px;
+  cursor: pointer;
+  color: #94a3b8;
+  user-select: none;
+  font-weight: 500;
+}
+
+.details-summary:hover {
+  color: #cbd5e1;
+}
+
+.details-content {
+  padding: 8px 10px;
+  border-top: 1px solid #2d3748;
+  color: #f87171;
+  font-family: monospace;
+  word-break: break-all;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
