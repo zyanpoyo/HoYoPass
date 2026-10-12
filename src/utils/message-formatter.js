@@ -21,6 +21,50 @@ export function formatRedeemResult(resp) {
   // 成功時
   if (resp.success) {
     const count = resp.redeemedCount || 0;
+
+    // 複数ゲーム巡回結果 (resp.results) が存在する場合
+    if (resp.results && typeof resp.results === 'object') {
+      const summaryLines = [];
+      let anyPlayed = false;
+      let hasLoginError = false;
+
+      for (const [key, res] of Object.entries(resp.results)) {
+        const name = res.gameName || key;
+        if (res.skipped && res.reason === 'NO_CHARACTER') {
+          summaryLines.push(`・${name}: 未プレイのためスキップ`);
+        } else if (res.retcode === -100 || res.retcode === -1071 || res.reason === 'LOGIN_REQUIRED') {
+          summaryLines.push(`・${name}: 未ログイン`);
+          hasLoginError = true;
+          anyPlayed = true;
+        } else if (res.success) {
+          anyPlayed = true;
+          const gameCount = res.redeemedCount || 0;
+          summaryLines.push(gameCount > 0 ? `・${name}: ${gameCount}件引き換え成功` : `・${name}: 新規コードなし`);
+        } else {
+          anyPlayed = true;
+          summaryLines.push(`・${name}: エラー (${res.reason || '失敗'})`);
+        }
+      }
+
+      let mainMsg = '';
+      if (count > 0) {
+        mainMsg = `${count}件のコードを引き換えました。\nゲーム内メールをご確認ください。`;
+      } else if (!anyPlayed) {
+        mainMsg = 'キャラクターが作成されているゲームが見つかりませんでした。';
+      } else if (hasLoginError) {
+        mainMsg = 'ログインが必要なゲームがあります。公式サイトで再ログインしてください。';
+      } else {
+        mainMsg = '利用可能な新しい引き換えコードはありませんでした。';
+      }
+
+      return {
+        title: count > 0 ? 'コード交換成功' : 'コード交換完了',
+        message: `${mainMsg}\n\n【内訳】\n${summaryLines.join('\n')}`,
+        detail: null
+      };
+    }
+
+    // 単一ゲーム結果の場合（後方互換）
     return {
       title: count > 0 ? 'コード交換成功' : 'コード交換完了',
       message: count > 0

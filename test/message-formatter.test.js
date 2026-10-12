@@ -88,3 +88,38 @@ test('formatRedeemResult: 例外発生 (EXCEPTION)', () => {
   assert.match(res.message, /通信または処理中にエラーが発生しました/);
   assert.equal(res.detail, 'Failed to fetch network resource');
 });
+
+test('formatRedeemResult: 複数ゲーム巡回結果 (成功・スキップ混在)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 2,
+    results: {
+      GENSHIN: { success: true, skipped: false, redeemedCount: 2, gameName: '原神' },
+      STAR_RAIL: { success: true, skipped: false, redeemedCount: 0, gameName: '崩壊：スターレイル' },
+      ZZZ: { success: true, skipped: true, reason: 'NO_CHARACTER', gameName: 'ゼンレスゾーンゼロ' }
+    }
+  });
+
+  assert.equal(res.title, 'コード交換成功');
+  assert.match(res.message, /2件のコードを引き換えました/);
+  assert.match(res.message, /・原神: 2件引き換え成功/);
+  assert.match(res.message, /・崩壊：スターレイル: 新規コードなし/);
+  assert.match(res.message, /・ゼンレスゾーンゼロ: 未プレイのためスキップ/);
+  assert.equal(res.detail, null);
+});
+
+test('formatRedeemResult: 複数ゲーム巡回結果 (全ゲーム未プレイ)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 0,
+    results: {
+      GENSHIN: { success: true, skipped: true, reason: 'NO_CHARACTER', gameName: '原神' },
+      STAR_RAIL: { success: true, skipped: true, reason: 'NO_CHARACTER', gameName: '崩壊：スターレイル' },
+      ZZZ: { success: true, skipped: true, reason: 'NO_CHARACTER', gameName: 'ゼンレスゾーンゼロ' }
+    }
+  });
+
+  assert.equal(res.title, 'コード交換完了');
+  assert.match(res.message, /キャラクターが作成されているゲームが見つかりませんでした/);
+  assert.match(res.message, /・原神: 未プレイのためスキップ/);
+});

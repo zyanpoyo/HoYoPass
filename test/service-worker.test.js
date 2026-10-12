@@ -8,6 +8,7 @@ const mockStorage = {
 
 const mockCreatedTabs = [];
 const mockClearedNotifications = [];
+const mockCreatedNotifications = [];
 
 globalThis.chrome = {
   storage: {
@@ -28,7 +29,7 @@ globalThis.chrome = {
     onAlarm: { addListener: () => {} }
   },
   notifications: {
-    create: () => {},
+    create: (id, opts) => { mockCreatedNotifications.push({ id, opts }); },
     clear: (id) => { mockClearedNotifications.push(id); },
     onClicked: { addListener: () => {} }
   },
@@ -49,7 +50,7 @@ globalThis.chrome = {
 
 import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes } from '../src/services/storage-service.js';
 import { STATUS_MAP, GAMES } from '../src/config/constants.js';
-const { handleNotificationClick, LOGIN_NOTIFICATION_PREFIX } = await import('../src/background/service-worker.js');
+const { handleNotificationClick, LOGIN_NOTIFICATION_PREFIX, redeemForGame, runAutoRedeemFlow } = await import('../src/background/service-worker.js');
 
 test('排他ロック: 獲得と解放', async () => {
   const lock1 = await acquireExecutionLock('TEST');
@@ -115,5 +116,114 @@ test('handleNotificationClick: ログイン誘導通知クリック時に正し�
   mockCreatedTabs.length = 0;
   await handleNotificationClick('other_notification_id');
   assert.equal(mockCreatedTabs.length, 0);
+});
+
+test('redeemForGame: 未プレイ（retcode: -1 / キャラクター不在）の場合はエラー通知を出さず安全にスキップ', async () => {
+  mockCreatedNotifications.length = 0;
+
+  // fetch をモックして空のキャラクター一覧を返却
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (url.includes('getUserGameRolesByCookie')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } })
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const res = await redeemForGame('ZZZ');
+    assert.equal(res.success, true, '成功ステータスで返ること');
+    assert.equal(res.skipped, true, 'スキップフラグがtrueであること');
+    assert.equal(res.reason, 'NO_CHARACTER');
+    assert.equal(res.gameKey, 'ZZZ');
+    assert.equal(mockCreatedNotifications.length, 0, '未プレイゲームに対してログイン要求などの通知を出さないこと');
+
+    // ログ記録の確認
+    const logs = mockStorage.local.get('exec_logs') || [];
+    const skipLog = logs.find(l => l.message && l.message.includes('キャラクターが見つからないためスキップ'));
+    assert.ok(skipLog, 'INFOログにスキップログが記録されていること');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow: 全3ゲーム巡回（未プレイゲームはスキップ、プレイ中ゲームは引き換え成功）', async () => {
+  mockCreatedNotifications.length = 0;
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const urlStr = url.toString();
+    // ロール取得API
+    if (urlStr.includes('getUserGameRolesByCookie')) {
+      if (urlStr.includes('hk4e_global')) {
+        // 原神: キャラクターあり
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      // スタレ、ZZZ: 未プレイ (キャラクター不在)
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } })
+      };
+    }
+
+    // コード取得API
+    if (urlStr.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({
+          codes: [{ code: 'GENSHINNEW1' }]
+        })
+      };
+    }
+
+    // コード引き換えAPI
+    if (urlStr.includes('webExchangeCdkey')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ retcode: 0, message: 'OK' })
+      };
+    }
+
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const flowRes = await runAutoRedeemFlow('ALARM');
+    assert.equal(flowRes.success, true);
+    assert.equal(flowRes.redeemedCount, 1, '原神で1件成功');
+    assert.ok(flowRes.results.GENSHIN, '原神の結果が存在');
+    assert.equal(flowRes.results.GENSHIN.skipped, false);
+    assert.equal(flowRes.results.GENSHIN.redeemedCount, 1);
+
+    assert.ok(flowRes.results.STAR_RAIL, 'スタレの結果が存在');
+    assert.equal(flowRes.results.STAR_RAIL.skipped, true);
+    assert.equal(flowRes.results.STAR_RAIL.reason, 'NO_CHARACTER');
+
+    assert.ok(flowRes.results.ZZZ, 'ZZZの結果が存在');
+    assert.equal(flowRes.results.ZZZ.skipped, true);
+    assert.equal(flowRes.results.ZZZ.reason, 'NO_CHARACTER');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
