@@ -134,6 +134,6 @@ export async function addExecutionLog(logEntry) {
     timestamp: Date.now(),
     ...logEntry
   });
-  if (logs.length > 50) logs.pop();
+  if (logs.length > API_CONFIG.MAX_EXECUTION_LOGS) logs.pop();
   await chrome.storage.local.set({ exec_logs: logs });
 }

@@ -9,7 +9,8 @@ export const API_CONFIG = {
   MAX_NEW_CODES_PER_FETCH: 50, // 1回あたりの最大取得コード数
   DAILY_NEW_CODE_LIMIT: 20, // 1日あたりの新規コード上限
   STORAGE_WARNING_THRESHOLD: 0.8, // 80%容量監視
-  MAX_REDEEMED_HISTORY_LIMIT: 3000 // 古い確定記録整理の閾値
+  MAX_REDEEMED_HISTORY_LIMIT: 3000, // 古い確定記録整理の閾値
+  MAX_EXECUTION_LOGS: 50 // ポップアップ・ストレージ保持ログ件数
 };
 
 export const STATUS_MAP = {
