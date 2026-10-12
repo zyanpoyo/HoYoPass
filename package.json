@@ -7,6 +7,7 @@
     "test": "node --test test/*.test.js",
     "check-secrets": "node scripts/check-secrets.js",
     "generate-icons": "node scripts/generate-icons.js",
+    "generate-screenshots": "node scripts/generate-screenshots.js",
     "download-game-icons": "node scripts/download-game-icons.js",
     "process-genshin-icon": "powershell -ExecutionPolicy Bypass -File scripts/process-genshin-icon.ps1",
     "setup": "npm run generate-icons && npm run download-game-icons",

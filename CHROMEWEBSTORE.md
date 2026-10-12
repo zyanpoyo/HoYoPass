@@ -55,16 +55,18 @@ Japanese
 | Asset | Dimensions | Status | Filename |
 |---|---|---|---|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `icons/icon128.png` |
-| Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | ⬜ Not created | (メインポップアップ画面) |
-| Screenshot 2 [RECOMMENDED] | 1280×800 or 640×400 | ⬜ Not created | (コード交換完了通知・ログ画面) |
-| Screenshot 3 [RECOMMENDED] | 1280×800 or 640×400 | ⬜ Not created | (初回同意モーダル・免責事項) |
+| Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot1_main_1280x800.png` (メイン画面・3件交換成功ログ) |
+| Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot2_dialog_1280x800.png` (3件交換成功ダイアログ画面) |
+| Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot3_browser_1280x800.png` (Chromeブラウザ操作モックアップ) |
+| Popup Preview [REFERENCE] | 340×490 | ✅ Ready | `docs/screenshots/popup_3items_success.png` (ポップアップ実寸) |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ⬜ Not created | |
 | Marquee Promo Tile | 1400×560 | ⬜ Not created | |
 
 ### Screenshot Notes
-- スクリーンショット1: ポップアップのメイン操作画面（タイトルタブ、自動引き換えトグル、ログ一覧）。
-- スクリーンショット2: 引き換え実行結果ダイアログおよびデスクトップ通知の表示イメージ。
-- スクリーンショット3: 初回オプトイン画面（プライバシーへの配慮と免責事項の明示）。
+- スクリーンショット1: ポップアップのメイン操作画面（原神タブ、自動引き換えトグルON、3件の交換成功ログ一覧）。
+- スクリーンショット2: 手動引き換え後の「3件のコードを引き換えました」ダイアログ表示画面。
+- スクリーンショット3: Chromeブラウザ上でHoYoPassを開いた実際の利用体験モックアップ。
+- ポップアップ単体プレビュー: READMEやドキュメント掲載用の実寸切り抜きキャプチャ。
 
 
 ## Permissions Justification
