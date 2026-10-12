@@ -4,6 +4,10 @@ HoYoverseゲーム（**原神**、**崩壊：スターレイル**、**ゼンレ�
 
 煩わしいコードのコピー＆ペースト作業から解放され、ゲーム内メールへ原石や星軌専用チケット、ポリクロームなどの報酬を自動で受け取ることができます。
 
+<p align="center">
+  <img src="docs/screenshots/popup_3items_success.png" alt="HoYoPass 画面プレビュー（コード3件引き換え完了時）" width="340">
+</p>
+
 ---
 
 ## 🌟 主な特徴
@@ -150,6 +154,9 @@ npm test
 
 # 機密情報混入スキャン
 npm run check-secrets
+
+# ストア掲載用スクリーンショットの自動生成
+npm run generate-screenshots
 ```
 
 ### ストア公開用パッケージ (ZIP) の作成
