@@ -227,3 +227,66 @@ test('runAutoRedeemFlow: 全3ゲーム巡回（未プレイゲームはスキッ
   }
 });
 
+test('runAutoRedeemFlow: 手動実行（単一ゲーム指定）時は選択ゲームのみ実行され他ゲームは処理されない', async () => {
+  mockCreatedNotifications.length = 0;
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const fetchedGames = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const urlStr = url.toString();
+    if (urlStr.includes('getUserGameRolesByCookie')) {
+      if (urlStr.includes('hk4e_global')) {
+        fetchedGames.push('GENSHIN');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }] }
+          })
+        };
+      }
+      if (urlStr.includes('hkrpg_global')) fetchedGames.push('STAR_RAIL');
+      if (urlStr.includes('nap_global')) fetchedGames.push('ZZZ');
+      return { ok: true, status: 200, json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }) };
+    }
+
+    if (urlStr.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'GENSHINNEW2' }] })
+      };
+    }
+
+    if (urlStr.includes('webExchangeCdkey')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ retcode: 0, message: 'OK' }) };
+    }
+
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const res = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(res.success, true);
+    assert.equal(res.targetGameKey, 'GENSHIN');
+    assert.equal(res.redeemedCount, 1);
+    assert.ok(res.results.GENSHIN);
+    assert.equal(res.results.STAR_RAIL, undefined, 'STAR_RAILは処理されない');
+    assert.equal(res.results.ZZZ, undefined, 'ZZZは処理されない');
+    assert.deepEqual(fetchedGames, ['GENSHIN'], '原神以外のAPIは呼ばれない');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow: 未知のゲームキー指定時は安全にエラーが返る', async () => {
+  const res = await runAutoRedeemFlow('MANUAL', 'UNKNOWN_GAME');
+  assert.equal(res.success, false);
+  assert.match(res.reason, /未知のゲームキー/);
+});
+

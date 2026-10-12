@@ -53,7 +53,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     manualTriggerBtn.disabled = true;
     manualTriggerBtn.textContent = '引き換え実行中...';
     try {
-      const resp = await chrome.runtime.sendMessage({ type: 'TRIGGER_MANUAL_REDEEM' });
+      const resp = await chrome.runtime.sendMessage({
+        type: 'TRIGGER_MANUAL_REDEEM',
+        gameKey: currentGameKey
+      });
       const { title, message, detail } = formatRedeemResult(resp);
       await showAlertModal(title, message, detail);
     } catch (err) {

@@ -1,3 +1,5 @@
+import { GAMES } from '../config/constants.js';
+
 /**
  * 引き換え結果オブジェクトからユーザー向け表示用タイトル、概要メッセージ、解析用詳細原因を生成する
  * 
@@ -22,8 +24,47 @@ export function formatRedeemResult(resp) {
   if (resp.success) {
     const count = resp.redeemedCount || 0;
 
-    // 複数ゲーム巡回結果 (resp.results) が存在する場合
+    // ゲーム別結果 (resp.results) が存在する場合
     if (resp.results && typeof resp.results === 'object') {
+      const resultKeys = Object.keys(resp.results);
+
+      // 単一ゲーム指定の場合（画面からの手動引き換えなど）
+      if (resultKeys.length === 1) {
+        const singleKey = resultKeys[0];
+        const res = resp.results[singleKey];
+        const name = res.gameName || GAMES[singleKey]?.name || singleKey;
+
+        if (res.skipped && res.reason === 'NO_CHARACTER') {
+          return {
+            title: 'コード交換完了',
+            message: `【${name}】キャラクターが作成されていません。ゲーム内でキャラクターを作成してください。`,
+            detail: null
+          };
+        }
+        if (res.retcode === -100 || res.retcode === -1071 || res.reason === 'LOGIN_REQUIRED' || (res.reason && (res.reason.includes('-100') || res.reason.includes('-1071')))) {
+          return {
+            title: 'コード交換失敗',
+            message: `【${name}】未ログインです。公式サイトでログインを行ってください。`,
+            detail: res.reason || null
+          };
+        }
+        if (!res.success) {
+          return {
+            title: 'コード交換失敗',
+            message: `【${name}】引き換えに失敗しました (${res.reason || 'エラー'})。`,
+            detail: res.reason || null
+          };
+        }
+
+        const gameCount = res.redeemedCount || 0;
+        return {
+          title: gameCount > 0 ? 'コード交換成功' : 'コード交換完了',
+          message: gameCount > 0
+            ? `【${name}】${gameCount}件のコードを引き換えました。\nゲーム内メールをご確認ください。`
+            : `【${name}】利用可能な新しい引き換えコードはありませんでした。`,
+          detail: null
+        };
+      }
       const summaryLines = [];
       let anyPlayed = false;
       let hasLoginError = false;

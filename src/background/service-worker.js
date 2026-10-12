@@ -61,7 +61,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
 
   if (message.type === 'TRIGGER_MANUAL_REDEEM') {
-    runAutoRedeemFlow('MANUAL')
+    runAutoRedeemFlow('MANUAL', message.gameKey)
       .then(res => sendResponse(res))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
@@ -158,7 +158,7 @@ export async function redeemForGame(gameKey) {
   return { success: true, skipped: false, redeemedCount, gameKey, gameName: gameConfig.name };
 }
 
-export async function runAutoRedeemFlow(triggerSource = 'MANUAL') {
+export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey = null) {
   const lockAcquired = await acquireExecutionLock(triggerSource);
   if (!lockAcquired) {
     return { success: false, reason: 'ALREADY_RUNNING' };
@@ -167,6 +167,10 @@ export async function runAutoRedeemFlow(triggerSource = 'MANUAL') {
   try {
     if (await isUnderBackoff()) {
       return { success: false, reason: 'UNDER_BACKOFF' };
+    }
+
+    if (targetGameKey && !GAMES[targetGameKey]) {
+      return { success: false, reason: `未知のゲームキー: ${targetGameKey}` };
     }
 
     const cap = await checkStorageCapacity();
@@ -179,7 +183,7 @@ export async function runAutoRedeemFlow(triggerSource = 'MANUAL') {
       });
     }
 
-    const gameKeys = Object.keys(GAMES);
+    const gameKeys = targetGameKey ? [targetGameKey] : Object.keys(GAMES);
     const results = {};
     let totalRedeemed = 0;
 
@@ -207,7 +211,8 @@ export async function runAutoRedeemFlow(triggerSource = 'MANUAL') {
     return {
       success: true,
       redeemedCount: totalRedeemed,
-      results
+      results,
+      targetGameKey: targetGameKey || null
     };
   } catch (err) {
     if (err.message && err.message.startsWith('STORAGE_WRITE_FAILURE')) {

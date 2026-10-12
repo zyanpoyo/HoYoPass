@@ -125,6 +125,58 @@ test('formatRedeemResult: 複数ゲーム巡回結果 (全ゲーム未プレイ)
   assert.match(res.message, /・原神: 未プレイのためスキップ/);
 });
 
+test('formatRedeemResult: 単一ゲーム結果 (成功件数あり)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 2,
+    results: {
+      GENSHIN: { success: true, skipped: false, redeemedCount: 2, gameName: '原神' }
+    }
+  });
+  assert.equal(res.title, 'コード交換成功');
+  assert.match(res.message, /【原神】2件のコードを引き換えました/);
+  assert.equal(res.detail, null);
+});
+
+test('formatRedeemResult: 単一ゲーム結果 (0件)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 0,
+    results: {
+      STAR_RAIL: { success: true, skipped: false, redeemedCount: 0, gameName: '崩壊：スターレイル' }
+    }
+  });
+  assert.equal(res.title, 'コード交換完了');
+  assert.match(res.message, /【崩壊：スターレイル】利用可能な新しい引き換えコードはありませんでした/);
+  assert.equal(res.detail, null);
+});
+
+test('formatRedeemResult: 単一ゲーム結果 (未プレイ)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 0,
+    results: {
+      ZZZ: { success: true, skipped: true, reason: 'NO_CHARACTER', gameName: 'ゼンレスゾーンゼロ' }
+    }
+  });
+  assert.equal(res.title, 'コード交換完了');
+  assert.match(res.message, /【ゼンレスゾーンゼロ】キャラクターが作成されていません/);
+  assert.equal(res.detail, null);
+});
+
+test('formatRedeemResult: 単一ゲーム結果 (未ログイン)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 0,
+    results: {
+      GENSHIN: { success: false, skipped: false, retcode: -100, reason: 'Login expired', gameName: '原神' }
+    }
+  });
+  assert.equal(res.title, 'コード交換失敗');
+  assert.match(res.message, /【原神】未ログインです/);
+  assert.equal(res.detail, 'Login expired');
+});
+
 test('formatLogTimestamp: MM/DD HH:mm 形式へのフォーマットとゼロ埋め', () => {
   // 2026-10-12 14:30
   const d1 = new Date(2026, 9, 12, 14, 30, 0).getTime();
