@@ -1,6 +1,6 @@
 {
   "name": "hoyopass",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "HoYoPass - 交換コード自動引き換えツール",
   "type": "module",
   "scripts": {

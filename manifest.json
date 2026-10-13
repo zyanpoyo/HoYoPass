@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "HoYoPass - 交換コード自動引き換えツール",
   "short_name": "HoYoPass",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "HoYoverseゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）の交換コードを自動引き換えする非公式拡張機能です。",
   "minimum_chrome_version": "114",
   "icons": {
@@ -25,7 +25,8 @@
   "permissions": [
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "idle"
   ],
   "host_permissions": [
     "https://api-os-takumi.hoyoverse.com/*",

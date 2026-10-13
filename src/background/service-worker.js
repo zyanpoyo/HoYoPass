@@ -1,4 +1,4 @@
-import { GAMES, API_CONFIG, STATUS_MAP } from '../config/constants.js';
+import { GAMES, API_CONFIG, STATUS_MAP, ALARM_NAMES } from '../config/constants.js';
 import {
   acquireExecutionLock,
   releaseExecutionLock,
@@ -10,20 +10,57 @@ import {
   getRedeemedCodes,
   markCodeStatus,
   pruneHistoryIfExceeded,
-  addExecutionLog
+  addExecutionLog,
+  getLastSuccessfulRun,
+  setLastSuccessfulRun,
+  shouldRunRedeem
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, redeemCode } from '../services/hoyo-api.js';
 
-const ALARM_NAME = 'hoyo_auto_redeem_alarm';
-
 export async function setupAlarm() {
-  const existing = await chrome.alarms.get(ALARM_NAME);
-  if (!existing) {
-    await chrome.alarms.create(ALARM_NAME, {
+  const existing = await chrome.alarms.get(ALARM_NAMES.AUTO_REDEEM);
+  if (!existing || existing.periodInMinutes !== API_CONFIG.REDEEM_INTERVAL_MINUTES) {
+    await chrome.alarms.create(ALARM_NAMES.AUTO_REDEEM, {
       periodInMinutes: API_CONFIG.REDEEM_INTERVAL_MINUTES
     });
   }
+}
+
+export async function scheduleRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVAL_MINUTES) {
+  const existing = await chrome.alarms.get(ALARM_NAMES.RETRY);
+  if (!existing) {
+    await chrome.alarms.create(ALARM_NAMES.RETRY, {
+      delayInMinutes: delayMinutes
+    });
+    await addExecutionLog({
+      type: 'INFO',
+      message: `通信環境等のため、${delayMinutes}分後に自動再試行を予約しました。`
+    });
+  }
+}
+
+export async function clearRetryAlarm() {
+  await chrome.alarms.clear(ALARM_NAMES.RETRY);
+}
+
+export async function maybeRunCatchUp(triggerSource = 'STARTUP') {
+  const settings = await getSettings();
+  if (!settings.optInAccepted || !settings.autoRedeemEnabled) return false;
+
+  const shouldRun = await shouldRunRedeem(API_CONFIG.REDEEM_INTERVAL_MINUTES);
+  if (!shouldRun) return false;
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    return false;
+  }
+
+  if (API_CONFIG.CATCH_UP_DELAY_MS > 0) {
+    await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
+  }
+
+  return await runAutoRedeemFlow(triggerSource);
 }
 
 export const LOGIN_NOTIFICATION_PREFIX = 'login_required_';
@@ -45,15 +82,31 @@ chrome.runtime.onInstalled.addListener(() => {
   setupAlarm();
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  setupAlarm();
+chrome.runtime.onStartup.addListener(async () => {
+  await setupAlarm();
+  await maybeRunCatchUp('STARTUP');
 });
 
+if (chrome.idle && chrome.idle.onStateChanged) {
+  chrome.idle.onStateChanged.addListener(async (newState) => {
+    if (newState === 'active') {
+      await maybeRunCatchUp('IDLE_ACTIVE');
+    }
+  });
+}
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === ALARM_NAME) {
+  if (alarm.name === ALARM_NAMES.AUTO_REDEEM || alarm.name === ALARM_NAMES.RETRY) {
     const settings = await getSettings();
     if (!settings.optInAccepted || !settings.autoRedeemEnabled) return;
-    await runAutoRedeemFlow('ALARM');
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+      return;
+    }
+
+    const source = alarm.name === ALARM_NAMES.RETRY ? 'RETRY_ALARM' : 'ALARM';
+    await runAutoRedeemFlow(source);
   }
 });
 
@@ -208,6 +261,11 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
       }
     }
 
+    if (!targetGameKey) {
+      await setLastSuccessfulRun(Date.now());
+      await clearRetryAlarm();
+    }
+
     return {
       success: true,
       redeemedCount: totalRedeemed,
@@ -223,6 +281,16 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
         message: 'ストレージ容量が上限に達したため、自動実行を停止しました。'
       });
     }
+
+    const isNetworkError = err.message && (
+      err.message.includes('fetch') ||
+      err.message.includes('Network') ||
+      err.message.includes('TIMEOUT')
+    );
+    if (isNetworkError) {
+      await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    }
+
     await addExecutionLog({ type: 'ERROR', message: `例外発生: ${err.message}` });
     return { success: false, reason: 'EXCEPTION', error: err.message };
   } finally {

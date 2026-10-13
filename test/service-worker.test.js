@@ -9,6 +9,8 @@ const mockStorage = {
 const mockCreatedTabs = [];
 const mockClearedNotifications = [];
 const mockCreatedNotifications = [];
+const mockAlarms = new Map();
+const mockIdleListeners = [];
 
 globalThis.chrome = {
   storage: {
@@ -24,9 +26,15 @@ globalThis.chrome = {
     }
   },
   alarms: {
-    get: async () => null,
-    create: () => {},
+    get: async (name) => mockAlarms.get(name) || null,
+    create: async (name, opts) => { mockAlarms.set(name, opts); },
+    clear: async (name) => { mockAlarms.delete(name); },
     onAlarm: { addListener: () => {} }
+  },
+  idle: {
+    onStateChanged: {
+      addListener: (fn) => { mockIdleListeners.push(fn); }
+    }
   },
   notifications: {
     create: (id, opts) => { mockCreatedNotifications.push({ id, opts }); },
@@ -48,9 +56,9 @@ globalThis.chrome = {
   }
 };
 
-import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes } from '../src/services/storage-service.js';
-import { STATUS_MAP, GAMES } from '../src/config/constants.js';
-const { handleNotificationClick, LOGIN_NOTIFICATION_PREFIX, redeemForGame, runAutoRedeemFlow } = await import('../src/background/service-worker.js');
+import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun } from '../src/services/storage-service.js';
+import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG } from '../src/config/constants.js';
+const { handleNotificationClick, LOGIN_NOTIFICATION_PREFIX, redeemForGame, runAutoRedeemFlow, setupAlarm, scheduleRetryAlarm, clearRetryAlarm, maybeRunCatchUp } = await import('../src/background/service-worker.js');
 
 test('排他ロック: 獲得と解放', async () => {
   const lock1 = await acquireExecutionLock('TEST');
@@ -289,4 +297,81 @@ test('runAutoRedeemFlow: 未知のゲームキー指定時は安全にエラー�
   assert.equal(res.success, false);
   assert.match(res.reason, /未知のゲームキー/);
 });
+
+test('setupAlarm: 定期アラームが正しく登録される', async () => {
+  mockAlarms.clear();
+  await setupAlarm();
+  const alarm = mockAlarms.get(ALARM_NAMES.AUTO_REDEEM);
+  assert.ok(alarm, '定期アラームが作成されている');
+  assert.equal(alarm.periodInMinutes, API_CONFIG.REDEEM_INTERVAL_MINUTES, '設定された周期であること');
+});
+
+test('scheduleRetryAlarm / clearRetryAlarm: 短期リトライアラームの登録と解除', async () => {
+  mockAlarms.clear();
+  await scheduleRetryAlarm(2);
+  const retryAlarm = mockAlarms.get(ALARM_NAMES.RETRY);
+  assert.ok(retryAlarm, 'リトライアラームが作成されている');
+  assert.equal(retryAlarm.delayInMinutes, 2, '2分後遅延であること');
+
+  await clearRetryAlarm();
+  assert.equal(mockAlarms.get(ALARM_NAMES.RETRY), undefined, 'リトライアラームが解除されている');
+});
+
+test('maybeRunCatchUp: 設定無効時や3時間未経過時はスキップ、3時間経過時は実行される', async () => {
+  mockStorage.local.clear();
+
+  // 1. オプトイン未承諾の場合はスキップ
+  let res = await maybeRunCatchUp('TEST');
+  assert.equal(res, false, 'オプトイン未承諾時はfalse');
+
+  // 2. 有効化するが直近実行済み（3時間未経過）の場合はスキップ
+  await chrome.storage.local.set({
+    app_settings: { optInAccepted: true, autoRedeemEnabled: true }
+  });
+  await setLastSuccessfulRun(Date.now()); // 今実行したばかり
+  res = await maybeRunCatchUp('TEST');
+  assert.equal(res, false, '3時間未経過時はfalse');
+
+  // 3. 3時間以上経過している場合（テスト高速化のため遅延を0msに一時上書き）
+  const originalDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  API_CONFIG.CATCH_UP_DELAY_MS = 0;
+  await setLastSuccessfulRun(Date.now() - (4 * 60 * 60 * 1000)); // 4時間前
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }),
+    text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { list: [] } })
+  });
+
+  try {
+    res = await maybeRunCatchUp('TEST');
+    assert.equal(res.success, true, 'キャッチアップ実行が成功すること');
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow: 通信エラー発生時に自動でリトライアラームがスケジュールされる', async () => {
+  mockAlarms.clear();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+
+  try {
+    const res = await runAutoRedeemFlow('ALARM');
+    assert.equal(res.success, false);
+    assert.equal(res.reason, 'EXCEPTION');
+    const retryAlarm = mockAlarms.get(ALARM_NAMES.RETRY);
+    assert.ok(retryAlarm, '通信例外時にリトライアラームが登録されていること');
+    assert.equal(retryAlarm.delayInMinutes, API_CONFIG.RETRY_INTERVAL_MINUTES);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 

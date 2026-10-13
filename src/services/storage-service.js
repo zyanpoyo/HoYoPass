@@ -137,3 +137,19 @@ export async function addExecutionLog(logEntry) {
   if (logs.length > API_CONFIG.MAX_EXECUTION_LOGS) logs.pop();
   await chrome.storage.local.set({ exec_logs: logs });
 }
+
+export async function getLastSuccessfulRun() {
+  const data = await chrome.storage.local.get('last_successful_run');
+  return data.last_successful_run || 0;
+}
+
+export async function setLastSuccessfulRun(timestamp = Date.now()) {
+  await chrome.storage.local.set({ last_successful_run: timestamp });
+}
+
+export async function shouldRunRedeem(minIntervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES) {
+  const lastRun = await getLastSuccessfulRun();
+  const elapsedMs = Date.now() - lastRun;
+  return elapsedMs >= minIntervalMinutes * 60 * 1000;
+}
+

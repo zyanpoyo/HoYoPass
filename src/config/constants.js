@@ -1,7 +1,9 @@
 export const API_CONFIG = {
   CODE_API_TIMEOUT_MS: 10_000,
   HOYO_API_TIMEOUT_MS: 10_000,
-  REDEEM_INTERVAL_MINUTES: 240, // 4時間周期
+  REDEEM_INTERVAL_MINUTES: 180, // 3時間周期
+  RETRY_INTERVAL_MINUTES: 2, // 2分後短期リトライ
+  CATCH_UP_DELAY_MS: 15_000, // 起動時・スリープ復帰時の回線安定待ち (15秒)
   INTER_REQUEST_DELAY_MS: 5_200, // 5.2秒ウェイト
   MAX_CODE_RETRIES: 3,
   BACKOFF_DURATION_MS: 30 * 60 * 1000, // 30分間バックオフ
@@ -11,6 +13,11 @@ export const API_CONFIG = {
   STORAGE_WARNING_THRESHOLD: 0.8, // 80%容量監視
   MAX_REDEEMED_HISTORY_LIMIT: 3000, // 古い確定記録整理の閾値
   MAX_EXECUTION_LOGS: 50 // ポップアップ・ストレージ保持ログ件数
+};
+
+export const ALARM_NAMES = {
+  AUTO_REDEEM: 'hoyo_auto_redeem_alarm',
+  RETRY: 'hoyo_retry_alarm'
 };
 
 export const STATUS_MAP = {
