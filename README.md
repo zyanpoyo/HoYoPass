@@ -153,6 +153,24 @@ HoYoPassは利用者のプライバシーを尊重し、Cookieや認証情報の
 
 👉 **[システムアーキテクチャ & 技術仕様書 (docs/design/architecture.md)](docs/design/architecture.md)**
 
+### プロダクトフレーバー (dev / prod) のビルド & 開発
+同一コードベースから、開発・検証用（短縮周期・DEV表示）と製品用（本番周期）をコマンド1つで独立ビルドできます：
+
+```bash
+# 開発用フレーバーのビルド（定期実行: 3分毎、名称: HoYoPass [DEV]）
+npm run build:dev
+
+# ソースコード変更の自動監視・再ビルド（開発時推奨）
+npm run watch:dev
+
+# 製品用フレーバーのビルド（定期実行: 3時間毎、本番名称）
+npm run build:prod
+```
+
+- **Chromeへの読み込み**:
+  - 開発・検証時は `dist/dev/` フォルダをChrome（`chrome://extensions/`）から読み込みます。
+  - 名称が `HoYoPass [DEV]` となるため、製品版と同一ブラウザ内に共存させてテスト可能です。
+
 ### 開発・テスト手順
 ```bash
 # 依存関係セットアップ（アイコン生成等）

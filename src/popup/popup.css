@@ -58,6 +58,17 @@ body {
   gap: 10px;
 }
 
+.flavor-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: #f97316;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
 .icon-wrapper {
   width: 32px;
   height: 32px;

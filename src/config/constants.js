@@ -1,9 +1,11 @@
+import { FLAVOR_CONFIG } from './env.js';
+
 export const API_CONFIG = {
   CODE_API_TIMEOUT_MS: 10_000,
   HOYO_API_TIMEOUT_MS: 10_000,
-  REDEEM_INTERVAL_MINUTES: 180, // 3時間周期
+  REDEEM_INTERVAL_MINUTES: FLAVOR_CONFIG?.config?.REDEEM_INTERVAL_MINUTES ?? 180,
   RETRY_INTERVAL_MINUTES: 2, // 2分後短期リトライ
-  CATCH_UP_DELAY_MS: 15_000, // 起動時・スリープ復帰時の回線安定待ち (15秒)
+  CATCH_UP_DELAY_MS: FLAVOR_CONFIG?.config?.CATCH_UP_DELAY_MS ?? 15_000,
   INTER_REQUEST_DELAY_MS: 5_200, // 5.2秒ウェイト
   MAX_CODE_RETRIES: 3,
   BACKOFF_DURATION_MS: 30 * 60 * 1000, // 30分間バックオフ
@@ -12,7 +14,9 @@ export const API_CONFIG = {
   DAILY_NEW_CODE_LIMIT: 20, // 1日あたりの新規コード上限
   STORAGE_WARNING_THRESHOLD: 0.8, // 80%容量監視
   MAX_REDEEMED_HISTORY_LIMIT: 3000, // 古い確定記録整理の閾値
-  MAX_EXECUTION_LOGS: 50 // ポップアップ・ストレージ保持ログ件数
+  MAX_EXECUTION_LOGS: 50, // ポップアップ・ストレージ保持ログ件数
+  IS_DEV: FLAVOR_CONFIG?.config?.IS_DEV ?? false,
+  FLAVOR_UI: FLAVOR_CONFIG?.ui ?? { badgeText: '', intervalLabel: '定期自動引き換え (3時間毎)' }
 };
 
 export const ALARM_NAMES = {

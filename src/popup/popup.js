@@ -1,4 +1,4 @@
-import { GAMES, DOCS_URLS } from '../config/constants.js';
+import { GAMES, DOCS_URLS, API_CONFIG } from '../config/constants.js';
 import { getSettings, updateSettings } from '../services/storage-service.js';
 import { getUserGameRoles } from '../services/hoyo-api.js';
 import { formatRedeemResult, formatLogTimestamp } from '../utils/message-formatter.js';
@@ -12,6 +12,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const autoRedeemToggle = document.getElementById('auto-redeem-toggle');
   const manualTriggerBtn = document.getElementById('manual-trigger-btn');
   const gameTabs = document.getElementById('game-tabs');
+  const flavorBadge = document.getElementById('flavor-badge');
+  const autoRedeemLabel = document.getElementById('auto-redeem-label');
+
+  // フレーバーUIの反映
+  if (API_CONFIG.FLAVOR_UI) {
+    if (autoRedeemLabel && API_CONFIG.FLAVOR_UI.intervalLabel) {
+      autoRedeemLabel.textContent = API_CONFIG.FLAVOR_UI.intervalLabel;
+    }
+    if (flavorBadge && API_CONFIG.FLAVOR_UI.badgeText) {
+      flavorBadge.textContent = API_CONFIG.FLAVOR_UI.badgeText;
+      flavorBadge.style.display = 'inline-block';
+    }
+  }
 
   // 設定読み込み
   const settings = await getSettings();

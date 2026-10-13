@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.js",
+    "build:dev": "node scripts/build.js dev",
+    "build:prod": "node scripts/build.js prod",
+    "watch:dev": "node scripts/build.js dev --watch",
     "check-secrets": "node scripts/check-secrets.js",
     "generate-icons": "node scripts/generate-icons.js",
     "generate-screenshots": "node scripts/generate-screenshots.js",

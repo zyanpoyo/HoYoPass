@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { execSync } from 'node:child_process';
+import { buildFlavor } from './build.js';
 
 // CRC32 計算テーブル
 function crc32(buf) {
@@ -164,16 +165,20 @@ async function runPackaging() {
     process.exit(1);
   }
 
-  // 2. マニフェスト読み込み
-  const manifestPath = path.resolve('manifest.json');
+  // 2. prod フレーバーのビルドを実行
+  console.log('🏗️ [Build] 製品版 (prod) フレーバーをビルドしています...');
+  buildFlavor('prod');
+  const prodDir = path.resolve('dist', 'prod');
+
+  const manifestPath = path.join(prodDir, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
-    console.error('❌ manifest.json が見つかりません。');
+    console.error('❌ dist/prod/manifest.json が見つかりません。');
     process.exit(1);
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const version = manifest.version || '1.0.0';
 
-  // 3. ホワイトリストファイルの収集
+  // 3. ホワイトリストファイルの収集 (dist/prod から収集)
   console.log('📦 [Collect] プロダクションアセットを収集しています...');
   const targetFiles = [
     'manifest.json',
@@ -189,17 +194,26 @@ async function runPackaging() {
 
   const filesToPackage = [];
 
-  for (const file of targetFiles) {
-    if (fs.existsSync(file)) {
-      filesToPackage.push(file);
+  for (const relFile of targetFiles) {
+    const fullPath = path.join(prodDir, relFile);
+    if (fs.existsSync(fullPath)) {
+      filesToPackage.push({ fullPath, relativePath: relFile });
     } else {
-      console.warn(`⚠️ 警告: ファイルが見つかりません: ${file}`);
+      console.warn(`⚠️ 警告: ファイルが見つかりません: ${relFile}`);
     }
   }
 
-  for (const dir of targetDirs) {
-    const files = collectFilesRecursively(dir);
-    filesToPackage.push(...files);
+  for (const relDir of targetDirs) {
+    const fullDir = path.join(prodDir, relDir);
+    if (fs.existsSync(fullDir)) {
+      const files = collectFilesRecursively(fullDir);
+      for (const f of files) {
+        filesToPackage.push({
+          fullPath: f,
+          relativePath: path.relative(prodDir, f).replace(/\\/g, '/')
+        });
+      }
+    }
   }
 
   // 4. 禁止ファイルの厳格な混入チェック（ダブルガード）
@@ -218,11 +232,11 @@ async function runPackaging() {
     /\.DS_Store$/i
   ];
 
-  for (const file of filesToPackage) {
-    const norm = file.replace(/\\/g, '/');
+  for (const item of filesToPackage) {
+    const norm = item.relativePath;
     for (const pattern of prohibitedPatterns) {
       if (pattern.test(norm)) {
-        console.error(`🚨 セキュリティエラー: 禁止ファイルがパッケージング対象に含まれています: ${file}`);
+        console.error(`🚨 セキュリティエラー: 禁止ファイルがパッケージング対象に含まれています: ${item.relativePath}`);
         process.exit(1);
       }
     }
@@ -233,10 +247,10 @@ async function runPackaging() {
   const zip = new SimpleZip();
   let totalRawBytes = 0;
 
-  for (const file of filesToPackage) {
-    const content = fs.readFileSync(file);
+  for (const item of filesToPackage) {
+    const content = fs.readFileSync(item.fullPath);
     totalRawBytes += content.length;
-    zip.addFile(file, content);
+    zip.addFile(item.relativePath, content);
   }
 
   const zipBuffer = zip.toBuffer();
@@ -259,7 +273,7 @@ async function runPackaging() {
   console.log(`🗜️ ZIPサイズ: ${(zipBuffer.length / 1024).toFixed(1)} KB`);
   console.log('==================================================');
   console.log('\n【格納されたファイル一覧】');
-  filesToPackage.forEach(f => console.log(` • ${f.replace(/\\/g, '/')}`));
+  filesToPackage.forEach(item => console.log(` • ${item.relativePath}`));
   console.log('==================================================\n');
 }
 
