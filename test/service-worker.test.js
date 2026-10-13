@@ -355,8 +355,9 @@ test('maybeRunCatchUp: 設定無効時や3時間未経過時はスキップ、3�
   }
 });
 
-test('runAutoRedeemFlow: 通信エラー発生時に自動でリトライアラームがスケジュールされる', async () => {
+test('runAutoRedeemFlow: 通信エラー発生時に自動でリトライアラームがスケジュールされ例外ERRORログは抑制される', async () => {
   mockAlarms.clear();
+  mockStorage.local.clear();
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => {
     throw new TypeError('Failed to fetch');
@@ -365,10 +366,14 @@ test('runAutoRedeemFlow: 通信エラー発生時に自動でリトライアラ�
   try {
     const res = await runAutoRedeemFlow('ALARM');
     assert.equal(res.success, false);
-    assert.equal(res.reason, 'EXCEPTION');
+    assert.equal(res.reason, 'NETWORK_RETRY_SCHEDULED');
     const retryAlarm = mockAlarms.get(ALARM_NAMES.RETRY);
     assert.ok(retryAlarm, '通信例外時にリトライアラームが登録されていること');
     assert.equal(retryAlarm.delayInMinutes, API_CONFIG.RETRY_INTERVAL_MINUTES);
+
+    const logs = (await chrome.storage.local.get('exec_logs')).exec_logs || [];
+    assert.ok(logs.some(l => l.message.includes('一時的な通信不通を検知')), 'リトライ予告ログが存在すること');
+    assert.equal(logs.some(l => l.message.includes('例外発生')), false, '例外発生のERRORログは抑制されていること');
   } finally {
     globalThis.fetch = originalFetch;
   }

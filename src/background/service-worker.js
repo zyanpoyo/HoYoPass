@@ -35,7 +35,7 @@ export async function scheduleRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVA
     });
     await addExecutionLog({
       type: 'INFO',
-      message: `通信環境等のため、${delayMinutes}分後に自動再試行を予約しました。`
+      message: `一時的な通信不通を検知したため、${delayMinutes}分後に自動再試行します`
     });
   }
 }
@@ -287,12 +287,18 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
       err.message.includes('Network') ||
       err.message.includes('TIMEOUT')
     );
+
     if (isNetworkError) {
       await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    } else {
+      await addExecutionLog({ type: 'ERROR', message: `例外発生: ${err.message}` });
     }
 
-    await addExecutionLog({ type: 'ERROR', message: `例外発生: ${err.message}` });
-    return { success: false, reason: 'EXCEPTION', error: err.message };
+    return {
+      success: false,
+      reason: isNetworkError ? 'NETWORK_RETRY_SCHEDULED' : 'EXCEPTION',
+      error: err.message
+    };
   } finally {
     await releaseExecutionLock();
   }
