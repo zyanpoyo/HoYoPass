@@ -2,10 +2,15 @@ import { API_CONFIG } from '../config/constants.js';
 
 const ALLOWED_HOYO_HOSTS = [
   'api-os-takumi.hoyoverse.com',
+  'api-os-takumi.hoyolab.com',
   'sg-hk4e-api.hoyoverse.com',
+  'sg-hk4e-api.hoyolab.com',
   'sg-hkrpg-api.hoyoverse.com',
+  'sg-public-api.hoyoverse.com',
+  'sg-public-api.hoyolab.com',
   'public-operation-nap.hoyoverse.com',
-  'sg-act-nap-api.hoyoverse.com'
+  'sg-act-nap-api.hoyoverse.com',
+  'sg-act-nap-api.hoyolab.com'
 ];
 
 const ALLOWED_PUBLIC_HOSTS = [

@@ -33,10 +33,21 @@ export async function setBackoff(durationMs = API_CONFIG.BACKOFF_DURATION_MS) {
 
 export async function getSettings() {
   const data = await chrome.storage.local.get('app_settings');
-  return data.app_settings || {
+  const saved = data.app_settings;
+  if (!saved) {
+    return {
+      optInAccepted: false,
+      autoRedeemEnabled: false,
+      autoSignEnabled: false,
+      activeGameKey: 'GENSHIN'
+    };
+  }
+  return {
     optInAccepted: false,
     autoRedeemEnabled: false,
-    activeGameKey: 'GENSHIN'
+    autoSignEnabled: saved.optInAccepted ? true : false,
+    activeGameKey: 'GENSHIN',
+    ...saved
   };
 }
 
@@ -152,4 +163,47 @@ export async function shouldRunRedeem(minIntervalMinutes = API_CONFIG.REDEEM_INT
   const elapsedMs = Date.now() - lastRun;
   return elapsedMs >= minIntervalMinutes * 60 * 1000;
 }
+
+export function getHoyoTodayDateString(nowMs = Date.now()) {
+  const utc8Ms = nowMs + 8 * 60 * 60 * 1000;
+  return new Date(utc8Ms).toISOString().slice(0, 10);
+}
+
+export async function getDailySignRecord(gameBiz) {
+  const key = `daily_sign_${gameBiz}`;
+  const data = await chrome.storage.local.get(key);
+  return data[key] || null;
+}
+
+export async function setDailySignRecord(gameBiz, record) {
+  const key = `daily_sign_${gameBiz}`;
+  const current = await getDailySignRecord(gameBiz);
+  const updated = {
+    ...(current || {}),
+    ...record,
+    updatedAt: Date.now()
+  };
+  try {
+    await chrome.storage.local.set({ [key]: updated });
+  } catch (err) {
+    throw new Error(`STORAGE_WRITE_FAILURE: ${err.message}`);
+  }
+  return updated;
+}
+
+export async function isDailySignedToday(gameBiz, nowMs = Date.now()) {
+  const record = await getDailySignRecord(gameBiz);
+  if (!record || !record.date) return false;
+  const today = getHoyoTodayDateString(nowMs);
+  return record.date === today && (record.isSigned === true || record.skippedNoChar === true);
+}
+
+export async function shouldRunDailySign(gameBizList, nowMs = Date.now()) {
+  for (const gameBiz of gameBizList) {
+    const signed = await isDailySignedToday(gameBiz, nowMs);
+    if (!signed) return true;
+  }
+  return false;
+}
+
 

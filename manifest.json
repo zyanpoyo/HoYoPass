@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "HoYoPass - 交換コード自動引き換えツール",
+  "name": "HoYoPass - ログボ＆交換コード自動受取ツール",
   "short_name": "HoYoPass",
-  "version": "1.0.1",
-  "description": "HoYoverseゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）の交換コードを自動引き換えする非公式拡張機能です。",
+  "version": "1.1.0",
+  "description": "HoYoverseゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のデイリーログインボーナスと交換コードを自動受け取りする非公式拡張機能です。",
   "minimum_chrome_version": "114",
   "icons": {
     "16": "icons/icon16.png",
@@ -30,10 +30,15 @@
   ],
   "host_permissions": [
     "https://api-os-takumi.hoyoverse.com/*",
+    "https://api-os-takumi.hoyolab.com/*",
     "https://sg-hk4e-api.hoyoverse.com/*",
+    "https://sg-hk4e-api.hoyolab.com/*",
     "https://sg-hkrpg-api.hoyoverse.com/*",
+    "https://sg-public-api.hoyoverse.com/*",
+    "https://sg-public-api.hoyolab.com/*",
     "https://public-operation-nap.hoyoverse.com/*",
     "https://sg-act-nap-api.hoyoverse.com/*",
+    "https://sg-act-nap-api.hoyolab.com/*",
     "https://hoyo-codes.seria.moe/*"
   ],
   "content_security_policy": {

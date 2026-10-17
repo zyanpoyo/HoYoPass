@@ -8,6 +8,12 @@
   },
   "host_permissions": [
     "https://api-os-takumi.hoyoverse.com/*",
-    "https://sg-hk4e-api.hoyoverse.com/*"
+    "https://api-os-takumi.hoyolab.com/*",
+    "https://sg-hk4e-api.hoyoverse.com/*",
+    "https://sg-hk4e-api.hoyolab.com/*",
+    "https://sg-public-api.hoyoverse.com/*",
+    "https://sg-public-api.hoyolab.com/*",
+    "https://sg-act-nap-api.hoyoverse.com/*",
+    "https://sg-act-nap-api.hoyolab.com/*"
   ]
 }

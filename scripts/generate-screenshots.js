@@ -37,9 +37,9 @@ function renderPopupHtml({ showDialog = false } = {}) {
     <!-- 結果モーダル -->
     <div id="alert-modal" class="modal-overlay ${showDialog ? '' : 'hidden'}" style="${showDialog ? 'position: absolute; border-radius: 12px;' : ''}">
       <div class="modal-card dialog-card">
-        <h2 id="alert-modal-title" style="color: #38bdf8; font-size: 15px; margin-bottom: 8px;">コード交換成功</h2>
+        <h2 id="alert-modal-title" style="color: #38bdf8; font-size: 15px; margin-bottom: 8px;">完了</h2>
         <p id="alert-modal-message" class="modal-desc dialog-message" style="white-space: pre-line; line-height: 1.5; font-size: 13px; color: #e2e8f0;">
-【原神】3件のコードを引き換えました。
+【原神】ログインボーナスを受け取りました！（今月累計: 17日）
 ゲーム内メールをご確認ください。
         </p>
         <button id="alert-modal-ok-btn" class="btn btn-primary btn-block" style="margin-top: 14px;">OK</button>
@@ -65,26 +65,59 @@ function renderPopupHtml({ showDialog = false } = {}) {
       </header>
 
       <main class="main-content">
-        <div class="control-card">
+        <!-- カード1: デイリーログインボーナス -->
+        <div class="control-card feature-card sign-card">
+          <div class="card-header-row">
+            <span class="card-title">🎁 デイリーログインボーナス</span>
+            <span id="sign-status-badge" class="status-pill signed">受取済 ✅ (累計 17日)</span>
+          </div>
           <div class="toggle-row">
-            <span>定期自動引き換え (4時間毎)</span>
+            <span id="auto-sign-label">自動受取 (毎日 01:05 JST)</span>
+            <label class="switch">
+              <input type="checkbox" id="auto-sign-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="action-btn-row">
+            <button id="manual-sign-btn" class="btn btn-accent btn-flex">本日のログボは受取済 ✅</button>
+            <button id="open-sign-page-btn" class="btn btn-ghost">公式 ↗</button>
+          </div>
+        </div>
+
+        <!-- カード2: 交換コード自動引き換え -->
+        <div class="control-card feature-card redeem-card">
+          <div class="card-header-row">
+            <span class="card-title">🎟️ 交換コード自動引き換え</span>
+          </div>
+          <div class="toggle-row">
+            <span id="auto-redeem-label">自動巡回 (3時間毎)</span>
             <label class="switch">
               <input type="checkbox" id="auto-redeem-toggle" checked>
               <span class="slider"></span>
             </label>
           </div>
-          <button id="manual-trigger-btn" class="btn btn-primary btn-block">今すぐ引き換え実行</button>
+          <div class="action-btn-row">
+            <button id="manual-trigger-btn" class="btn btn-primary btn-flex">今すぐコード引き換え</button>
+            <button id="open-redeem-page-btn" class="btn btn-ghost">公式 ↗</button>
+          </div>
         </div>
 
+        <!-- 実行ログ -->
         <section class="logs-section">
-          <h2>実行ログ (直近50件)</h2>
+          <div class="logs-header-row">
+            <h2>実行ログ (直近50件)</h2>
+            <div class="log-filters" id="log-filters">
+              <button class="filter-btn active" data-filter="ALL">すべて</button>
+              <button class="filter-btn" data-filter="SIGN">ログボ</button>
+              <button class="filter-btn" data-filter="CODE">コード</button>
+            </div>
+          </div>
           <div id="logs-container" class="logs-list">
-            <div class="log-item" style="color: #6ee7b7; font-weight: 500;">[10/12 16:42] 原神: 引き換え完了 (新規成功: 3件)</div>
-            <div class="log-item">[10/12 16:41] 原神: コード GS6ACJ775KNV 引き換え成功</div>
-            <div class="log-item">[10/12 16:41] 原神: コード 8T95CY23PUP9 引き換え成功</div>
-            <div class="log-item">[10/12 16:40] 原神: コード GENSHINGIFT 引き換え成功</div>
-            <div class="log-item" style="color: #94a3b8;">[10/12 12:40] 原神: 引き換え完了 (新規成功: 0件)</div>
-            <div class="log-item" style="color: #94a3b8;">[10/12 08:40] 原神: 定期自動引き換えチェック完了</div>
+            <div class="log-item log-success">[10/17 01:05] [ログボ] 原神: ログボ受取完了 (累計17日)</div>
+            <div class="log-item log-success">[10/17 01:05] [ログボ] 崩壊：スターレイル: ログボ受取完了 (累計17日)</div>
+            <div class="log-item log-success">[10/16 19:00] [コード] 原神: 引き換え完了 (新規成功: 3件)</div>
+            <div class="log-item">[10/16 19:00] [コード] 原神: コード GS6ACJ775KNV 引き換え成功</div>
+            <div class="log-item">[10/16 18:59] [コード] 原神: コード GENSHINGIFT 引き換え成功</div>
           </div>
         </section>
       </main>
@@ -261,24 +294,24 @@ function generateScreenshot1Html() {
       <img src="${extIconBase64}" alt="HoYoPass" class="brand-icon">
       <h1 class="brand-title">HoYoPass</h1>
     </div>
-    <div class="tagline">交換コードを自動検知して<br>ワンクリック一括引き換え</div>
+    <div class="tagline">ログボ受取＆交換コードを<br>バックグラウンドで完全自動化</div>
     <p class="description">
       原神・崩壊：スターレイル・ゼンレスゾーンゼロに対応。<br>
-      定期自動チェックで最新コードの交換漏れを確実に防ぎます。
+      毎日のログインボーナスと最新交換コードの取りこぼしを防ぎます。
     </p>
 
     <div class="feature-list">
       <div class="feature-item">
         <span class="feature-icon">✓</span>
-        <span><strong>4時間ごとの自動巡回</strong> — バックグラウンドで順次引き換え</span>
+        <span><strong>デイリーログボ自動受取</strong> — 毎日 01:05 JST＆起動時に自動取得</span>
       </div>
       <div class="feature-item">
         <span class="feature-icon">✓</span>
-        <span><strong>直近50件の実行ログ</strong> — 交換成功件数や結果を一元把握</span>
+        <span><strong>交換コード自動引き換え</strong> — 3時間ごとに新着コードを順次交換</span>
       </div>
       <div class="feature-item">
         <span class="feature-icon">✓</span>
-        <span><strong>3大タイトル完全対応</strong> — タブ切り替えで手軽に管理</span>
+        <span><strong>個別ON/OFF＆3作対応</strong> — 機能ごとの制御とタブ切り替え</span>
       </div>
       <div class="feature-item">
         <span class="feature-icon">✓</span>
@@ -698,7 +731,7 @@ function generateScreenshot3Html() {
 </html>`;
 }
 
-// 4. ポップアップ単体 (実寸 340x495)
+// 4. ポップアップ単体 (実寸 360x580)
 function generateScreenshotStandaloneHtml() {
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -709,14 +742,14 @@ function generateScreenshotStandaloneHtml() {
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 340px;
-      height: 490px;
+      width: 360px;
+      height: 580px;
       background: #12141a;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     .mockup-popup {
-      width: 340px;
+      width: 360px;
       background-color: #12141a;
       overflow: hidden;
     }
@@ -724,7 +757,7 @@ function generateScreenshotStandaloneHtml() {
       padding: 14px;
     }
     .mockup-popup .logs-list {
-      max-height: 140px;
+      max-height: 115px;
     }
   </style>
 </head>
@@ -790,8 +823,8 @@ async function main() {
       htmlContent: generateScreenshotStandaloneHtml(),
       tempHtml: path.join(TEMP_DIR, 'screen_popup.html'),
       outPng: path.join(OUTPUT_DIR, 'popup_3items_success.png'),
-      width: 340,
-      height: 490
+      width: 360,
+      height: 580
     }
   ];
 

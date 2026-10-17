@@ -1,35 +1,38 @@
 # HoYoPass システムアーキテクチャ & 技術仕様書
 
-本書は、Chrome拡張機能「HoYoPass（交換コード自動引き換えツール）」の内部設計、システム構成、セキュリティモデル、およびアルゴリズム仕様をまとめた技術仕様書です。
+本書は、Chrome拡張機能「HoYoPass - ログボ＆交換コード自動受取ツール」の内部設計、システム構成、セキュリティモデル、およびアルゴリズム仕様をまとめた技術仕様書です。
 
 ---
 
 ## 1. システム概要 & 全体構成図
 
-HoYoPassは、Google Chromeの拡張機能仕様（Manifest V3）に準拠したクライアント完結型の拡張機能です。専用のバックエンドサーバーを持たず、ブラウザのバックグラウンドService Workerと公式API、およびオープンソースの交換コードAPIのみと直接通信します。
+HoYoPassは、Google Chromeの拡張機能仕様（Manifest V3）に準拠したクライアント完結型の拡張機能です。専用のバックエンドサーバーを持たず、ブラウザのバックグラウンドService Workerと公式API（HoYoLAB / HoYoverse）、およびオープンソースの交換コードAPIのみと直接通信します。
 
 ```mermaid
 flowchart TD
     subgraph Browser["Google Chrome (Client)"]
-        SW["Background Service Worker<br>(Alarms 3時間周期 / 全タイトル順次巡回)"]
-        Popup["Popup UI<br>(状態表示・手動実行・ゲーム切替)"]
-        Storage["chrome.storage.local<br>(設定・引き換え済コード・実行ログ)"]
-        CookieJar["Browser Cookie Jar<br>(HoYoverse公式セッションCookie)"]
+        SW["Background Service Worker<br>(ログボ日次アラーム 01:05 JST / コード3時間周期アラーム)"]
+        Popup["Popup UI<br>(統合2カード構成: ログボ受取・交換コード引き換え)"]
+        Storage["chrome.storage.local<br>(設定・ログボ受取記録・引き換え済コード・実行ログ)"]
+        CookieJar["Browser Cookie Jar<br>(.hoyolab.com / .hoyoverse.com 公式セッションCookie)"]
     end
 
     subgraph ExternalServices["外部サービス"]
+        SignAPI["HoYoLAB / HoYoverse Daily Check-In API<br>(info / sign エンドポイント + x-rpc-signgame)"]
         TakumiAPI["HoYoverse Takumi API<br>(ロール情報照会・UID取得)"]
         RedeemAPI["各ゲーム公式交換API<br>(原神 / スタレ / ZZZ)"]
         HoyoCodesAPI["hoyo-codes API<br>(公開交換コード一覧取得)"]
     end
 
-    SW -->|3時間アラーム / キャッチアップ起動| Storage
-    Popup -->|手動実行 / 設定変更| SW
-    Popup -->|設定・ログ読み出し| Storage
+    SW -->|日次アラーム / 3時間アラーム / キャッチアップ起動| Storage
+    Popup -->|手動受取 / 手動引き換え / 個別トグル設定変更| SW
+    Popup -->|設定・受取状態・ログ読み出し| Storage
 
     SW -->|コード一覧取得| HoyoCodesAPI
+    SW -->|Cookie透過通信 credentials: include| SignAPI
     SW -->|Cookie透過通信 credentials: include| TakumiAPI
     SW -->|Cookie透過通信 credentials: include| RedeemAPI
+    CookieJar -.->|ブラウザ自動付与| SignAPI
     CookieJar -.->|ブラウザ自動付与| TakumiAPI
     CookieJar -.->|ブラウザ自動付与| RedeemAPI
 ```
@@ -43,22 +46,26 @@ flowchart TD
 ### 2.1 Cookieの非保持とブラウザ委任 (`credentials: 'include'`)
 - 通常のスクレイピングや非公式ボットでは、ユーザーにログインCookieの手動貼り付けや入力を求めるケースが多く存在します。これにはCookieの流出や不正利用のリスクが伴います。
 - HoYoPassでは、`fetch()` リクエスト時に `credentials: 'include'` を指定することで、ブラウザがすでに保持している公式Cookieをリクエストヘッダーへ自動付加させます。
-- 拡張機能のJavaScriptコード内にはCookie情報（`account_mid_v2` や `ltuid` 等）を一切読み込まず、メモリやストレージにも一切保存しません。
+- 拡張機能のJavaScriptコード内にはCookie情報（`account_mid_v2` や `ltuid_v2`、`ltoken_v2` 等）を一切読み込まず、メモリやストレージにも一切保存しません。
 
-### 2.2 最小権限原則（`cookies` 権限の完全排除）
+### 2.2 デュアルドメインCookieモデル（`.hoyolab.com` & `.hoyoverse.com`）
+- HoYoLABの公式ログインボーナスページ（`act.hoyolab.com`）は `.hoyolab.com` ドメインにセッションCookieを保存し、各ゲームの公式ギフト交換ページ（`*.hoyoverse.com`）は `.hoyoverse.com` ドメインにセッションCookieを保存します。
+- HoYoPassは、ログインボーナスAPIおよびTakumiロール照会APIの呼び出しにおいて、`*.hoyolab.com` をプライマリ、`*.hoyoverse.com` をセカンダリ（未ログインエラー `-100` / `-1071` 発生時の自動フォールバック）として順次試行するデュアルホスト設計を採用しています。
+
+### 2.3 最小権限原則（`cookies` 権限の完全排除）
 - `manifest.json` において、`cookies` API 権限を明示的に要求していません。
 - これにより、悪意あるコードインジェクションや拡張機能の改ざんが発生した場合でも、ユーザーのCookieを盗み出す権限自体が存在しません。
 
-### 2.3 ホスト権限（`host_permissions`）の厳格限定
+### 2.4 ホスト権限（`host_permissions`）の厳格限定
 通信可能なオリジンを以下の公式ドメインおよび検証済みコード配布APIのみに制限しています：
-- `https://api-os-takumi.hoyoverse.com/*`（公式ユーザーロール照会API）
-- `https://sg-hk4e-api.hoyoverse.com/*`（原神 交換API）
-- `https://sg-hkrpg-api.hoyoverse.com/*`（崩壊：スターレイル 交換API）
-- `https://public-operation-nap.hoyoverse.com/*`（ゼンレスゾーンゼロ 交換API）
-- `https://sg-act-nap-api.hoyoverse.com/*`（ゼンレスゾーンゼロ 交換API）
+- `https://api-os-takumi.hoyoverse.com/*` / `https://api-os-takumi.hoyolab.com/*`（公式ユーザーロール照会API）
+- `https://sg-hk4e-api.hoyolab.com/*` / `https://sg-hk4e-api.hoyoverse.com/*`（原神 ログボ受取・交換コード引き換えAPI）
+- `https://sg-public-api.hoyolab.com/*` / `https://sg-public-api.hoyoverse.com/*`（崩壊：スターレイル ログボ受取API）
+- `https://sg-hkrpg-api.hoyoverse.com/*`（崩壊：スターレイル 交換コード引き換えAPI）
+- `https://sg-act-nap-api.hoyolab.com/*` / `https://sg-act-nap-api.hoyoverse.com/*` / `https://public-operation-nap.hoyoverse.com/*`（ゼンレスゾーンゼロ ログボ受取・交換コード引き換えAPI）
 - `https://hoyo-codes.seria.moe/*`（検証済み公開交換コード取得API: [seriaati/hoyo-codes](https://github.com/seriaati/hoyo-codes)）
 
-### 2.4 Content Security Policy (CSP)
+### 2.5 Content Security Policy (CSP)
 Manifest V3の厳格なCSPを採用し、インラインスクリプトや外部スクリプトのロード（`eval` や外部CDN経由のJSなど）を全面的に遮断しています。
 
 ---
@@ -67,7 +74,23 @@ Manifest V3の厳格なCSPを採用し、インラインスクリプトや外部
 
 HoYoPassが利用・通信する外部APIの詳細および仕様・ソースコードのリファレンスとなるGitHubリポジトリは以下の通りです。
 
-### 3.1 hoyo-codes API（公開交換コード一覧取得）
+### 3.1 HoYoLAB / HoYoverse デイリーログインボーナスAPI（Daily Check-In API）
+HoYoLABの公式デイリーチェックインページ（`act.hoyolab.com`）が内部通信で使用している公式REST APIです。
+
+- **各タイトルのエンドポイント & 設定値**:
+  | ゲーム | `act_id` | `x-rpc-signgame` ヘッダ | `info` パス | `sign` パス | 対応ホスト（Primary / Secondary） |
+  | :--- | :--- | :--- | :--- | :--- | :--- |
+  | **原神** | `e202102251931481` | `hk4e` | `/event/sol/info` | `/event/sol/sign` | `sg-hk4e-api.hoyolab.com` / `sg-hk4e-api.hoyoverse.com` |
+  | **崩壊：スターレイル** | `e202303301540311` | `hkrpg` | `/event/luna/hkrpg/os/info` | `/event/luna/hkrpg/os/sign` | `sg-public-api.hoyolab.com` / `sg-public-api.hoyoverse.com` |
+  | **ゼンレスゾーンゼロ** | `e202406031448091` | `zzz` | `/event/luna/zzz/os/info` | `/event/luna/zzz/os/sign` | `sg-act-nap-api.hoyolab.com` / `sg-act-nap-api.hoyoverse.com` |
+- **必須カスタムヘッダー**:
+  - `x-rpc-signgame`: 特にゼンレスゾーンゼロ（`/event/luna/zzz/os/sign`）では、`x-rpc-signgame: zzz` ヘッダーがない場合、未ログイン時であっても `{"retcode":-100,"message":"请从游戏内打开参与活动"}` で拒否されるため、全タイトルで必須ヘッダーとして付与しています。
+- **CAPTCHA（リスク検証）検知**:
+  - `sign` エンドポイントは HTTP 200 かつ `retcode: 0` であっても、`data.is_risk === true` または `data.gt_result?.is_risk === true`（あるいは `retcode === 1034`）としてGeetest CAPTCHA検証を要求する場合があります。
+  - `isCaptchaRisk()` によりこれを検知した際は「受取済」として誤記録せず、ユーザーへ公式チェックインページでの手動認証を促す通知を発行します。
+- **実装箇所**: [`src/services/hoyo-api.js`](../../src/services/hoyo-api.js) (`getDailySignInfo`, `claimDailyBonus`, `isCaptchaRisk`)
+
+### 3.2 hoyo-codes API（公開交換コード一覧取得）
 - **GitHubリポジトリ**: [seriaati/hoyo-codes (GitHub)](https://github.com/seriaati/hoyo-codes)（ライセンス: GPL-3.0）
 - **Web API ホスト**: `https://hoyo-codes.seria.moe`
 - **利用エンドポイント**: `GET https://hoyo-codes.seria.moe/codes?game={genshin|hkrpg|nap}`
@@ -76,11 +99,9 @@ HoYoPassが利用・通信する外部APIの詳細および仕様・ソースコ
 - **ライセンス適合性**: 独立したREST APIの呼び出し（HTTP GET）のみであり、GPL-3.0のコピーレフトはクライアント側に伝播しません。詳細な法的分析は [ライセンス適合性調査レポート (docs/legal/license_compliance_report.md)](../legal/license_compliance_report.md) を参照してください。
 - **セキュリティ & 防御機構**: `publicFetch`（Cookie送信完全遮断、`no-referrer`）経由で通信を行い、受信ペイロードサイズ上限（256KB）および新規コード取得件数上限（50件）のバリデーションを実施しています。
 
-### 3.2 HoYoverse 内部Web API（ロール照会 & コード引き換え）
-HoYoverseの公式Webサイト（HoYoLABおよび各ゲームのギフト交換ページ）が内部通信で使用している公式REST APIです。公式からの公開開発者ポータルや公式GitHubリポジトリは提供されていませんが、オープンソースコミュニティによる解析・仕様リファレンスリポジトリが存在します。
-
+### 3.3 HoYoverse 内部Web API（ロール照会 & コード引き換え）
 - **ロール照会API（Takumi API）**:
-  - エンドポイント: `GET https://api-os-takumi.hoyoverse.com/binding/api/getUserGameRolesByCookie?game_biz={gameBiz}`
+  - エンドポイント: `GET https://api-os-takumi.hoyoverse.com/binding/api/getUserGameRolesByCookie?game_biz={gameBiz}`（フォールバック: `https://api-os-takumi.hoyolab.com/binding/api/getUserGameRolesByCookie`）
   - 概要: ログイン中セッションCookieに紐づくゲーム内キャラクター一覧（UID、サーバー、ニックネーム）を取得。
   - 実装箇所: [`src/services/hoyo-api.js`](../../src/services/hoyo-api.js) (`getUserGameRoles`)
 - **コード引き換えAPI（WebExchangeCdkey API）**:
@@ -91,7 +112,7 @@ HoYoverseの公式Webサイト（HoYoLABおよび各ゲームのギフト交換�
   - 実装箇所: [`src/services/hoyo-api.js`](../../src/services/hoyo-api.js) (`redeemCode`)
 - **関連オープンソース・コミュニティGitHubリポジトリ（仕様リファレンス）**:
   - [torikushiii/hoyoverse-api (GitHub)](https://github.com/torikushiii/hoyoverse-api) - HoYoverse各タイトルのAPI・コード情報をまとめたオープンソースプロジェクト
-  - [thesadru/genshin.py (GitHub)](https://github.com/thesadru/genshin.py) - HoYoverse Web API（Takumi API / 交換API等）の包括的なオープンソースAPIラッパー
+  - [thesadru/genshin.py (GitHub)](https://github.com/thesadru/genshin.py) - HoYoverse Web API（Takumi API / ログボAPI / 交換API等）の包括的なオープンソースAPIラッパー
 
 ---
 
@@ -100,61 +121,43 @@ HoYoverseの公式Webサイト（HoYoLABおよび各ゲームのギフト交換�
 ```
 src/
 ├── background/
-│   └── service-worker.js    # 周期実行アラーム（全タイトル巡回）、手動メッセージハンドラ（選択タイトル限定）、引き換えオーケストレーション
+│   └── service-worker.js    # 2系統アラーム制御（日次ログボ / 3時間コード）、直列キャッチアップ、手動メッセージハンドラ
 ├── config/
-│   └── constants.js         # API定数、ゲーム固有エンドポイント設定、URL定義
+│   ├── constants.js         # API定数、ゲーム固有エンドポイント設定（ログボ・コード）、URL定義
+│   └── flavors.js           # dev / prod ビルドフレーバー別のアラーム周期・ラベル設定
 ├── popup/
-│   ├── popup.html           # ポップアップUIマークアップ
-│   ├── popup.css            # スタイリング（ダークモード基調、レスポンシブ）
-│   └── popup.js             # UIイベント処理、ロール取得状態反映、ログ描画
+│   ├── popup.html           # 統合2カード型ポップアップUIマークアップ
+│   ├── popup.css            # スタイリング（ダークモード基調、2カード構成、ログフィルタタブ）
+│   └── popup.js             # UIイベント処理、ログボ状況・ロール取得状態反映、カテゴリ別ログ描画
 ├── services/
 │   ├── code-fetcher.js      # hoyo-codes APIからのコード一覧取得・ペイロード検証
-│   ├── hoyo-api.js          # Takumi APIロール取得、公式交換API呼び出し
-│   └── storage-service.js   # chrome.storageのCRUD操作、排他ロック（Mutex）管理
+│   ├── hoyo-api.js          # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し
+│   ├── http-client.js       # ホワイトリスト検証付きセキュアHTTPクライアント（credentialedFetch / publicFetch）
+│   └── storage-service.js   # chrome.storageのCRUD操作、UTC+8日付管理、排他ロック（Mutex）管理
 └── utils/
-    └── message-formatter.js # APIレスポンスおよびリターンコードの日本語整形・ダイアログフォーマッタ
+    └── message-formatter.js # ログボおよび交換コードAPIレスポンスの日本語整形フォーマッタ
 ```
 
 ---
 
-## 5. 排他制御・レート制限・耐障害性アルゴリズム
+## 5. 独立2系統アラーム & 高信頼実行アーキテクチャ
 
-HoYoverseの公式APIに対する過剰アクセスや連続リクエストによるレート制限・アカウントペナルティを防ぐため、複数の防護機構を実装しています。
+「デイリーログインボーナス自動受取」と「交換コード自動引き換え」は、更新サイクルが異なるため独立した2系統のイベント軸で制御されています。
 
-### 5.1 排他ロック制御（Mutex）
-- 定期実行（`chrome.alarms`）と手動実行（ポップアップの「今すぐ引き換え」）が同時に重なった場合でも二重実行されないよう、`chrome.storage.local` を利用したアトミックロック（有効期限付き）を備えています。
-- ロック取得中に別の実行トリガーが発生した場合は即座にスキップされ、二重実行を確実に防ぎます。
+### 5.1 ログインボーナス自動受取（日次リセット基準軸）
+- **UTC+8 日付境界の厳密判定**: HoYoLABのデイリーログインボーナスは毎日 `00:00 (UTC+8)` ＝ **日本時間 `01:00 (JST)`** に日付が切り替わります。`getHoyoTodayDateString()` により UTC+8 基準の `YYYY-MM-DD` 文字列を算出し、当日分の受取有無を管理します。
+- **日次定時アラーム (`hoyo_daily_sign_alarm`)**: 毎日 `01:05 JST`（`00:05 UTC+8`）に発火し、1440分（24時間）周期で全3タイトルを自動巡回します。
+- **事前 `info` チェックによる冪等性**: `sign` を叩く前にまず `getDailySignInfo` で `is_sign` を確認し、すでに公式ページ等で受取済みの場合は余分なPOST通信を行わずにローカル記録を同期して完了します。
 
-### 5.2 順次リクエスト遅延（Inter-Request Delay）
-- 1つのコードを引き換えるごとに、次リクエストの送信までに **5.2秒以上** の非同期スリープを挿入します。
-- これにより、短時間のバースト通信によるAPIレートリミット（429 Too Many Requests や交換拒否）を回避します。
+### 5.2 交換コード自動引き換え（3時間インターバル軸）
+- **定期アラーム (`hoyo_auto_redeem_alarm`)**: 3時間（180分）周期で全3タイトルを順次巡回し、最新コードを一括自動引き換えします。
+- **順次リクエスト遅延**: 1つのコードを引き換えるごとに **5.2秒以上** の非同期スリープを挿入し、レートリミットを回避します。
+- **指数バックオフ**: レートリミット（`retcode: -2016`）や連続エラー発生時は自動的に **30分間のクールダウン（バックオフ）** に遷移します。
 
-### 5.3 指数バックオフ & 一時停止（Backoff Duration）
-- 引き換えAPIからレートリミットまたは連続エラー（ネットワーク障害等）が返却された場合、自動的に **30分間のバックオフ（クールダウン）状態** に遷移します。
-- バックオフ期間中は手動・自動問わず引き換え処理がスキップされ、APIに対する負荷集中を防ぎます。
-
-### 5.4 不正コードのバリデーション & 制限
-- **1日あたりの新規コード上限**: 1回の定期実行で引き換える新規コード数を最大20件に制限。
-- **ペイロードサイズ制限**: hoyo-codes APIから受信するJSONレスポンスが 256KB を超える場合は安全のために破棄。
-- **コード文字種チェック**: 英数字および一般的なハイフン・アンダースコア以外の不正な文字列は弾き、無効なAPIリクエストを未然に防止。
-
-### 5.5 実行スコープ分離 & 複数タイトル安全巡回
-- **実行トリガー別の対象スコープ分離**:
-  - **定期アラーム実行（3時間周期）**: 定義された全3タイトル（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）を順次巡回し、最新コードを一括自動引き換えします。タイトル間にもレートリミット保護のためのウェイト（引き換え実行後は5.2秒、スキップ時は0.5秒）を挿入します。
-  - **手動実行（ポップアップUI）**: ポップアップ画面で現在選択しているタブのゲーム（単一タイトル）のみを対象に即時実行します。ユーザーが見ている特定のゲームに対してのみ通信を行い、迅速に結果ダイアログを返却します。
-- **未プレイゲーム（キャラクター未作成）の安全スキップ**:
-  - Takumiロール照会APIにおいて、キャラクターリストが空（`retcode: -1` または `-2`）の場合は「未プレイ」と判定します。
-  - 未プレイゲームに対しては、エラーアラートや再ログイン通知を発行せず、`INFO` ログを記録した上で安全にスキップして次のタイトルの処理へ移行します。
-  - これにより、一部のゲームしかプレイしていないユーザーでも、エラーや不要な通信を起こさず安全に自動引き換えが動作します。
-- **バックオフ連動中断**:
-  - 巡回中のいずれかのタイトルでレート制限（`retcode: -2016`）等によるバックオフが発動した場合、後続タイトルの処理は即座に安全中断されます。
-
-### 5.6 4層トリガー方式と高信頼実行アーキテクチャ
-PCのスリープ運用（Chrome開きっぱなし）およびシャットダウン運用（毎日PC起動/終了）の双方で取りこぼしなく実行させるため、4層のトリガーを統合管理しています。
-1. **定期アラーム (`chrome.alarms`)**: 3時間（180分）周期で通常巡回。
-2. **ブラウザ起動時キャッチアップ (`chrome.runtime.onStartup`)**: Chrome起動時に前回成功から3時間以上経過していれば15秒後に自動実行。
-3. **スリープ復帰キャッチアップ (`chrome.idle.onStateChanged`)**: OSロック解除やアイドル復帰（`active`）を検知し、前回成功から3時間以上経過していれば15秒後に自動実行。
-4. **通信エラー時短期リトライ (`hoyo_retry_alarm`)**: スリープ復帰直後の回線未確立などによる `Failed to fetch` 発生時、2分後に自動で1回再試行。
+### 5.3 ブラウザ起動時・スリープ復帰時の直列キャッチアップ (`maybeRunAllCatchUp`)
+- Chrome起動時 (`chrome.runtime.onStartup`) やスリープ復帰時 (`chrome.idle.onStateChanged` -> `active`) には、15秒の回線安定待機の後に `maybeRunAllCatchUp()` を実行します。
+- 共通の排他ロック（Mutex）競合を防ぐため、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します。
+- ネットワーク未確立による `Failed to fetch` 等が発生した場合は、それぞれ独立した短期リトライアラーム（`hoyo_sign_retry_alarm` / `hoyo_retry_alarm`）により2分後に1回自動再試行します。
 
 ---
 
@@ -165,10 +168,12 @@ PCのスリープ運用（Chrome開きっぱなし）およびシャットダウ
 ### 6.1 キー構造
 | キー | 型 | 用途 |
 | :--- | :--- | :--- |
-| `settings` | Object | ユーザー設定（有効化フラグ、選択中ゲームキー、初回同意フラグ等） |
+| `settings` | Object | ユーザー設定（`autoSignEnabled`, `autoRedeemEnabled`, `selectedGame`, `hasAgreedToTerms`） |
+| `daily_sign_${gameBiz}` | Object | ゲーム別のログボ最終受取日（`lastSignedDate`: `YYYY-MM-DD` (UTC+8), `totalSignDay`, `updatedAt`） |
+| `last_daily_sign_check_date` | String | 全タイトル一括ログボ自動巡回が完了した最終日付（`YYYY-MM-DD` UTC+8、キャッチアップ判定用） |
 | `redeemed_codes` | Object | ゲーム別引き換え済みコード履歴（重複引き換えの防止） |
-| `exec_logs` | Array | 画面表示用の直近実行ログ（タイムスタンプ、メッセージ） |
-| `last_successful_run` | Number | 巡回全体が正常完了した最終エポックミリ秒（キャッチアップ判定用） |
+| `exec_logs` | Array | 画面表示用の直近実行ログ（`timestamp`, `type`, `category` (`SIGN`/`CODE`/`SYSTEM`), `message`） |
+| `last_successful_run` | Number | コード自動引き換え巡回全体が正常完了した最終エポックミリ秒 |
 | `redeem_lock` | Object | 排他ロック用タイムスタンプと実行ID |
 | `backoff_until` | Number | バックオフ解除時刻のUNIXエポックミリ秒 |
 

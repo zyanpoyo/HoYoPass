@@ -139,33 +139,139 @@ h1 {
 /* コントロールカード */
 .control-card {
   background-color: #1e2230;
+  border: 1px solid #282e40;
   border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 14px;
+  padding: 11px 12px;
+  margin-bottom: 10px;
+}
+
+.sign-card {
+  border-left: 3px solid #10b981;
+}
+
+.redeem-card {
+  border-left: 3px solid #3b82f6;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #282e40;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.card-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.btn-site-link {
+  background-color: #262c3d;
+  border: 1px solid #334155;
+  color: #93c5fd;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-site-link:hover,
+.btn-site-link:focus-visible {
+  background-color: #334155;
+  color: #ffffff;
+  outline: none;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.status-label {
+  color: #cbd5e1;
+}
+
+.status-pill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #334155;
+  color: #cbd5e1;
+}
+
+.status-pill.signed {
+  background-color: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.status-pill.unsigned {
+  background-color: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.status-pill.skipped {
+  background-color: #1e293b;
+  color: #94a3b8;
 }
 
 .toggle-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
+  font-size: 12px;
+  color: #cbd5e1;
 }
 
 .btn {
   border: none;
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 7px 12px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.1s;
 }
 
-.btn:hover {
-  opacity: 0.9;
+.btn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-primary {
   background-color: #2563eb;
+  color: #ffffff;
+}
+
+.btn-accent {
+  background-color: #059669;
   color: #ffffff;
 }
 
@@ -179,6 +285,7 @@ h1 {
   display: inline-block;
   width: 38px;
   height: 20px;
+  flex-shrink: 0;
 }
 
 .switch input {
@@ -212,22 +319,58 @@ input:checked + .slider {
   background-color: #2563eb;
 }
 
+input:checked + .slider.slider-accent {
+  background-color: #10b981;
+}
+
 input:checked + .slider:before {
   transform: translateX(18px);
 }
 
 /* ログ */
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
 .logs-section h2 {
   font-size: 12px;
   color: #94a3b8;
-  margin-bottom: 8px;
+  margin-bottom: 0;
+}
+
+.log-filters {
+  display: flex;
+  gap: 4px;
+  background-color: #1a1e28;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.filter-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn.active {
+  background-color: #334155;
+  color: #f8fafc;
 }
 
 .logs-list {
   background-color: #1a1e28;
   border-radius: 8px;
   padding: 8px;
-  max-height: 140px;
+  max-height: 115px;
   overflow-y: auto;
   font-family: monospace;
   font-size: 11px;

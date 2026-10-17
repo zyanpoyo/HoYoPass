@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatRedeemResult, formatLogTimestamp } from '../src/utils/message-formatter.js';
+import { formatRedeemResult, formatSignResult, formatLogTimestamp } from '../src/utils/message-formatter.js';
 
 
 test('formatRedeemResult: 空または不正なレスポンス', () => {
@@ -192,4 +192,79 @@ test('formatLogTimestamp: MM/DD HH:mm 形式へのフォーマットとゼロ埋
   assert.equal(formatLogTimestamp(''), '');
   assert.equal(formatLogTimestamp('invalid_date'), '');
 });
+
+test('formatSignResult: 単一ゲーム新規受取成功', () => {
+  const res = formatSignResult({
+    success: true,
+    signedCount: 1,
+    results: {
+      GENSHIN: {
+        success: true,
+        skipped: false,
+        signed: true,
+        alreadySigned: false,
+        totalSignDay: 18,
+        gameName: '原神'
+      }
+    }
+  });
+  assert.equal(res.title, 'ログインボーナス受取成功');
+  assert.match(res.message, /【原神】本日のログインボーナスを受け取りました/);
+  assert.match(res.message, /今月累計: 18日/);
+});
+
+test('formatSignResult: 単一ゲーム本日受取済み', () => {
+  const res = formatSignResult({
+    success: true,
+    signedCount: 0,
+    results: {
+      STAR_RAIL: {
+        success: true,
+        skipped: false,
+        signed: false,
+        alreadySigned: true,
+        totalSignDay: 10,
+        gameName: '崩壊：スターレイル'
+      }
+    }
+  });
+  assert.equal(res.title, 'ログインボーナス受取済');
+  assert.match(res.message, /すでに受け取り済みです/);
+  assert.match(res.message, /今月累計: 10日/);
+});
+
+test('formatSignResult: 単一ゲームCAPTCHA認証要求時', () => {
+  const res = formatSignResult({
+    success: true,
+    signedCount: 0,
+    results: {
+      GENSHIN: {
+        success: false,
+        isRisk: true,
+        reason: 'CAPTCHA_REQUIRED',
+        gameName: '原神'
+      }
+    }
+  });
+  assert.equal(res.title, 'セキュリティ認証が必要');
+  assert.match(res.message, /CAPTCHA/);
+});
+
+test('formatSignResult: 単一ゲーム未ログイン', () => {
+  const res = formatSignResult({
+    success: true,
+    signedCount: 0,
+    results: {
+      ZZZ: {
+        success: false,
+        retcode: -100,
+        reason: 'Not logged in',
+        gameName: 'ゼンレスゾーンゼロ'
+      }
+    }
+  });
+  assert.equal(res.title, 'ログインボーナス受取失敗');
+  assert.match(res.message, /未ログインです/);
+});
+
 
