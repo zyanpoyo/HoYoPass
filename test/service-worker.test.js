@@ -56,9 +56,25 @@ globalThis.chrome = {
   }
 };
 
-import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun } from '../src/services/storage-service.js';
+import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord } from '../src/services/storage-service.js';
 import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG } from '../src/config/constants.js';
-const { handleNotificationClick, LOGIN_NOTIFICATION_PREFIX, redeemForGame, runAutoRedeemFlow, setupAlarm, scheduleRetryAlarm, clearRetryAlarm, maybeRunCatchUp } = await import('../src/background/service-worker.js');
+const {
+  handleNotificationClick,
+  LOGIN_NOTIFICATION_PREFIX,
+  SIGN_LOGIN_NOTIFICATION_PREFIX,
+  SIGN_CAPTCHA_NOTIFICATION_PREFIX,
+  redeemForGame,
+  runAutoRedeemFlow,
+  setupAlarm,
+  setupDailySignAlarm,
+  getNextDailySignTimestamp,
+  scheduleRetryAlarm,
+  clearRetryAlarm,
+  maybeRunCatchUp,
+  maybeRunAllCatchUp,
+  signForGame,
+  runDailySignFlow
+} = await import('../src/background/service-worker.js');
 
 test('排他ロック: 獲得と解放', async () => {
   const lock1 = await acquireExecutionLock('TEST');
@@ -378,5 +394,140 @@ test('runAutoRedeemFlow: 通信エラー発生時に自動でリトライアラ�
     globalThis.fetch = originalFetch;
   }
 });
+
+test('getNextDailySignTimestamp & setupDailySignAlarm: デイリーサインイン専用アラームが正しくスケジュールされる', async () => {
+  mockAlarms.clear();
+  // 2026-10-17 00:00:00 UTC+8 (2026-10-16 16:00:00 UTC) の時点で次回 00:05 UTC+8 は5分後
+  const baseMs = Date.parse('2026-10-16T16:00:00Z');
+  const nextWhen = getNextDailySignTimestamp(baseMs);
+  assert.equal(nextWhen, Date.parse('2026-10-16T16:05:00Z'), '5分後の00:05 UTC+8 (01:05 JST) が算出される');
+
+  // 2026-10-17 00:10:00 UTC+8 の時点では翌日の 00:05 UTC+8 が算出される
+  const afterMs = Date.parse('2026-10-16T16:10:00Z');
+  const nextDayWhen = getNextDailySignTimestamp(afterMs);
+  assert.equal(nextDayWhen, Date.parse('2026-10-17T16:05:00Z'), '翌日の00:05 UTC+8が算出される');
+
+  await setupDailySignAlarm();
+  const signAlarm = mockAlarms.get(ALARM_NAMES.DAILY_SIGN);
+  assert.ok(signAlarm, 'DAILY_SIGNアラームが登録されていること');
+  assert.equal(signAlarm.periodInMinutes, 1440, '24時間(1440分)周期であること');
+});
+
+test('handleNotificationClick: ログボ通知クリック時に公式ログインボーナスページを開く', async () => {
+  mockCreatedTabs.length = 0;
+  mockClearedNotifications.length = 0;
+
+  await handleNotificationClick(`${SIGN_LOGIN_NOTIFICATION_PREFIX}STAR_RAIL`);
+  assert.equal(mockCreatedTabs.length, 1);
+  assert.equal(mockCreatedTabs[0].url, GAMES.STAR_RAIL.checkInSiteUrl);
+
+  await handleNotificationClick(`${SIGN_CAPTCHA_NOTIFICATION_PREFIX}ZZZ`);
+  assert.equal(mockCreatedTabs.length, 2);
+  assert.equal(mockCreatedTabs[1].url, GAMES.ZZZ.checkInSiteUrl);
+});
+
+test('runDailySignFlow: 全3ゲーム巡回（未プレイはスキップ、未受取ゲームは受取成功して記録保存）', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, opts) => {
+    const u = String(url);
+    // 1. ロール照会: 原神のみプレイ中、他はキャラ不在
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hk4e_global')) {
+        return {
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+          })
+        };
+      }
+      return {
+        status: 200,
+        json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } })
+      };
+    }
+
+    // 2. info API: 原神は未受取 (total_sign_day: 10)
+    if (u.includes('/event/sol/info')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { is_sign: false, total_sign_day: 10, today: '2026-10-17' }
+        })
+      };
+    }
+
+    // 3. sign API: 原神のサインイン成功
+    if (u.includes('/event/sol/sign') && opts?.method === 'POST') {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { code: 'ok', is_risk: false }
+        })
+      };
+    }
+
+    return { status: 200, text: async () => JSON.stringify({ retcode: 0 }) };
+  };
+
+  try {
+    const res = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(res.success, true);
+    assert.equal(res.signedCount, 1);
+    assert.equal(res.results.GENSHIN.signed, true);
+    assert.equal(res.results.GENSHIN.totalSignDay, 11);
+    assert.equal(res.results.STAR_RAIL.skipped, true);
+    assert.equal(res.results.ZZZ.skipped, true);
+
+    const saved = await getDailySignRecord('hk4e_global');
+    assert.equal(saved.isSigned, true);
+    assert.equal(saved.totalSignDay, 11);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('maybeRunAllCatchUp: 起動・復帰時にログインボーナスとコード交換がロック競合せず直列実行されること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    }
+  });
+
+  const originalDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  API_CONFIG.CATCH_UP_DELAY_MS = 0;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }),
+    text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { list: [] } })
+  });
+
+  try {
+    const { signResult, redeemResult } = await maybeRunAllCatchUp('STARTUP');
+    assert.equal(signResult.success, true, 'ログインボーナスキャッチアップが成功すること');
+    assert.equal(redeemResult.success, true, 'コード引き換えキャッチアップもALREADY_RUNNINGにならず成功すること');
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 
 

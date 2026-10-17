@@ -16,12 +16,18 @@ export const API_CONFIG = {
   MAX_REDEEMED_HISTORY_LIMIT: 3000, // 古い確定記録整理の閾値
   MAX_EXECUTION_LOGS: 50, // ポップアップ・ストレージ保持ログ件数
   IS_DEV: FLAVOR_CONFIG?.config?.IS_DEV ?? false,
-  FLAVOR_UI: FLAVOR_CONFIG?.ui ?? { badgeText: '', intervalLabel: '定期自動引き換え (3時間毎)' }
+  FLAVOR_UI: FLAVOR_CONFIG?.ui ?? {
+    badgeText: '',
+    intervalLabel: '定期自動引き換え (3時間毎)',
+    signIntervalLabel: '自動受け取り (毎日 01:05)'
+  }
 };
 
 export const ALARM_NAMES = {
   AUTO_REDEEM: 'hoyo_auto_redeem_alarm',
-  RETRY: 'hoyo_retry_alarm'
+  RETRY: 'hoyo_retry_alarm',
+  DAILY_SIGN: 'hoyo_daily_sign_alarm',
+  SIGN_RETRY: 'hoyo_sign_retry_alarm'
 };
 
 export const STATUS_MAP = {
@@ -42,7 +48,16 @@ export const GAMES = {
     exchangeHost: 'https://sg-hk4e-api.hoyoverse.com',
     exchangePath: '/common/apicdkey/api/webExchangeCdkey',
     hoyoCodesParam: 'genshin',
-    giftSiteUrl: 'https://genshin.hoyoverse.com/ja/gift'
+    giftSiteUrl: 'https://genshin.hoyoverse.com/ja/gift',
+    actId: 'e202102251931481',
+    signGameHeader: 'hk4e',
+    signHosts: [
+      'https://sg-hk4e-api.hoyolab.com',
+      'https://sg-hk4e-api.hoyoverse.com'
+    ],
+    infoPath: '/event/sol/info',
+    signPath: '/event/sol/sign',
+    checkInSiteUrl: 'https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481'
   },
   STAR_RAIL: {
     name: '崩壊：スターレイル',
@@ -52,7 +67,16 @@ export const GAMES = {
     exchangeHost: 'https://sg-hkrpg-api.hoyoverse.com',
     exchangePath: '/common/apicdkey/api/webExchangeCdkey',
     hoyoCodesParam: 'hkrpg',
-    giftSiteUrl: 'https://hsr.hoyoverse.com/gift'
+    giftSiteUrl: 'https://hsr.hoyoverse.com/gift',
+    actId: 'e202303301540311',
+    signGameHeader: 'hkrpg',
+    signHosts: [
+      'https://sg-public-api.hoyolab.com',
+      'https://sg-public-api.hoyoverse.com'
+    ],
+    infoPath: '/event/luna/os/info',
+    signPath: '/event/luna/os/sign',
+    checkInSiteUrl: 'https://act.hoyolab.com/bbs/event/signin/hkrpg/index.html?act_id=e202303301540311'
   },
   ZZZ: {
     name: 'ゼンレスゾーンゼロ',
@@ -62,7 +86,16 @@ export const GAMES = {
     exchangeHost: 'https://public-operation-nap.hoyoverse.com',
     exchangePath: '/common/apicdkey/api/webExchangeCdkey',
     hoyoCodesParam: 'nap',
-    giftSiteUrl: 'https://zenless.hoyoverse.com/redemption/gift'
+    giftSiteUrl: 'https://zenless.hoyoverse.com/redemption/gift',
+    actId: 'e202406031448091',
+    signGameHeader: 'zzz',
+    signHosts: [
+      'https://sg-act-nap-api.hoyolab.com',
+      'https://sg-act-nap-api.hoyoverse.com'
+    ],
+    infoPath: '/event/luna/zzz/os/info',
+    signPath: '/event/luna/zzz/os/sign',
+    checkInSiteUrl: 'https://act.hoyolab.com/bbs/event/signin/zzz/index.html?act_id=e202406031448091'
   }
 };
 

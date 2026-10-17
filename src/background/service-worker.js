@@ -13,16 +13,46 @@ import {
   addExecutionLog,
   getLastSuccessfulRun,
   setLastSuccessfulRun,
-  shouldRunRedeem
+  shouldRunRedeem,
+  getHoyoTodayDateString,
+  setDailySignRecord,
+  isDailySignedToday,
+  shouldRunDailySign
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
-import { getUserGameRoles, redeemCode } from '../services/hoyo-api.js';
+import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
+
+export function getNextDailySignTimestamp(nowMs = Date.now()) {
+  const utc8OffsetMs = 8 * 60 * 60 * 1000;
+  const utc8Date = new Date(nowMs + utc8OffsetMs);
+  const targetUtc8 = Date.UTC(
+    utc8Date.getUTCFullYear(),
+    utc8Date.getUTCMonth(),
+    utc8Date.getUTCDate(),
+    0, 5, 0, 0
+  );
+  let nextWhen = targetUtc8 - utc8OffsetMs;
+  if (nextWhen <= nowMs) {
+    nextWhen += 24 * 60 * 60 * 1000;
+  }
+  return nextWhen;
+}
 
 export async function setupAlarm() {
   const existing = await chrome.alarms.get(ALARM_NAMES.AUTO_REDEEM);
   if (!existing || existing.periodInMinutes !== API_CONFIG.REDEEM_INTERVAL_MINUTES) {
     await chrome.alarms.create(ALARM_NAMES.AUTO_REDEEM, {
       periodInMinutes: API_CONFIG.REDEEM_INTERVAL_MINUTES
+    });
+  }
+}
+
+export async function setupDailySignAlarm() {
+  const existing = await chrome.alarms.get(ALARM_NAMES.DAILY_SIGN);
+  if (!existing || existing.periodInMinutes !== 1440) {
+    await chrome.alarms.create(ALARM_NAMES.DAILY_SIGN, {
+      when: getNextDailySignTimestamp(),
+      periodInMinutes: 1440
     });
   }
 }
@@ -35,6 +65,7 @@ export async function scheduleRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVA
     });
     await addExecutionLog({
       type: 'INFO',
+      category: 'CODE',
       message: `一時的な通信不通を検知したため、${delayMinutes}分後に自動再試行します`
     });
   }
@@ -42,6 +73,24 @@ export async function scheduleRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVA
 
 export async function clearRetryAlarm() {
   await chrome.alarms.clear(ALARM_NAMES.RETRY);
+}
+
+export async function scheduleSignRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVAL_MINUTES) {
+  const existing = await chrome.alarms.get(ALARM_NAMES.SIGN_RETRY);
+  if (!existing) {
+    await chrome.alarms.create(ALARM_NAMES.SIGN_RETRY, {
+      delayInMinutes: delayMinutes
+    });
+    await addExecutionLog({
+      type: 'INFO',
+      category: 'SIGN',
+      message: `ログインボーナス通信不通のため、${delayMinutes}分後に自動再試行します`
+    });
+  }
+}
+
+export async function clearSignRetryAlarm() {
+  await chrome.alarms.clear(ALARM_NAMES.SIGN_RETRY);
 }
 
 export async function maybeRunCatchUp(triggerSource = 'STARTUP') {
@@ -63,7 +112,64 @@ export async function maybeRunCatchUp(triggerSource = 'STARTUP') {
   return await runAutoRedeemFlow(triggerSource);
 }
 
+export async function maybeRunDailySignCatchUp(triggerSource = 'STARTUP', skipDelay = false) {
+  const settings = await getSettings();
+  if (!settings.optInAccepted || !settings.autoSignEnabled) return false;
+
+  const gameBizList = Object.values(GAMES).map(g => g.gameBiz);
+  const shouldRun = await shouldRunDailySign(gameBizList);
+  if (!shouldRun) return false;
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    return false;
+  }
+
+  if (!skipDelay && API_CONFIG.CATCH_UP_DELAY_MS > 0) {
+    await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
+  }
+
+  return await runDailySignFlow(triggerSource);
+}
+
+export async function maybeRunAllCatchUp(triggerSource = 'STARTUP') {
+  const settings = await getSettings();
+  if (!settings.optInAccepted) return { signResult: false, redeemResult: false };
+
+  const gameBizList = Object.values(GAMES).map(g => g.gameBiz);
+  const needSign = settings.autoSignEnabled && (await shouldRunDailySign(gameBizList));
+  const needRedeem = settings.autoRedeemEnabled && (await shouldRunRedeem(API_CONFIG.REDEEM_INTERVAL_MINUTES));
+
+  if (!needSign && !needRedeem) {
+    return { signResult: false, redeemResult: false };
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (needSign) await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    if (needRedeem) await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    return { signResult: false, redeemResult: false };
+  }
+
+  if (API_CONFIG.CATCH_UP_DELAY_MS > 0) {
+    await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
+  }
+
+  let signResult = false;
+  if (needSign) {
+    signResult = await runDailySignFlow(triggerSource);
+  }
+
+  let redeemResult = false;
+  if (needRedeem) {
+    redeemResult = await runAutoRedeemFlow(triggerSource);
+  }
+
+  return { signResult, redeemResult };
+}
+
 export const LOGIN_NOTIFICATION_PREFIX = 'login_required_';
+export const SIGN_LOGIN_NOTIFICATION_PREFIX = 'sign_login_required_';
+export const SIGN_CAPTCHA_NOTIFICATION_PREFIX = 'sign_captcha_';
 
 export async function handleNotificationClick(notificationId) {
   if (notificationId.startsWith(LOGIN_NOTIFICATION_PREFIX)) {
@@ -73,24 +179,46 @@ export async function handleNotificationClick(notificationId) {
       await chrome.tabs.create({ url: gameConfig.giftSiteUrl });
       chrome.notifications.clear(notificationId);
     }
+    return;
+  }
+
+  if (notificationId.startsWith(SIGN_LOGIN_NOTIFICATION_PREFIX)) {
+    const gameKey = notificationId.slice(SIGN_LOGIN_NOTIFICATION_PREFIX.length);
+    const gameConfig = GAMES[gameKey];
+    if (gameConfig?.checkInSiteUrl) {
+      await chrome.tabs.create({ url: gameConfig.checkInSiteUrl });
+      chrome.notifications.clear(notificationId);
+    }
+    return;
+  }
+
+  if (notificationId.startsWith(SIGN_CAPTCHA_NOTIFICATION_PREFIX)) {
+    const gameKey = notificationId.slice(SIGN_CAPTCHA_NOTIFICATION_PREFIX.length);
+    const gameConfig = GAMES[gameKey];
+    if (gameConfig?.checkInSiteUrl) {
+      await chrome.tabs.create({ url: gameConfig.checkInSiteUrl });
+      chrome.notifications.clear(notificationId);
+    }
   }
 }
 
 chrome.notifications.onClicked.addListener(handleNotificationClick);
 
-chrome.runtime.onInstalled.addListener(() => {
-  setupAlarm();
+chrome.runtime.onInstalled.addListener(async () => {
+  await setupAlarm();
+  await setupDailySignAlarm();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await setupAlarm();
-  await maybeRunCatchUp('STARTUP');
+  await setupDailySignAlarm();
+  await maybeRunAllCatchUp('STARTUP');
 });
 
 if (chrome.idle && chrome.idle.onStateChanged) {
   chrome.idle.onStateChanged.addListener(async (newState) => {
     if (newState === 'active') {
-      await maybeRunCatchUp('IDLE_ACTIVE');
+      await maybeRunAllCatchUp('IDLE_ACTIVE');
     }
   });
 }
@@ -107,6 +235,20 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
     const source = alarm.name === ALARM_NAMES.RETRY ? 'RETRY_ALARM' : 'ALARM';
     await runAutoRedeemFlow(source);
+    return;
+  }
+
+  if (alarm.name === ALARM_NAMES.DAILY_SIGN || alarm.name === ALARM_NAMES.SIGN_RETRY) {
+    const settings = await getSettings();
+    if (!settings.optInAccepted || !settings.autoSignEnabled) return;
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+      return;
+    }
+
+    const source = alarm.name === ALARM_NAMES.SIGN_RETRY ? 'SIGN_RETRY_ALARM' : 'DAILY_ALARM';
+    await runDailySignFlow(source);
   }
 });
 
@@ -115,6 +257,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'TRIGGER_MANUAL_REDEEM') {
     runAutoRedeemFlow('MANUAL', message.gameKey)
+      .then(res => sendResponse(res))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'TRIGGER_MANUAL_SIGN') {
+    runDailySignFlow('MANUAL', message.gameKey)
       .then(res => sendResponse(res))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
@@ -133,6 +282,7 @@ export async function redeemForGame(gameKey) {
     if (roleRes.retcode === -1 || roleRes.retcode === -2) {
       await addExecutionLog({
         type: 'INFO',
+        category: 'CODE',
         message: `${gameConfig.name}: キャラクターが見つからないためスキップしました`
       });
       return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName: gameConfig.name };
@@ -140,7 +290,7 @@ export async function redeemForGame(gameKey) {
 
     // 未ログイン・セッション期限切れ（retcode: -100 または -1071）
     const errorMsg = `${gameConfig.name}: ロール取得失敗 (${roleRes.message} [retcode: ${roleRes.retcode}])`;
-    await addExecutionLog({ type: 'ERROR', message: errorMsg });
+    await addExecutionLog({ type: 'ERROR', category: 'CODE', message: errorMsg });
 
     if (roleRes.retcode === -100 || roleRes.retcode === -1071) {
       chrome.notifications.create(`${LOGIN_NOTIFICATION_PREFIX}${gameKey}`, {
@@ -205,6 +355,7 @@ export async function redeemForGame(gameKey) {
   await pruneHistoryIfExceeded(gameConfig.gameBiz, activeCodes);
   await addExecutionLog({
     type: 'INFO',
+    category: 'CODE',
     message: `${gameConfig.name}: 引き換え完了 (新規成功: ${redeemedCount}件)`
   });
 
@@ -243,7 +394,7 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
     for (let i = 0; i < gameKeys.length; i++) {
       const gKey = gameKeys[i];
       if (await isUnderBackoff()) {
-        await addExecutionLog({ type: 'WARN', message: `バックオフ発動中のため ${GAMES[gKey]?.name || gKey} 以降の処理を中断しました。` });
+        await addExecutionLog({ type: 'WARN', category: 'CODE', message: `バックオフ発動中のため ${GAMES[gKey]?.name || gKey} 以降の処理を中断しました。` });
         break;
       }
 
@@ -291,7 +442,7 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
     if (isNetworkError) {
       await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
     } else {
-      await addExecutionLog({ type: 'ERROR', message: `例外発生: ${err.message}` });
+      await addExecutionLog({ type: 'ERROR', category: 'CODE', message: `例外発生: ${err.message}` });
     }
 
     return {
@@ -303,3 +454,233 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
     await releaseExecutionLock();
   }
 }
+
+export async function signForGame(gameKey, options = {}) {
+  const gameConfig = GAMES[gameKey];
+  if (!gameConfig) {
+    return { success: false, reason: `未知のゲームキー: ${gameKey}`, gameKey };
+  }
+
+  const forceCheck = !!options.forceCheck;
+  if (!forceCheck) {
+    const alreadyDone = await isDailySignedToday(gameConfig.gameBiz);
+    if (alreadyDone) {
+      return {
+        success: true,
+        skipped: true,
+        alreadySigned: true,
+        reason: 'ALREADY_SIGNED_TODAY',
+        gameKey,
+        gameName: gameConfig.name
+      };
+    }
+  }
+
+  const roleRes = await getUserGameRoles(gameConfig.gameBiz);
+  if (!roleRes.success) {
+    if (roleRes.retcode === -1 || roleRes.retcode === -2) {
+      await setDailySignRecord(gameConfig.gameBiz, {
+        date: getHoyoTodayDateString(),
+        isSigned: false,
+        skippedNoChar: true
+      });
+      await addExecutionLog({
+        type: 'INFO',
+        category: 'SIGN',
+        message: `${gameConfig.name}: [ログボ] キャラクターが見つからないためスキップしました`
+      });
+      return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName: gameConfig.name };
+    }
+
+    const errorMsg = `${gameConfig.name}: [ログボ] ロール取得失敗 (${roleRes.message} [retcode: ${roleRes.retcode}])`;
+    await addExecutionLog({ type: 'ERROR', category: 'SIGN', message: errorMsg });
+
+    if (roleRes.retcode === -100 || roleRes.retcode === -1071) {
+      chrome.notifications.create(`${SIGN_LOGIN_NOTIFICATION_PREFIX}${gameKey}`, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'ログインが必要です',
+        message: `${gameConfig.name}の公式ログインボーナスページでログインしてください。`
+      });
+    }
+    return {
+      success: false,
+      skipped: false,
+      reason: errorMsg,
+      retcode: roleRes.retcode,
+      gameKey,
+      gameName: gameConfig.name
+    };
+  }
+
+  const infoRes = await getDailySignInfo(gameConfig);
+  const todayStr = (infoRes.success && infoRes.today) ? infoRes.today : getHoyoTodayDateString();
+
+  if (infoRes.success && infoRes.isSigned) {
+    await setDailySignRecord(gameConfig.gameBiz, {
+      date: todayStr,
+      isSigned: true,
+      totalSignDay: infoRes.totalSignDay,
+      skippedNoChar: false
+    });
+    await addExecutionLog({
+      type: 'INFO',
+      category: 'SIGN',
+      message: `${gameConfig.name}: [ログボ] 本日受取済み (今月累計: ${infoRes.totalSignDay}日)`
+    });
+    return {
+      success: true,
+      skipped: false,
+      signed: false,
+      alreadySigned: true,
+      totalSignDay: infoRes.totalSignDay,
+      gameKey,
+      gameName: gameConfig.name
+    };
+  }
+
+  const claimRes = await claimDailyBonus(gameConfig);
+
+  if (claimRes.isRisk) {
+    const riskMsg = `${gameConfig.name}: [ログボ] セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください`;
+    await addExecutionLog({ type: 'WARN', category: 'SIGN', message: riskMsg });
+    chrome.notifications.create(`${SIGN_CAPTCHA_NOTIFICATION_PREFIX}${gameKey}`, {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: 'ログインボーナス手動確認が必要',
+      message: `${gameConfig.name}でCAPTCHA認証が要求されました。クリックして公式ページから受け取ってください。`
+    });
+    return {
+      success: false,
+      skipped: false,
+      isRisk: true,
+      retcode: claimRes.retcode,
+      reason: claimRes.message,
+      gameKey,
+      gameName: gameConfig.name
+    };
+  }
+
+  if (claimRes.success) {
+    const baseDays = infoRes.success ? infoRes.totalSignDay : 0;
+    const totalSignDay = claimRes.alreadySigned ? baseDays : baseDays + 1;
+    await setDailySignRecord(gameConfig.gameBiz, {
+      date: todayStr,
+      isSigned: true,
+      totalSignDay,
+      skippedNoChar: false
+    });
+
+    const msg = claimRes.alreadySigned
+      ? `${gameConfig.name}: [ログボ] 本日受取済み${totalSignDay ? ` (今月累計: ${totalSignDay}日)` : ''}`
+      : `${gameConfig.name}: [ログボ] 受取完了${totalSignDay ? ` (今月累計: ${totalSignDay}日)` : ''}`;
+
+    await addExecutionLog({
+      type: 'INFO',
+      category: 'SIGN',
+      message: msg
+    });
+
+    return {
+      success: true,
+      skipped: false,
+      signed: !claimRes.alreadySigned,
+      alreadySigned: !!claimRes.alreadySigned,
+      totalSignDay,
+      gameKey,
+      gameName: gameConfig.name
+    };
+  }
+
+  const errText = `${gameConfig.name}: [ログボ] 受取失敗 (${claimRes.message} [retcode: ${claimRes.retcode}])`;
+  await addExecutionLog({ type: 'ERROR', category: 'SIGN', message: errText });
+
+  if (claimRes.retcode === -100 || claimRes.retcode === -1071) {
+    chrome.notifications.create(`${SIGN_LOGIN_NOTIFICATION_PREFIX}${gameKey}`, {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: 'ログインが必要です',
+      message: `${gameConfig.name}の公式ログインボーナスページでログインしてください。`
+    });
+  }
+
+  return {
+    success: false,
+    skipped: false,
+    retcode: claimRes.retcode,
+    reason: errText,
+    gameKey,
+    gameName: gameConfig.name
+  };
+}
+
+export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGameKey = null) {
+  const lockAcquired = await acquireExecutionLock(`SIGN_${triggerSource}`);
+  if (!lockAcquired) {
+    return { success: false, reason: 'ALREADY_RUNNING' };
+  }
+
+  try {
+    if (await isUnderBackoff()) {
+      return { success: false, reason: 'UNDER_BACKOFF' };
+    }
+
+    if (targetGameKey && !GAMES[targetGameKey]) {
+      return { success: false, reason: `未知のゲームキー: ${targetGameKey}` };
+    }
+
+    const gameKeys = targetGameKey ? [targetGameKey] : Object.keys(GAMES);
+    const results = {};
+    let signedCount = 0;
+
+    for (let i = 0; i < gameKeys.length; i++) {
+      const gKey = gameKeys[i];
+      if (await isUnderBackoff()) {
+        break;
+      }
+
+      const res = await signForGame(gKey, { forceCheck: !!targetGameKey });
+      results[gKey] = res;
+      if (res.success && res.signed) {
+        signedCount++;
+      }
+
+      if (i < gameKeys.length - 1) {
+        const delayMs = res.skipped ? 200 : 1_500;
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+
+    if (!targetGameKey) {
+      await clearSignRetryAlarm();
+    }
+
+    return {
+      success: true,
+      signedCount,
+      results,
+      targetGameKey: targetGameKey || null
+    };
+  } catch (err) {
+    const isNetworkError = err.message && (
+      err.message.includes('fetch') ||
+      err.message.includes('Network') ||
+      err.message.includes('TIMEOUT')
+    );
+
+    if (isNetworkError) {
+      await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    } else {
+      await addExecutionLog({ type: 'ERROR', category: 'SIGN', message: `[ログボ] 例外発生: ${err.message}` });
+    }
+
+    return {
+      success: false,
+      reason: isNetworkError ? 'NETWORK_RETRY_SCHEDULED' : 'EXCEPTION',
+      error: err.message
+    };
+  } finally {
+    await releaseExecutionLock();
+  }
+}
+

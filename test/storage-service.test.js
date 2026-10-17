@@ -14,7 +14,19 @@ globalThis.chrome = {
   }
 };
 
-import { addExecutionLog, getLastSuccessfulRun, setLastSuccessfulRun, shouldRunRedeem } from '../src/services/storage-service.js';
+import {
+  addExecutionLog,
+  getLastSuccessfulRun,
+  setLastSuccessfulRun,
+  shouldRunRedeem,
+  getSettings,
+  updateSettings,
+  getHoyoTodayDateString,
+  getDailySignRecord,
+  setDailySignRecord,
+  isDailySignedToday,
+  shouldRunDailySign
+} from '../src/services/storage-service.js';
 import { API_CONFIG } from '../src/config/constants.js';
 
 test('addExecutionLog: ログの追加と最大保持件数(MAX_EXECUTION_LOGS: 50)の維持', async () => {
@@ -70,4 +82,64 @@ test('shouldRunRedeem: 指定インターバル経過判定', async () => {
   const shouldRun3h = await shouldRunRedeem(180);
   assert.equal(shouldRun3h, true, '3時間以上経過時はtrue');
 });
+
+test('getHoyoTodayDateString: UTC+8 (JST 01:00) 日付境界の正確な算出', () => {
+  // 2026-10-17 00:59:59 JST = 2026-10-16 15:59:59 UTC = 2026-10-16 23:59:59 UTC+8
+  const beforeResetMs = Date.parse('2026-10-16T15:59:59Z');
+  assert.equal(getHoyoTodayDateString(beforeResetMs), '2026-10-16');
+
+  // 2026-10-17 01:00:00 JST = 2026-10-16 16:00:00 UTC = 2026-10-17 00:00:00 UTC+8
+  const afterResetMs = Date.parse('2026-10-16T16:00:00Z');
+  assert.equal(getHoyoTodayDateString(afterResetMs), '2026-10-17');
+});
+
+test('getSettings / updateSettings: autoSignEnabledの個別制御と既存設定からの補完', async () => {
+  mockStorage.local.clear();
+
+  const initial = await getSettings();
+  assert.equal(initial.optInAccepted, false);
+  assert.equal(initial.autoRedeemEnabled, false);
+  assert.equal(initial.autoSignEnabled, false);
+
+  // 旧バージョンからのアップデート時（optInAccepted: true のみ保存されている場合）
+  await chrome.storage.local.set({
+    app_settings: { optInAccepted: true, autoRedeemEnabled: true, activeGameKey: 'STAR_RAIL' }
+  });
+  const migrated = await getSettings();
+  assert.equal(migrated.autoSignEnabled, true, 'オプトイン済み既存ユーザーはautoSignEnabledがtrueに補完される');
+
+  // 個別OFFへの更新
+  await updateSettings({ autoSignEnabled: false });
+  const afterToggle = await getSettings();
+  assert.equal(afterToggle.autoSignEnabled, false);
+  assert.equal(afterToggle.autoRedeemEnabled, true, 'autoRedeemEnabledは独立して維持される');
+});
+
+test('getDailySignRecord / setDailySignRecord / isDailySignedToday / shouldRunDailySign', async () => {
+  mockStorage.local.clear();
+  const testNowMs = Date.parse('2026-10-17T03:00:00Z'); // 2026-10-17 in UTC+8
+
+  assert.equal(await isDailySignedToday('hk4e_global', testNowMs), false);
+  assert.equal(await shouldRunDailySign(['hk4e_global', 'hkrpg_global'], testNowMs), true);
+
+  await setDailySignRecord('hk4e_global', {
+    date: '2026-10-17',
+    isSigned: true,
+    totalSignDay: 12,
+    skippedNoChar: false
+  });
+
+  const rec = await getDailySignRecord('hk4e_global');
+  assert.equal(rec.totalSignDay, 12);
+  assert.equal(await isDailySignedToday('hk4e_global', testNowMs), true);
+  assert.equal(await shouldRunDailySign(['hk4e_global', 'hkrpg_global'], testNowMs), true, 'hkrpg_globalが未受取のためtrue');
+
+  await setDailySignRecord('hkrpg_global', {
+    date: '2026-10-17',
+    isSigned: false,
+    skippedNoChar: true
+  });
+  assert.equal(await shouldRunDailySign(['hk4e_global', 'hkrpg_global'], testNowMs), false, '全タイトルが本日受取済または未プレイ確定のためfalse');
+});
+
 

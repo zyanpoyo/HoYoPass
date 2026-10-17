@@ -30,9 +30,9 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
 
   // manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(devDir, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.name, 'HoYoPass - 交換コード自動引き換えツール [DEV]');
+  assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール [DEV]');
   assert.equal(manifest.short_name, 'HoYoPass-Dev');
-  assert.equal(manifest.version_name, '1.0.1-dev');
+  assert.equal(manifest.version_name, '1.1.0-dev');
 
   // env.js
   const envContent = fs.readFileSync(path.join(devDir, 'src/config/env.js'), 'utf8');
@@ -55,7 +55,7 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
 
   // manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(prodDir, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.name, 'HoYoPass - 交換コード自動引き換えツール');
+  assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール');
   assert.equal(manifest.short_name, 'HoYoPass');
   assert.equal(manifest.version_name, undefined, 'prodはversion_nameサフィックスなし');
 

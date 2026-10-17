@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HoYoPass - 交換コード自動引き換えツール</title>
+  <title>HoYoPass - ログボ＆交換コード自動受取ツール</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -28,7 +28,7 @@
   <!-- 通知・結果ダイアログモーダル -->
   <div id="alert-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="alert-modal-title">
     <div class="modal-card dialog-card">
-      <h2 id="alert-modal-title">コード交換結果</h2>
+      <h2 id="alert-modal-title">実行結果</h2>
       <p id="alert-modal-message" class="modal-desc dialog-message"></p>
       
       <!-- 詳細情報アコーディオン（エラー時・詳細がある場合のみ表示） -->
@@ -64,7 +64,46 @@
     </header>
 
     <main class="main-content">
-      <div class="control-card">
+      <!-- 機能カード1: デイリーログインボーナス -->
+      <section class="control-card feature-card sign-card" aria-labelledby="sign-card-heading">
+        <div class="card-header">
+          <h2 id="sign-card-heading" class="card-title">
+            <span class="card-icon" aria-hidden="true">🎁</span>
+            <span>デイリーログインボーナス</span>
+          </h2>
+          <button id="open-checkin-site-btn" class="btn-site-link" type="button" title="公式ログインボーナスページを開く">
+            公式 ↗
+          </button>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">本日の受取状況</span>
+          <span id="sign-status-badge" class="status-pill">確認中...</span>
+        </div>
+
+        <div class="toggle-row">
+          <span id="auto-sign-label">自動受け取り (毎日 01:05)</span>
+          <label class="switch">
+            <input type="checkbox" id="auto-sign-toggle">
+            <span class="slider slider-accent"></span>
+          </label>
+        </div>
+
+        <button id="manual-sign-btn" class="btn btn-accent btn-block" type="button">今すぐボーナス受取</button>
+      </section>
+
+      <!-- 機能カード2: 交換コード自動引き換え -->
+      <section class="control-card feature-card redeem-card" aria-labelledby="redeem-card-heading">
+        <div class="card-header">
+          <h2 id="redeem-card-heading" class="card-title">
+            <span class="card-icon" aria-hidden="true">🎟️</span>
+            <span>交換コード自動引き換え</span>
+          </h2>
+          <button id="open-gift-site-btn" class="btn-site-link" type="button" title="公式コード交換サイトを開く">
+            公式 ↗
+          </button>
+        </div>
+
         <div class="toggle-row">
           <span id="auto-redeem-label">定期自動引き換え (3時間毎)</span>
           <label class="switch">
@@ -72,11 +111,19 @@
             <span class="slider"></span>
           </label>
         </div>
-        <button id="manual-trigger-btn" class="btn btn-primary btn-block">今すぐ引き換え実行</button>
-      </div>
+
+        <button id="manual-trigger-btn" class="btn btn-primary btn-block" type="button">今すぐ引き換え実行</button>
+      </section>
 
       <section class="logs-section">
-        <h2>実行ログ (直近50件)</h2>
+        <div class="logs-header">
+          <h2>実行ログ (直近50件)</h2>
+          <div class="log-filters" id="log-filters" role="group" aria-label="ログフィルタ">
+            <button type="button" class="filter-btn active" data-filter="ALL">すべて</button>
+            <button type="button" class="filter-btn" data-filter="SIGN">ログボ</button>
+            <button type="button" class="filter-btn" data-filter="CODE">コード</button>
+          </div>
+        </div>
         <div id="logs-container" class="logs-list"></div>
       </section>
     </main>
