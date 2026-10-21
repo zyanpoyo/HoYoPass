@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — HoYoPass
 
-> Last Updated: 2026-10-17
+> Last Updated: 2026-10-21
 
 ## Store Listing
 
@@ -19,7 +19,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 • 機能別の個別ON/OFFトグル — 「ログボ自動受取」と「交換コード自動引き換え」をそれぞれ独立してON/OFF設定可能
 • ワンクリック手動実行 & 公式ページショートカット — ポップアップ画面から現在選択中のタイトルを即時実行、または公式チェックイン・交換ページへワンクリック移動
 • マルチタイトル対応 — 原神、崩壊：スターレイル、ゼンレスゾーンゼロの3タイトルをタブで一元管理（未プレイタイトルは自動スキップ）
-• カテゴリ別実行ログ表示 — 直近50件のログを「すべて / ログボ / コード」でフィルタリングして確認可能
+• ゲーム別の実行ログ表示 — 直近の実行状況を1行でスッキリ確認でき、クリックで選択中タイトルのログ履歴を展開表示
 • デスクトップ通知 — 報酬の受取完了、CAPTCHA認証が必要な場合、再ログインが必要なタイミングをお知らせ
 
 【使い方】
@@ -60,7 +60,7 @@ Japanese
 | Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot1_main_1280x800.png` (メイン画面・統合2カードUI) |
 | Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot2_dialog_1280x800.png` (受取・交換成功ダイアログ画面) |
 | Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot3_browser_1280x800.png` (Chromeブラウザ操作モックアップ) |
-| Popup Preview [REFERENCE] | 360×580 | ✅ Ready | `docs/screenshots/popup_3items_success.png` (ポップアップ実寸) |
+| Popup Preview [REFERENCE] | 340×455 | ✅ Ready | `docs/screenshots/popup_3items_success.png` (ポップアップ実寸) |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ⬜ Not created | |
 | Marquee Promo Tile | 1400×560 | ⬜ Not created | |
 

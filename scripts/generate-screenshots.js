@@ -32,14 +32,12 @@ const popupCss = fs.readFileSync(path.join(ROOT_DIR, 'src', 'popup', 'popup.css'
 function renderPopupHtml({ showDialog = false } = {}) {
   return `
   <div class="mockup-popup">
-    <!-- 初回オプトイン (非表示) -->
-    
     <!-- 結果モーダル -->
     <div id="alert-modal" class="modal-overlay ${showDialog ? '' : 'hidden'}" style="${showDialog ? 'position: absolute; border-radius: 12px;' : ''}">
       <div class="modal-card dialog-card">
-        <h2 id="alert-modal-title" style="color: #38bdf8; font-size: 15px; margin-bottom: 8px;">完了</h2>
+        <h2 id="alert-modal-title" style="color: #60a5fa; font-size: 15px; margin-bottom: 8px;">ログインボーナス受取成功</h2>
         <p id="alert-modal-message" class="modal-desc dialog-message" style="white-space: pre-line; line-height: 1.5; font-size: 13px; color: #e2e8f0;">
-【原神】ログインボーナスを受け取りました！（今月累計: 17日）
+【原神】本日のログインボーナスを受け取りました！（今月累計: 20日）
 ゲーム内メールをご確認ください。
         </p>
         <button id="alert-modal-ok-btn" class="btn btn-primary btn-block" style="margin-top: 14px;">OK</button>
@@ -61,65 +59,85 @@ function renderPopupHtml({ showDialog = false } = {}) {
           </div>
           <h1 id="game-title">原神</h1>
         </div>
-        <span id="login-status-badge" class="badge online">Online: 旅人</span>
+        <span id="login-status-badge" class="badge online">ログイン中: 蛍</span>
       </header>
 
       <main class="main-content">
         <!-- カード1: デイリーログインボーナス -->
-        <div class="control-card feature-card sign-card">
-          <div class="card-header-row">
-            <span class="card-title">🎁 デイリーログインボーナス</span>
-            <span id="sign-status-badge" class="status-pill signed">受取済 ✅ (累計 17日)</span>
+        <section class="control-card feature-card sign-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span class="card-icon" aria-hidden="true">🎁</span>
+              <span>デイリーログインボーナス</span>
+            </h2>
+            <button class="btn-site-link" type="button">公式 ↗</button>
           </div>
-          <div class="toggle-row">
-            <span id="auto-sign-label">自動受取 (毎日 01:05 JST)</span>
-            <label class="switch">
-              <input type="checkbox" id="auto-sign-toggle" checked>
-              <span class="slider"></span>
-            </label>
+          <div class="status-row">
+            <span class="status-label">本日の受取状況</span>
+            <span id="sign-status-badge" class="status-pill signed">本日受取済 (累計 20日)</span>
           </div>
-          <div class="action-btn-row">
-            <button id="manual-sign-btn" class="btn btn-accent btn-flex">本日のログボは受取済 ✅</button>
-            <button id="open-sign-page-btn" class="btn btn-ghost">公式 ↗</button>
-          </div>
-        </div>
-
-        <!-- カード2: 交換コード自動引き換え -->
-        <div class="control-card feature-card redeem-card">
-          <div class="card-header-row">
-            <span class="card-title">🎟️ 交換コード自動引き換え</span>
-          </div>
-          <div class="toggle-row">
-            <span id="auto-redeem-label">自動巡回 (3時間毎)</span>
-            <label class="switch">
-              <input type="checkbox" id="auto-redeem-toggle" checked>
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="action-btn-row">
-            <button id="manual-trigger-btn" class="btn btn-primary btn-flex">今すぐコード引き換え</button>
-            <button id="open-redeem-page-btn" class="btn btn-ghost">公式 ↗</button>
-          </div>
-        </div>
-
-        <!-- 実行ログ -->
-        <section class="logs-section">
-          <div class="logs-header-row">
-            <h2>実行ログ (直近50件)</h2>
-            <div class="log-filters" id="log-filters">
-              <button class="filter-btn active" data-filter="ALL">すべて</button>
-              <button class="filter-btn" data-filter="SIGN">ログボ</button>
-              <button class="filter-btn" data-filter="CODE">コード</button>
+          <div class="control-row">
+            <span id="auto-sign-label" class="control-label">自動受け取り (毎日 01:05)</span>
+            <div class="control-actions">
+              <label class="switch">
+                <input type="checkbox" id="auto-sign-toggle" checked>
+                <span class="slider"></span>
+              </label>
+              <button class="btn-icon" type="button" title="今すぐボーナス受取 (手動実行)">
+                <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 16h5v5"/>
+                </svg>
+              </button>
             </div>
           </div>
-          <div id="logs-container" class="logs-list">
-            <div class="log-item log-success">[10/17 01:05] [ログボ] 原神: ログボ受取完了 (累計17日)</div>
-            <div class="log-item log-success">[10/17 01:05] [ログボ] 崩壊：スターレイル: ログボ受取完了 (累計17日)</div>
-            <div class="log-item log-success">[10/16 19:00] [コード] 原神: 引き換え完了 (新規成功: 3件)</div>
-            <div class="log-item">[10/16 19:00] [コード] 原神: コード GS6ACJ775KNV 引き換え成功</div>
-            <div class="log-item">[10/16 18:59] [コード] 原神: コード GENSHINGIFT 引き換え成功</div>
+        </section>
+
+        <!-- カード2: 交換コード自動引き換え -->
+        <section class="control-card feature-card redeem-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span class="card-icon" aria-hidden="true">🎟️</span>
+              <span>交換コード自動引き換え</span>
+            </h2>
+            <button class="btn-site-link" type="button">公式 ↗</button>
+          </div>
+          <div class="status-row">
+            <span class="status-label">次回の実行予定</span>
+            <span id="redeem-status-badge" class="status-pill scheduled">次回 21:00</span>
+          </div>
+          <div class="control-row">
+            <span id="auto-redeem-label" class="control-label">定期自動引き換え (3時間毎)</span>
+            <div class="control-actions">
+              <label class="switch">
+                <input type="checkbox" id="auto-redeem-toggle" checked>
+                <span class="slider"></span>
+              </label>
+              <button class="btn-icon" type="button" title="今すぐ引き換え実行 (手動実行)">
+                <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 16h5v5"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </section>
+
+        <!-- 実行ログ（1行サマリー＋展開式アコーディオン） -->
+        <details id="logs-accordion" class="logs-accordion">
+          <summary class="logs-summary">
+            <span class="logs-chevron" aria-hidden="true">›</span>
+            <span id="latest-log-summary" class="logs-summary-text">直近のログ: 正常完了 (10/21 18:54)</span>
+          </summary>
+          <div id="logs-container" class="logs-list">
+            <div class="log-item">[10/21 18:54] 引き換え完了 (新規成功: 3件)</div>
+            <div class="log-item">[10/21 01:05] [ログボ] 受取完了 (今月累計: 20日)</div>
+          </div>
+        </details>
       </main>
 
       <footer class="app-footer">
@@ -742,22 +760,19 @@ function generateScreenshotStandaloneHtml() {
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 360px;
-      height: 580px;
-      background: #12141a;
+      width: 340px;
+      height: 455px;
+      background: #11151f;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     .mockup-popup {
-      width: 360px;
-      background-color: #12141a;
+      width: 340px;
+      background-color: #11151f;
       overflow: hidden;
     }
     .mockup-popup .app-container {
       padding: 14px;
-    }
-    .mockup-popup .logs-list {
-      max-height: 115px;
     }
   </style>
 </head>
@@ -823,8 +838,8 @@ async function main() {
       htmlContent: generateScreenshotStandaloneHtml(),
       tempHtml: path.join(TEMP_DIR, 'screen_popup.html'),
       outPng: path.join(OUTPUT_DIR, 'popup_3items_success.png'),
-      width: 360,
-      height: 580
+      width: 340,
+      height: 455
     }
   ];
 
