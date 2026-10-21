@@ -32,7 +32,7 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(devDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール [DEV]');
   assert.equal(manifest.short_name, 'HoYoPass-Dev');
-  assert.equal(manifest.version_name, '1.1.0-dev');
+  assert.equal(manifest.version_name, '1.2.0-dev');
 
   // env.js
   const envContent = fs.readFileSync(path.join(devDir, 'src/config/env.js'), 'utf8');

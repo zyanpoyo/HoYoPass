@@ -201,7 +201,7 @@ Chrome Web Store 申請用の配布パッケージは以下のコマンドで一
 npm run package
 ```
 
-- **出力先**: `dist/hoyopass-v1.1.0.zip`
+- **出力先**: `dist/hoyopass-v1.2.0.zip`
 
 ---
 
