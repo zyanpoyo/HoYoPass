@@ -539,6 +539,7 @@ a:hover {
 .footer-nav {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 1.25rem;
   margin-bottom: 0.9rem;
   font-size: 0.85rem;
@@ -562,6 +563,22 @@ a:hover {
 @media (max-width: 640px) {
   .header-inner {
     padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .site-nav {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .nav-link {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.8rem;
+  }
+
+  .lang-switch-link {
+    margin-left: 0;
   }
 
   .brand-name {
