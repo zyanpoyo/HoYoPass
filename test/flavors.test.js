@@ -30,9 +30,15 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
 
   // manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(devDir, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール [DEV]');
+  assert.equal(manifest.name, '__MSG_extName__', 'i18nプレースホルダーを維持');
   assert.equal(manifest.short_name, 'HoYoPass-Dev');
-  assert.equal(manifest.version_name, '1.2.0-dev');
+  assert.equal(manifest.version_name, '1.3.0-dev');
+
+  // _locales/ devサフィックス検証
+  const jaMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/ja/messages.json'), 'utf8'));
+  assert.equal(jaMsgDev.extName.message, 'HoYoPass - ログボ＆交換コード自動受取ツール [DEV]');
+  const enMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/en/messages.json'), 'utf8'));
+  assert.equal(enMsgDev.extName.message, 'HoYoPass - Auto Daily Check-In & Code Redeemer [DEV]');
 
   // env.js
   const envContent = fs.readFileSync(path.join(devDir, 'src/config/env.js'), 'utf8');
@@ -55,9 +61,15 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
 
   // manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(prodDir, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール');
+  assert.equal(manifest.name, '__MSG_extName__', 'i18nプレースホルダーを維持');
   assert.equal(manifest.short_name, 'HoYoPass');
   assert.equal(manifest.version_name, undefined, 'prodはversion_nameサフィックスなし');
+
+  // _locales/ prod検証
+  const jaMsgProd = JSON.parse(fs.readFileSync(path.join(prodDir, '_locales/ja/messages.json'), 'utf8'));
+  assert.equal(jaMsgProd.extName.message, 'HoYoPass - ログボ＆交換コード自動受取ツール');
+  const enMsgProd = JSON.parse(fs.readFileSync(path.join(prodDir, '_locales/en/messages.json'), 'utf8'));
+  assert.equal(enMsgProd.extName.message, 'HoYoPass - Auto Daily Check-In & Code Redeemer');
 
   // env.js
   const envContent = fs.readFileSync(path.join(prodDir, 'src/config/env.js'), 'utf8');

@@ -19,6 +19,6 @@ test('code-fetcher: パラメータマッピングのフォールバック動作
 
 test('DOCS_URLS: URL定義の確認', async () => {
   const { DOCS_URLS } = await import('../src/config/constants.js');
-  assert.equal(DOCS_URLS.README, 'https://github.com/zyanpoyo/HoYoPass#readme');
-  assert.equal(DOCS_URLS.PRIVACY_POLICY, 'https://github.com/zyanpoyo/HoYoPass/blob/master/docs/legal/privacy_policy.md');
+  assert.equal(DOCS_URLS.README, 'https://hoyopass.pages.dev/');
+  assert.equal(DOCS_URLS.PRIVACY_POLICY, 'https://hoyopass.pages.dev/privacy');
 });

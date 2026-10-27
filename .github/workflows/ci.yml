@@ -1,0 +1,64 @@
+name: CI & Security Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一ブランチで連続プッシュされた場合、古いジョブを自動キャンセルして無料実行枠を節約
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# トークン権限を読み取り専用に制限（セキュリティの最小権限原則）
+permissions:
+  contents: read
+
+jobs:
+  test-and-verify:
+    name: Test, Audit & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 26 (Matching local environment)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      # package-lock.json が存在する場合のみ実行（依存ゼロの現状でもコケない設計）
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "Zero external dependencies detected. Skipping npm ci."
+          fi
+
+      # 既知の重大な脆弱性（High/Critical）を検知した場合はジョブを失敗させる
+      - name: Security audit
+        run: |
+          if [ -f package-lock.json ]; then
+            npm audit --audit-level=high
+          else
+            echo "No lockfile to audit. Skipping npm audit."
+          fi
+
+      # プロジェクト既存のシークレット混入チェックスクリプト
+      - name: Check secrets
+        run: npm run check-secrets
+
+      # ユニットテスト (59件のテストをNode 26標準ランナーで実行)
+      - name: Run unit tests
+        run: npm test
+
+      # 本番用ビルドと成果物の出力確認
+      - name: Build production bundle
+        run: npm run build:prod
+
+      - name: Verify build artifact
+        run: |
+          test -f dist/prod/manifest.json || (echo "Build verification failed: manifest.json missing" && exit 1)

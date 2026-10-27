@@ -18,3 +18,6 @@ export const FLAVOR_CONFIG = {
     intervalLabel: '定期自動引き換え (3時間毎)'
   }
 };
+export const GA_MEASUREMENT_ID = '';
+export const GA_API_SECRET = '';
+

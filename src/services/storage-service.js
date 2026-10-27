@@ -1,4 +1,4 @@
-import { API_CONFIG, STATUS_MAP } from '../config/constants.js';
+import { API_CONFIG, STATUS_MAP, GAMES, DEFAULT_ENABLED_GAMES } from '../config/constants.js';
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const STORAGE_MAX_BYTES = 10 * 1024 * 1024;
@@ -34,20 +34,49 @@ export async function setBackoff(durationMs = API_CONFIG.BACKOFF_DURATION_MS) {
 export async function getSettings() {
   const data = await chrome.storage.local.get('app_settings');
   const saved = data.app_settings;
+  const defaultGames = DEFAULT_ENABLED_GAMES || Object.keys(GAMES);
+
   if (!saved) {
     return {
       optInAccepted: false,
       autoRedeemEnabled: false,
       autoSignEnabled: false,
-      activeGameKey: 'GENSHIN'
+      activeGameKey: 'GENSHIN',
+      enabledGames: [...defaultGames],
+      language: 'auto',
+      analyticsConsentReviewed: false,
+      analyticsEnabled: false
     };
   }
+
+  // 既存ユーザー向け補完・配列バリデーション
+  let enabledGames = [...defaultGames];
+  if (Array.isArray(saved.enabledGames) && saved.enabledGames.length > 0) {
+    const valid = saved.enabledGames.filter(k => GAMES[k]);
+    if (valid.length > 0) {
+      enabledGames = valid;
+    }
+  }
+
+  let activeGameKey = saved.activeGameKey || enabledGames[0];
+  if (!enabledGames.includes(activeGameKey)) {
+    activeGameKey = enabledGames[0];
+  }
+
+  const language = (saved.language === 'ja' || saved.language === 'en') ? saved.language : 'auto';
+  const analyticsConsentReviewed = Boolean(saved.analyticsConsentReviewed);
+  const analyticsEnabled = analyticsConsentReviewed ? Boolean(saved.analyticsEnabled) : false;
+
   return {
     optInAccepted: false,
     autoRedeemEnabled: false,
     autoSignEnabled: saved.optInAccepted ? true : false,
-    activeGameKey: 'GENSHIN',
-    ...saved
+    ...saved,
+    enabledGames,
+    activeGameKey,
+    language,
+    analyticsConsentReviewed,
+    analyticsEnabled
   };
 }
 
@@ -56,6 +85,25 @@ export async function updateSettings(partial) {
   const updated = { ...current, ...partial };
   await chrome.storage.local.set({ app_settings: updated });
   return updated;
+}
+
+export async function getOrCreateGaClientId() {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    return '00000000-0000-4000-8000-000000000000';
+  }
+  const data = await chrome.storage.local.get('ga_client_id');
+  if (data && data.ga_client_id) {
+    return data.ga_client_id;
+  }
+  const newClientId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+  await chrome.storage.local.set({ ga_client_id: newClientId });
+  return newClientId;
 }
 
 export async function checkStorageCapacity() {
@@ -117,6 +165,10 @@ export async function markCodeStatus(gameBiz, cdkey, statusStr) {
 }
 
 export async function pruneHistoryIfExceeded(gameBiz, activeCodesList) {
+  if (Array.isArray(activeCodesList)) {
+    await setActiveCodes(gameBiz, activeCodesList);
+  }
+
   const key = `redeemed_${gameBiz}`;
   const current = await getRedeemedCodes(gameBiz);
   const keys = Object.keys(current);
@@ -136,6 +188,65 @@ export async function pruneHistoryIfExceeded(gameBiz, activeCodesList) {
   }
 
   await chrome.storage.local.set({ [key]: current });
+}
+
+export async function getActiveCodes(gameBiz) {
+  const key = `active_codes_${gameBiz}`;
+  const data = await chrome.storage.local.get(key);
+  return Array.isArray(data[key]) ? data[key] : null;
+}
+
+export async function setActiveCodes(gameBiz, codes) {
+  const key = `active_codes_${gameBiz}`;
+  await chrome.storage.local.set({ [key]: Array.isArray(codes) ? codes : [] });
+}
+
+export async function getCodeRedeemStats(gameBiz, nowMs = Date.now()) {
+  const redeemedKey = `redeemed_${gameBiz}`;
+  const activeKey = `active_codes_${gameBiz}`;
+  const data = await chrome.storage.local.get([redeemedKey, activeKey]);
+  const redeemed = data[redeemedKey] || {};
+  const activeCodes = Array.isArray(data[activeKey]) ? data[activeKey] : null;
+
+  // UTC+8 における当月1日 00:00:00 のUNIXタイムスタンプ（秒）
+  const utc8OffsetMs = 8 * 60 * 60 * 1000;
+  const utc8Date = new Date(nowMs + utc8OffsetMs);
+  const monthStartUtc8Ms = Date.UTC(utc8Date.getUTCFullYear(), utc8Date.getUTCMonth(), 1, 0, 0, 0, 0);
+  const monthStartSec = Math.floor((monthStartUtc8Ms - utc8OffsetMs) / 1000);
+
+  const isClaimed = (s) => s === STATUS_MAP.SUCCESS || s === STATUS_MAP.ALREADY_CLAIMED;
+
+  let monthlyCount = 0;
+  let totalCount = 0;
+
+  for (const entry of Object.values(redeemed)) {
+    if (entry && isClaimed(entry.s)) {
+      totalCount++;
+      if ((entry.t || 0) >= monthStartSec) {
+        monthlyCount++;
+      }
+    }
+  }
+
+  let activeTotal = null;
+  let activeClaimed = null;
+  if (activeCodes) {
+    // 期限切れ(EXPIRED)または失敗確定(FAILED)のコードを除外した「現在受け取り可能な有効コード」
+    const availableCodes = activeCodes.filter(code => {
+      const entry = redeemed[code];
+      return !entry || (entry.s !== STATUS_MAP.EXPIRED && entry.s !== STATUS_MAP.FAILED);
+    });
+
+    activeTotal = availableCodes.length;
+    activeClaimed = availableCodes.filter(code => redeemed[code] && isClaimed(redeemed[code].s)).length;
+  }
+
+  return {
+    monthlyCount,
+    totalCount,
+    activeTotal,
+    activeClaimed
+  };
 }
 
 export async function addExecutionLog(logEntry) {

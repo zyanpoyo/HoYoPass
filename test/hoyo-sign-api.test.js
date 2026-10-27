@@ -47,8 +47,34 @@ test('getDailySignInfo: プライマリホスト(hoyolab.com)で成功し x-rpc-
     assert.equal(res.today, '2026-10-17');
     assert.equal(calledRequests.length, 1, 'プライマリ成功時は1回のみ通信');
     assert.ok(calledRequests[0].url.startsWith('https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/info'));
+    assert.ok(calledRequests[0].url.includes('lang=ja-jp'), 'デフォルトはja-jp');
     assert.equal(calledRequests[0].opts.headers['x-rpc-signgame'], 'zzz');
     assert.equal(calledRequests[0].opts.credentials, 'include');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getDailySignInfo: lang=en 指定時に lang=en-us がクエリに含まれること', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = null;
+
+  globalThis.fetch = async (url) => {
+    requestedUrl = String(url);
+    return {
+      status: 200,
+      text: async () => JSON.stringify({
+        retcode: 0,
+        message: 'OK',
+        data: { is_sign: true, total_sign_day: 1, today: '2026-10-25' }
+      })
+    };
+  };
+
+  try {
+    const res = await getDailySignInfo('GENSHIN', 'en');
+    assert.equal(res.success, true);
+    assert.ok(requestedUrl.includes('lang=en-us'), 'lang=en指定時はen-usになること');
   } finally {
     globalThis.fetch = originalFetch;
   }

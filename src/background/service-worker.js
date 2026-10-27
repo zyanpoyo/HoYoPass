@@ -1,4 +1,5 @@
 import { GAMES, API_CONFIG, STATUS_MAP, ALARM_NAMES } from '../config/constants.js';
+import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
 import {
   acquireExecutionLock,
   releaseExecutionLock,
@@ -17,10 +18,19 @@ import {
   getHoyoTodayDateString,
   setDailySignRecord,
   isDailySignedToday,
-  shouldRunDailySign
+  shouldRunDailySign,
+  getActiveCodes,
+  setActiveCodes
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
+import {
+  toGaGameKey,
+  toRedeemTrigger,
+  toCheckinTrigger,
+  syncConsentBadge,
+  sendGAEvent
+} from '../services/analytics-service.js';
 
 export function getNextDailySignTimestamp(nowMs = Date.now()) {
   const utc8OffsetMs = 8 * 60 * 60 * 1000;
@@ -63,10 +73,12 @@ export async function scheduleRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVA
     await chrome.alarms.create(ALARM_NAMES.RETRY, {
       delayInMinutes: delayMinutes
     });
+    const settings = await getSettings();
+    const lang = resolveLanguage(settings.language);
     await addExecutionLog({
       type: 'INFO',
       category: 'CODE',
-      message: `一時的な通信不通を検知したため、${delayMinutes}分後に自動再試行します`
+      message: t('logRetryRedeem', [delayMinutes], lang)
     });
   }
 }
@@ -81,10 +93,12 @@ export async function scheduleSignRetryAlarm(delayMinutes = API_CONFIG.RETRY_INT
     await chrome.alarms.create(ALARM_NAMES.SIGN_RETRY, {
       delayInMinutes: delayMinutes
     });
+    const settings = await getSettings();
+    const lang = resolveLanguage(settings.language);
     await addExecutionLog({
       type: 'INFO',
       category: 'SIGN',
-      message: `ログインボーナス通信不通のため、${delayMinutes}分後に自動再試行します`
+      message: t('logRetrySign', [delayMinutes], lang)
     });
   }
 }
@@ -116,7 +130,8 @@ export async function maybeRunDailySignCatchUp(triggerSource = 'STARTUP', skipDe
   const settings = await getSettings();
   if (!settings.optInAccepted || !settings.autoSignEnabled) return false;
 
-  const gameBizList = Object.values(GAMES).map(g => g.gameBiz);
+  const enabledGames = settings.enabledGames || Object.keys(GAMES);
+  const gameBizList = enabledGames.map(k => GAMES[k]?.gameBiz).filter(Boolean);
   const shouldRun = await shouldRunDailySign(gameBizList);
   if (!shouldRun) return false;
 
@@ -132,11 +147,12 @@ export async function maybeRunDailySignCatchUp(triggerSource = 'STARTUP', skipDe
   return await runDailySignFlow(triggerSource);
 }
 
-export async function maybeRunAllCatchUp(triggerSource = 'STARTUP') {
+export async function maybeRunAllCatchUp(triggerSource = 'STARTUP', skipDelay = false) {
   const settings = await getSettings();
   if (!settings.optInAccepted) return { signResult: false, redeemResult: false };
 
-  const gameBizList = Object.values(GAMES).map(g => g.gameBiz);
+  const enabledGames = settings.enabledGames || Object.keys(GAMES);
+  const gameBizList = enabledGames.map(k => GAMES[k]?.gameBiz).filter(Boolean);
   const needSign = settings.autoSignEnabled && (await shouldRunDailySign(gameBizList));
   const needRedeem = settings.autoRedeemEnabled && (await shouldRunRedeem(API_CONFIG.REDEEM_INTERVAL_MINUTES));
 
@@ -150,7 +166,7 @@ export async function maybeRunAllCatchUp(triggerSource = 'STARTUP') {
     return { signResult: false, redeemResult: false };
   }
 
-  if (API_CONFIG.CATCH_UP_DELAY_MS > 0) {
+  if (!skipDelay && API_CONFIG.CATCH_UP_DELAY_MS > 0) {
     await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
   }
 
@@ -174,9 +190,16 @@ export const SIGN_CAPTCHA_NOTIFICATION_PREFIX = 'sign_captcha_';
 export async function handleNotificationClick(notificationId) {
   if (notificationId.startsWith(LOGIN_NOTIFICATION_PREFIX)) {
     const gameKey = notificationId.slice(LOGIN_NOTIFICATION_PREFIX.length);
-    const gameConfig = GAMES[gameKey];
-    if (gameConfig?.giftSiteUrl) {
-      await chrome.tabs.create({ url: gameConfig.giftSiteUrl });
+    const settings = await getSettings();
+    const lang = resolveLanguage(settings?.language);
+    await sendGAEvent('ui_action', {
+      action_type: 'notification_click',
+      game: toGaGameKey(gameKey),
+      lang
+    });
+    const localized = getGameLocalized(gameKey, lang);
+    if (localized?.giftSiteUrl) {
+      await chrome.tabs.create({ url: localized.giftSiteUrl });
       chrome.notifications.clear(notificationId);
     }
     return;
@@ -184,6 +207,13 @@ export async function handleNotificationClick(notificationId) {
 
   if (notificationId.startsWith(SIGN_LOGIN_NOTIFICATION_PREFIX)) {
     const gameKey = notificationId.slice(SIGN_LOGIN_NOTIFICATION_PREFIX.length);
+    const settings = await getSettings();
+    const lang = resolveLanguage(settings?.language);
+    await sendGAEvent('ui_action', {
+      action_type: 'notification_click',
+      game: toGaGameKey(gameKey),
+      lang
+    });
     const gameConfig = GAMES[gameKey];
     if (gameConfig?.checkInSiteUrl) {
       await chrome.tabs.create({ url: gameConfig.checkInSiteUrl });
@@ -194,6 +224,13 @@ export async function handleNotificationClick(notificationId) {
 
   if (notificationId.startsWith(SIGN_CAPTCHA_NOTIFICATION_PREFIX)) {
     const gameKey = notificationId.slice(SIGN_CAPTCHA_NOTIFICATION_PREFIX.length);
+    const settings = await getSettings();
+    const lang = resolveLanguage(settings?.language);
+    await sendGAEvent('ui_action', {
+      action_type: 'notification_click',
+      game: toGaGameKey(gameKey),
+      lang
+    });
     const gameConfig = GAMES[gameKey];
     if (gameConfig?.checkInSiteUrl) {
       await chrome.tabs.create({ url: gameConfig.checkInSiteUrl });
@@ -207,11 +244,13 @@ chrome.notifications.onClicked.addListener(handleNotificationClick);
 chrome.runtime.onInstalled.addListener(async () => {
   await setupAlarm();
   await setupDailySignAlarm();
+  await syncConsentBadge();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await setupAlarm();
   await setupDailySignAlarm();
+  await syncConsentBadge();
   await maybeRunAllCatchUp('STARTUP');
 });
 
@@ -268,43 +307,101 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
+
+  if (message.type === 'TRIGGER_INITIAL_CATCH_UP') {
+    maybeRunAllCatchUp('INITIAL_RUN', true)
+      .then(res => sendResponse(res))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'TRACK_GA_EVENT') {
+    sendGAEvent(message.eventName, message.params)
+      .then(res => sendResponse(res))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });
 
-export async function redeemForGame(gameKey) {
+export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM') {
   const gameConfig = GAMES[gameKey];
   if (!gameConfig) {
     return { success: false, reason: `未知のゲームキー: ${gameKey}`, gameKey };
   }
 
-  const roleRes = await getUserGameRoles(gameConfig.gameBiz);
+  const trigger = toRedeemTrigger(triggerSource);
+  const localizedGame = getGameLocalized(gameKey, lang);
+  const gameName = localizedGame.name;
+
+  const roleRes = await getUserGameRoles(gameConfig.gameBiz, lang);
   if (!roleRes.success) {
     // 未プレイまたはキャラクター未作成の場合（retcode: -1 または -2）
     if (roleRes.retcode === -1 || roleRes.retcode === -2) {
       await addExecutionLog({
         type: 'INFO',
         category: 'CODE',
-        message: `${gameConfig.name}: キャラクターが見つからないためスキップしました`
+        gameKey,
+        message: t('logNoCharSkip', [gameName], lang)
       });
-      return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName: gameConfig.name };
+      return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName };
+    }
+
+    // 未引換コードが存在する場合のみ、または手動実行の場合のみ失敗イベントを記録
+    const activeCodes = (await getActiveCodes(gameConfig.gameBiz)) || [];
+    const redeemed = await getRedeemedCodes(gameConfig.gameBiz);
+    const hasPendingCodes = activeCodes.some(cd => {
+      const entry = redeemed[cd];
+      return !entry || (entry.s !== STATUS_MAP.SUCCESS && entry.s !== STATUS_MAP.ALREADY_CLAIMED && entry.s !== STATUS_MAP.EXPIRED && entry.s !== STATUS_MAP.FAILED);
+    });
+    if (hasPendingCodes || trigger === 'manual') {
+      const errorReason = (roleRes.retcode === -100 || roleRes.retcode === -1071) ? 'not_logged_in' : 'unknown';
+      await sendGAEvent('code_redeem_result', {
+        game: toGaGameKey(gameKey),
+        status: 'failed',
+        error_reason: errorReason,
+        trigger,
+        lang
+      });
     }
 
     // 未ログイン・セッション期限切れ（retcode: -100 または -1071）
-    const errorMsg = `${gameConfig.name}: ロール取得失敗 (${roleRes.message} [retcode: ${roleRes.retcode}])`;
-    await addExecutionLog({ type: 'ERROR', category: 'CODE', message: errorMsg });
+    const errorMsg = `${gameName}: ロール取得失敗 (${roleRes.message} [retcode: ${roleRes.retcode}])`;
+    await addExecutionLog({ type: 'ERROR', category: 'CODE', gameKey, message: errorMsg });
 
     if (roleRes.retcode === -100 || roleRes.retcode === -1071) {
       chrome.notifications.create(`${LOGIN_NOTIFICATION_PREFIX}${gameKey}`, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-        title: 'ログインが必要です',
-        message: `${gameConfig.name}の公式サイトで再ログインしてください。`
+        title: t('notifLoginTitle', [], lang),
+        message: t('notifLoginMsgRedeem', [gameName], lang)
       });
     }
-    return { success: false, skipped: false, reason: errorMsg, retcode: roleRes.retcode, gameKey, gameName: gameConfig.name };
+    return { success: false, skipped: false, reason: errorMsg, retcode: roleRes.retcode, gameKey, gameName };
   }
 
   const role = roleRes.role;
-  const activeCodes = await fetchValidCodes(gameKey);
+  let activeCodes = [];
+  try {
+    activeCodes = await fetchValidCodes(gameKey);
+    await setActiveCodes(gameConfig.gameBiz, activeCodes);
+  } catch (fetchErr) {
+    let httpStatus = 0;
+    const match = fetchErr.message && fetchErr.message.match(/HTTP_ERROR_(\d+)/);
+    if (match) {
+      httpStatus = parseInt(match[1], 10);
+    }
+    const isTimeout = fetchErr.name === 'AbortError' || (fetchErr.message && fetchErr.message.includes('TIMEOUT'));
+    const isParseErr = fetchErr instanceof SyntaxError || (fetchErr.message && fetchErr.message.includes('JSON'));
+    const errorType = isTimeout ? 'timeout' : (httpStatus > 0 ? 'http_error' : (isParseErr ? 'parse_error' : 'network_error'));
+    await sendGAEvent('code_list_fetch_error', {
+      game: toGaGameKey(gameKey),
+      http_status: httpStatus,
+      error_type: errorType,
+      lang
+    });
+    throw fetchErr;
+  }
+
   const redeemed = await getRedeemedCodes(gameConfig.gameBiz);
 
   let redeemedCount = 0;
@@ -317,7 +414,11 @@ export async function redeemForGame(gameKey) {
     if (!entry) {
       const canAccept = await canAcceptNewCode(gameConfig.gameBiz);
       if (!canAccept) {
-        await addExecutionLog({ type: 'WARN', message: `${gameConfig.name}: 1日の新規コード受付上限(20件)に達したためスキップしました。` });
+        await addExecutionLog({
+          type: 'WARN',
+          gameKey,
+          message: t('logDailyLimit', [gameName], lang)
+        });
         break;
       }
     }
@@ -330,25 +431,51 @@ export async function redeemForGame(gameKey) {
       gameBiz: gameConfig.gameBiz,
       uid: role.game_uid,
       region: role.region,
-      cdkey
+      cdkey,
+      lang
     });
+
+    let status = 'failed';
+    let errorReason = 'unknown';
 
     if (res.retcode === 0) {
       await markCodeStatus(gameConfig.gameBiz, cdkey, 'SUCCESS');
       redeemedCount++;
+      status = 'success';
+      errorReason = 'none';
     } else if (res.retcode === -2017) {
       await markCodeStatus(gameConfig.gameBiz, cdkey, 'ALREADY_CLAIMED');
+      status = 'already_claimed';
+      errorReason = 'none';
     } else if (res.retcode === -2001) {
       await markCodeStatus(gameConfig.gameBiz, cdkey, 'EXPIRED');
+      status = 'expired';
+      errorReason = 'none';
     } else if (res.retcode === -2016) {
       await setBackoff();
       await markCodeStatus(gameConfig.gameBiz, cdkey, 'RETRY');
-      break;
+      status = 'cooldown';
+      errorReason = 'cooldown';
     } else if (res.retcode === -100 || res.retcode === -1071) {
       await markCodeStatus(gameConfig.gameBiz, cdkey, 'RETRY');
-      break;
+      status = 'failed';
+      errorReason = 'not_logged_in';
     } else {
       await markCodeStatus(gameConfig.gameBiz, cdkey, 'RETRY');
+      status = 'failed';
+      errorReason = 'unknown';
+    }
+
+    await sendGAEvent('code_redeem_result', {
+      game: toGaGameKey(gameKey),
+      status,
+      error_reason: errorReason,
+      trigger,
+      lang
+    });
+
+    if (res.retcode === -2016 || res.retcode === -100 || res.retcode === -1071) {
+      break;
     }
   }
 
@@ -356,10 +483,11 @@ export async function redeemForGame(gameKey) {
   await addExecutionLog({
     type: 'INFO',
     category: 'CODE',
-    message: `${gameConfig.name}: 引き換え完了 (新規成功: ${redeemedCount}件)`
+    gameKey,
+    message: t('logRedeemComplete', [gameName, redeemedCount], lang)
   });
 
-  return { success: true, skipped: false, redeemedCount, gameKey, gameName: gameConfig.name };
+  return { success: true, skipped: false, redeemedCount, gameKey, gameName };
 }
 
 export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey = null) {
@@ -367,6 +495,9 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
   if (!lockAcquired) {
     return { success: false, reason: 'ALREADY_RUNNING' };
   }
+
+  const settings = await getSettings();
+  const lang = resolveLanguage(settings.language);
 
   try {
     if (await isUnderBackoff()) {
@@ -382,23 +513,37 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
       chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-        title: '容量警告',
-        message: '拡張機能の保存容量が80%を超過しています。整理を推奨します。'
+        title: t('notifStorageWarningTitle', [], lang),
+        message: t('notifStorageWarningMsg', [], lang)
       });
     }
 
-    const gameKeys = targetGameKey ? [targetGameKey] : Object.keys(GAMES);
+    const enabledGames = (settings && Array.isArray(settings.enabledGames) && settings.enabledGames.length > 0)
+      ? settings.enabledGames
+      : Object.keys(GAMES);
+
+    if (targetGameKey && !enabledGames.includes(targetGameKey)) {
+      return { success: false, reason: `非表示または無効化されたゲームです: ${targetGameKey}`, gameKey: targetGameKey };
+    }
+
+    const gameKeys = targetGameKey ? [targetGameKey] : enabledGames;
     const results = {};
     let totalRedeemed = 0;
 
     for (let i = 0; i < gameKeys.length; i++) {
       const gKey = gameKeys[i];
+      const localized = getGameLocalized(gKey, lang);
       if (await isUnderBackoff()) {
-        await addExecutionLog({ type: 'WARN', category: 'CODE', message: `バックオフ発動中のため ${GAMES[gKey]?.name || gKey} 以降の処理を中断しました。` });
+        await addExecutionLog({
+          type: 'WARN',
+          category: 'CODE',
+          gameKey: gKey,
+          message: t('logBackoffAbort', [localized.name], lang)
+        });
         break;
       }
 
-      const res = await redeemForGame(gKey);
+      const res = await redeemForGame(gKey, lang, triggerSource);
       results[gKey] = res;
       if (res.success && !res.skipped && res.redeemedCount) {
         totalRedeemed += res.redeemedCount;
@@ -406,7 +551,6 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
 
       // 次のゲームへ進む前の待機（最後のゲームを除く）
       if (i < gameKeys.length - 1) {
-        // 引き換え処理を行ったゲームの後はインターバル待機、スキップ時は短縮
         const delayMs = res.skipped ? 500 : API_CONFIG.INTER_REQUEST_DELAY_MS;
         await new Promise(r => setTimeout(r, delayMs));
       }
@@ -428,8 +572,8 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
       chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-        title: '拡張機能エラー',
-        message: 'ストレージ容量が上限に達したため、自動実行を停止しました。'
+        title: t('notifStorageErrorTitle', [], lang),
+        message: t('notifStorageErrorMsg', [], lang)
       });
     }
 
@@ -442,7 +586,11 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
     if (isNetworkError) {
       await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
     } else {
-      await addExecutionLog({ type: 'ERROR', category: 'CODE', message: `例外発生: ${err.message}` });
+      await addExecutionLog({
+        type: 'ERROR',
+        category: 'CODE',
+        message: t('logExceptionRedeem', [err.message], lang)
+      });
     }
 
     return {
@@ -455,11 +603,15 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
   }
 }
 
-export async function signForGame(gameKey, options = {}) {
+export async function signForGame(gameKey, options = {}, lang = 'ja', triggerSource = 'DAILY_ALARM') {
   const gameConfig = GAMES[gameKey];
   if (!gameConfig) {
     return { success: false, reason: `未知のゲームキー: ${gameKey}`, gameKey };
   }
+
+  const trigger = toCheckinTrigger(triggerSource);
+  const localizedGame = getGameLocalized(gameKey, lang);
+  const gameName = localizedGame.name;
 
   const forceCheck = !!options.forceCheck;
   if (!forceCheck) {
@@ -471,12 +623,12 @@ export async function signForGame(gameKey, options = {}) {
         alreadySigned: true,
         reason: 'ALREADY_SIGNED_TODAY',
         gameKey,
-        gameName: gameConfig.name
+        gameName
       };
     }
   }
 
-  const roleRes = await getUserGameRoles(gameConfig.gameBiz);
+  const roleRes = await getUserGameRoles(gameConfig.gameBiz, lang);
   if (!roleRes.success) {
     if (roleRes.retcode === -1 || roleRes.retcode === -2) {
       await setDailySignRecord(gameConfig.gameBiz, {
@@ -487,20 +639,30 @@ export async function signForGame(gameKey, options = {}) {
       await addExecutionLog({
         type: 'INFO',
         category: 'SIGN',
-        message: `${gameConfig.name}: [ログボ] キャラクターが見つからないためスキップしました`
+        gameKey,
+        message: t('logNoCharSkipSign', [gameName], lang)
       });
-      return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName: gameConfig.name };
+      return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName };
     }
 
-    const errorMsg = `${gameConfig.name}: [ログボ] ロール取得失敗 (${roleRes.message} [retcode: ${roleRes.retcode}])`;
-    await addExecutionLog({ type: 'ERROR', category: 'SIGN', message: errorMsg });
+    const errorReason = (roleRes.retcode === -100 || roleRes.retcode === -1071) ? 'not_logged_in' : 'api_error';
+    await sendGAEvent('daily_checkin_result', {
+      game: toGaGameKey(gameKey),
+      status: 'failed',
+      error_reason: errorReason,
+      trigger,
+      lang
+    });
+
+    const errorMsg = `${gameName}: [ログボ] ロール取得失敗 (${roleRes.message} [retcode: ${roleRes.retcode}])`;
+    await addExecutionLog({ type: 'ERROR', category: 'SIGN', gameKey, message: errorMsg });
 
     if (roleRes.retcode === -100 || roleRes.retcode === -1071) {
       chrome.notifications.create(`${SIGN_LOGIN_NOTIFICATION_PREFIX}${gameKey}`, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-        title: 'ログインが必要です',
-        message: `${gameConfig.name}の公式ログインボーナスページでログインしてください。`
+        title: t('notifLoginTitle', [], lang),
+        message: t('notifLoginMsgSign', [gameName], lang)
       });
     }
     return {
@@ -509,11 +671,11 @@ export async function signForGame(gameKey, options = {}) {
       reason: errorMsg,
       retcode: roleRes.retcode,
       gameKey,
-      gameName: gameConfig.name
+      gameName
     };
   }
 
-  const infoRes = await getDailySignInfo(gameConfig);
+  const infoRes = await getDailySignInfo(gameConfig, lang);
   const todayStr = (infoRes.success && infoRes.today) ? infoRes.today : getHoyoTodayDateString();
 
   if (infoRes.success && infoRes.isSigned) {
@@ -523,10 +685,19 @@ export async function signForGame(gameKey, options = {}) {
       totalSignDay: infoRes.totalSignDay,
       skippedNoChar: false
     });
+    await sendGAEvent('daily_checkin_result', {
+      game: toGaGameKey(gameKey),
+      status: 'already_signed',
+      error_reason: 'none',
+      trigger,
+      lang
+    });
+    const daysSuffix = infoRes.totalSignDay ? t('signStatusMonthDays', [infoRes.totalSignDay], lang) : '';
     await addExecutionLog({
       type: 'INFO',
       category: 'SIGN',
-      message: `${gameConfig.name}: [ログボ] 本日受取済み (今月累計: ${infoRes.totalSignDay}日)`
+      gameKey,
+      message: t('logSignAlready', [gameName, daysSuffix], lang)
     });
     return {
       success: true,
@@ -535,20 +706,27 @@ export async function signForGame(gameKey, options = {}) {
       alreadySigned: true,
       totalSignDay: infoRes.totalSignDay,
       gameKey,
-      gameName: gameConfig.name
+      gameName
     };
   }
 
-  const claimRes = await claimDailyBonus(gameConfig);
+  const claimRes = await claimDailyBonus(gameConfig, lang);
 
   if (claimRes.isRisk) {
-    const riskMsg = `${gameConfig.name}: [ログボ] セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください`;
-    await addExecutionLog({ type: 'WARN', category: 'SIGN', message: riskMsg });
+    await sendGAEvent('daily_checkin_result', {
+      game: toGaGameKey(gameKey),
+      status: 'failed',
+      error_reason: 'captcha_required',
+      trigger,
+      lang
+    });
+    const riskMsg = t('logSignRisk', [gameName], lang);
+    await addExecutionLog({ type: 'WARN', category: 'SIGN', gameKey, message: riskMsg });
     chrome.notifications.create(`${SIGN_CAPTCHA_NOTIFICATION_PREFIX}${gameKey}`, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: 'ログインボーナス手動確認が必要',
-      message: `${gameConfig.name}でCAPTCHA認証が要求されました。クリックして公式ページから受け取ってください。`
+      title: t('notifCaptchaTitle', [], lang),
+      message: t('notifCaptchaMsg', [gameName], lang)
     });
     return {
       success: false,
@@ -557,7 +735,7 @@ export async function signForGame(gameKey, options = {}) {
       retcode: claimRes.retcode,
       reason: claimRes.message,
       gameKey,
-      gameName: gameConfig.name
+      gameName
     };
   }
 
@@ -571,13 +749,23 @@ export async function signForGame(gameKey, options = {}) {
       skippedNoChar: false
     });
 
+    await sendGAEvent('daily_checkin_result', {
+      game: toGaGameKey(gameKey),
+      status: claimRes.alreadySigned ? 'already_signed' : 'success',
+      error_reason: 'none',
+      trigger,
+      lang
+    });
+
+    const daysSuffix = totalSignDay ? t('signStatusMonthDays', [totalSignDay], lang) : '';
     const msg = claimRes.alreadySigned
-      ? `${gameConfig.name}: [ログボ] 本日受取済み${totalSignDay ? ` (今月累計: ${totalSignDay}日)` : ''}`
-      : `${gameConfig.name}: [ログボ] 受取完了${totalSignDay ? ` (今月累計: ${totalSignDay}日)` : ''}`;
+      ? t('logSignAlready', [gameName, daysSuffix], lang)
+      : t('logSignDone', [gameName, daysSuffix], lang);
 
     await addExecutionLog({
       type: 'INFO',
       category: 'SIGN',
+      gameKey,
       message: msg
     });
 
@@ -588,19 +776,28 @@ export async function signForGame(gameKey, options = {}) {
       alreadySigned: !!claimRes.alreadySigned,
       totalSignDay,
       gameKey,
-      gameName: gameConfig.name
+      gameName
     };
   }
 
-  const errText = `${gameConfig.name}: [ログボ] 受取失敗 (${claimRes.message} [retcode: ${claimRes.retcode}])`;
-  await addExecutionLog({ type: 'ERROR', category: 'SIGN', message: errText });
+  const errorReason = (claimRes.retcode === -100 || claimRes.retcode === -1071) ? 'not_logged_in' : 'api_error';
+  await sendGAEvent('daily_checkin_result', {
+    game: toGaGameKey(gameKey),
+    status: 'failed',
+    error_reason: errorReason,
+    trigger,
+    lang
+  });
+
+  const errText = `${gameName}: [ログボ] 受取失敗 (${claimRes.message} [retcode: ${claimRes.retcode}])`;
+  await addExecutionLog({ type: 'ERROR', category: 'SIGN', gameKey, message: errText });
 
   if (claimRes.retcode === -100 || claimRes.retcode === -1071) {
     chrome.notifications.create(`${SIGN_LOGIN_NOTIFICATION_PREFIX}${gameKey}`, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: 'ログインが必要です',
-      message: `${gameConfig.name}の公式ログインボーナスページでログインしてください。`
+      title: t('notifLoginTitle', [], lang),
+      message: t('notifLoginMsgSign', [gameName], lang)
     });
   }
 
@@ -610,7 +807,7 @@ export async function signForGame(gameKey, options = {}) {
     retcode: claimRes.retcode,
     reason: errText,
     gameKey,
-    gameName: gameConfig.name
+    gameName
   };
 }
 
@@ -619,6 +816,9 @@ export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGame
   if (!lockAcquired) {
     return { success: false, reason: 'ALREADY_RUNNING' };
   }
+
+  const settings = await getSettings();
+  const lang = resolveLanguage(settings.language);
 
   try {
     if (await isUnderBackoff()) {
@@ -629,7 +829,15 @@ export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGame
       return { success: false, reason: `未知のゲームキー: ${targetGameKey}` };
     }
 
-    const gameKeys = targetGameKey ? [targetGameKey] : Object.keys(GAMES);
+    const enabledGames = (settings && Array.isArray(settings.enabledGames) && settings.enabledGames.length > 0)
+      ? settings.enabledGames
+      : Object.keys(GAMES);
+
+    if (targetGameKey && !enabledGames.includes(targetGameKey)) {
+      return { success: false, reason: `非表示または無効化されたゲームです: ${targetGameKey}`, gameKey: targetGameKey };
+    }
+
+    const gameKeys = targetGameKey ? [targetGameKey] : enabledGames;
     const results = {};
     let signedCount = 0;
 
@@ -639,7 +847,7 @@ export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGame
         break;
       }
 
-      const res = await signForGame(gKey, { forceCheck: !!targetGameKey });
+      const res = await signForGame(gKey, { forceCheck: !!targetGameKey }, lang, triggerSource);
       results[gKey] = res;
       if (res.success && res.signed) {
         signedCount++;
@@ -671,7 +879,11 @@ export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGame
     if (isNetworkError) {
       await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
     } else {
-      await addExecutionLog({ type: 'ERROR', category: 'SIGN', message: `[ログボ] 例外発生: ${err.message}` });
+      await addExecutionLog({
+        type: 'ERROR',
+        category: 'SIGN',
+        message: t('logExceptionSign', [err.message], lang)
+      });
     }
 
     return {

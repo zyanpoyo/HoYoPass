@@ -1,13 +1,14 @@
 import { hoyoFetch } from './http-client.js';
 import { isValidUid, isValidRegion } from './security.js';
 import { GAMES } from '../config/constants.js';
+import { getExchangeApiLang, getSignApiLang } from '../utils/i18n.js';
 
 const TAKUMI_HOSTS = [
   'https://api-os-takumi.hoyoverse.com',
   'https://api-os-takumi.hoyolab.com'
 ];
 
-export async function getUserGameRoles(gameBiz = 'hk4e_global') {
+export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
   let lastData = null;
 
   for (const host of TAKUMI_HOSTS) {
@@ -21,13 +22,17 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global') {
       const rawList = data.data?.list || [];
       if (!rawList.length) {
         console.warn(`[getUserGameRoles] No roles in data.list for ${gameBiz}:`, data.data);
-        return { success: false, retcode: -1, message: 'アカウント内にキャラクターが見つかりません', role: null };
+        const noCharMsg = lang === 'en' ? 'No character found in account' : 'アカウント内にキャラクターが見つかりません';
+        return { success: false, retcode: -1, message: noCharMsg, role: null };
       }
 
       const validRoles = rawList.filter(r => isValidUid(r.game_uid) && isValidRegion(r.region));
       if (!validRoles.length) {
         console.warn(`[getUserGameRoles] Roles filtered out by constraints:`, rawList);
-        return { success: false, retcode: -2, message: `有効なUIDまたはRegionに一致しません (${rawList.map(r => r.region).join(',')})`, role: null };
+        const invalidMsg = lang === 'en'
+          ? `Invalid UID or Region (${rawList.map(r => r.region).join(',')})`
+          : `有効なUIDまたはRegionに一致しません (${rawList.map(r => r.region).join(',')})`;
+        return { success: false, retcode: -2, message: invalidMsg, role: null };
       }
 
       let selectedRole = validRoles.find(r => r.is_chosen === true);
@@ -51,11 +56,11 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global') {
   };
 }
 
-export async function redeemCode({ exchangeHost, exchangePath, gameBiz, uid, region, cdkey }) {
+export async function redeemCode({ exchangeHost, exchangePath, gameBiz, uid, region, cdkey, lang = 'ja' }) {
   const url = new URL(exchangePath, exchangeHost);
   url.searchParams.set('uid', uid);
   url.searchParams.set('region', region);
-  url.searchParams.set('lang', 'ja');
+  url.searchParams.set('lang', getExchangeApiLang(lang));
   url.searchParams.set('cdkey', cdkey);
   url.searchParams.set('game_biz', gameBiz);
 
@@ -91,10 +96,10 @@ export function isCaptchaRisk(resJson) {
   return false;
 }
 
-export async function getDailySignInfo(gameOrKey) {
+export async function getDailySignInfo(gameOrKey, lang = 'ja') {
   const gameConfig = typeof gameOrKey === 'string' ? GAMES[gameOrKey] : gameOrKey;
   if (!gameConfig || !gameConfig.actId) {
-    return { success: false, retcode: -999, message: '不正なゲーム設定です' };
+    return { success: false, retcode: -999, message: lang === 'en' ? 'Invalid game configuration' : '不正なゲーム設定です' };
   }
 
   const hosts = gameConfig.signHosts || [];
@@ -103,7 +108,7 @@ export async function getDailySignInfo(gameOrKey) {
   for (const host of hosts) {
     const url = new URL(gameConfig.infoPath, host);
     url.searchParams.set('act_id', gameConfig.actId);
-    url.searchParams.set('lang', 'ja-jp');
+    url.searchParams.set('lang', getSignApiLang(lang));
 
     const headers = {};
     if (gameConfig.signGameHeader) {
@@ -149,10 +154,10 @@ export async function getDailySignInfo(gameOrKey) {
   return lastRes || { success: false, retcode: -100, message: 'ログインしてください' };
 }
 
-export async function claimDailyBonus(gameOrKey) {
+export async function claimDailyBonus(gameOrKey, lang = 'ja') {
   const gameConfig = typeof gameOrKey === 'string' ? GAMES[gameOrKey] : gameOrKey;
   if (!gameConfig || !gameConfig.actId) {
-    return { success: false, retcode: -999, message: '不正なゲーム設定です' };
+    return { success: false, retcode: -999, message: lang === 'en' ? 'Invalid game configuration' : '不正なゲーム設定です' };
   }
 
   const hosts = gameConfig.signHosts || [];
@@ -160,7 +165,7 @@ export async function claimDailyBonus(gameOrKey) {
 
   for (const host of hosts) {
     const url = new URL(gameConfig.signPath, host);
-    url.searchParams.set('lang', 'ja-jp');
+    url.searchParams.set('lang', getSignApiLang(lang));
 
     const headers = {
       'Content-Type': 'application/json;charset=UTF-8'
@@ -193,7 +198,9 @@ export async function claimDailyBonus(gameOrKey) {
         success: false,
         retcode: resJson.retcode || 1034,
         isRisk: true,
-        message: 'セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください。'
+        message: lang === 'en'
+          ? 'Security verification (CAPTCHA) required. Please claim manually from the official page.'
+          : 'セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください。'
       };
     }
 
@@ -211,7 +218,7 @@ export async function claimDailyBonus(gameOrKey) {
         success: true,
         retcode: -5003,
         alreadySigned: true,
-        message: resJson.message || '本日はすでにサインイン済みです'
+        message: resJson.message || (lang === 'en' ? 'Already checked in today' : '本日はすでにサインイン済みです')
       };
     }
 
@@ -227,6 +234,11 @@ export async function claimDailyBonus(gameOrKey) {
     }
   }
 
-  return lastRes || { success: false, retcode: -100, isRisk: false, message: 'ログインしてください' };
+  return lastRes || {
+    success: false,
+    retcode: -100,
+    isRisk: false,
+    message: lang === 'en' ? 'Please log in' : 'ログインしてください'
+  };
 }
 

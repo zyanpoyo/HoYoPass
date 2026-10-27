@@ -22,6 +22,7 @@ flowchart TD
         TakumiAPI["HoYoverse Takumi API<br>(ロール情報照会・UID取得)"]
         RedeemAPI["各ゲーム公式交換API<br>(原神 / スタレ / ZZZ)"]
         HoyoCodesAPI["hoyo-codes API<br>(公開交換コード一覧取得)"]
+        GA4API["Google Analytics 4<br>(Measurement Protocol 匿名メトリクス収集)"]
     end
 
     SW -->|日次アラーム / 3時間アラーム / キャッチアップ起動| Storage
@@ -32,6 +33,8 @@ flowchart TD
     SW -->|Cookie透過通信 credentials: include| SignAPI
     SW -->|Cookie透過通信 credentials: include| TakumiAPI
     SW -->|Cookie透過通信 credentials: include| RedeemAPI
+    SW -->|匿名利用統計 POST（オプトアウト可）| GA4API
+    Popup -->|UI操作イベント POST（オプトアウト可）| GA4API
     CookieJar -.->|ブラウザ自動付与| SignAPI
     CookieJar -.->|ブラウザ自動付与| TakumiAPI
     CookieJar -.->|ブラウザ自動付与| RedeemAPI
@@ -130,6 +133,7 @@ src/
 │   ├── popup.css            # スタイリング（ダークモード基調、2カード構成、ログフィルタタブ）
 │   └── popup.js             # UIイベント処理、ログボ状況・ロール取得状態反映、カテゴリ別ログ描画
 ├── services/
+│   ├── analytics-service.js # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
 │   ├── code-fetcher.js      # hoyo-codes APIからのコード一覧取得・ペイロード検証
 │   ├── hoyo-api.js          # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し
 │   ├── http-client.js       # ホワイトリスト検証付きセキュアHTTPクライアント（credentialedFetch / publicFetch）
@@ -186,7 +190,7 @@ src/
 
 ## 7. テスト・検証環境
 
-プロジェクトはNode.js組み込みのテストランナー（`node:test` / `node:assert/strict`）を採用しており、外部の重量級フレームワークに依存せず高速にテストを実行可能です。
+プロジェクトはNode.js組み込みのテストランナー（`node:test` / `node:assert/strict`）を採用しており、外部の重量級フレームワークに依存せず高速にテストを実行可能です。CI/CDおよびライブラリ脆弱性の検知・自動更新パイプライン仕様については、[CI/CD & 脆弱性管理システム設計書](./ci_cd_security_architecture.md) を参照してください。
 
 ```bash
 # 全単体テストの実行

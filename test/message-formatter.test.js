@@ -267,4 +267,36 @@ test('formatSignResult: 単一ゲーム未ログイン', () => {
   assert.match(res.message, /未ログインです/);
 });
 
+test('formatRedeemResult: 英語出力テスト (lang=en)', () => {
+  const res = formatRedeemResult({
+    success: true,
+    redeemedCount: 2,
+    results: {
+      GENSHIN: { success: true, skipped: false, redeemedCount: 2, gameName: 'Genshin Impact' }
+    }
+  }, 'en');
+  assert.equal(res.title, 'Code Redemption Succeeded');
+  assert.match(res.message, /\[Genshin Impact\] Successfully redeemed 2 code\(s\)/);
+});
+
+test('formatSignResult: 英語出力テスト (lang=en)', () => {
+  const res = formatSignResult({
+    success: true,
+    signedCount: 1,
+    results: {
+      STAR_RAIL: {
+        success: true,
+        skipped: false,
+        signed: true,
+        alreadySigned: false,
+        totalSignDay: 5,
+        gameName: 'Honkai: Star Rail'
+      }
+    }
+  }, 'en');
+  assert.equal(res.title, 'Daily Check-In Succeeded');
+  assert.match(res.message, /\[Honkai: Star Rail\] Claimed today's check-in reward!/);
+  assert.match(res.message, /Total: 5 days/);
+});
+
 

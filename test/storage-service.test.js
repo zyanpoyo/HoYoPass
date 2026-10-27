@@ -8,7 +8,17 @@ const mockStorage = {
 globalThis.chrome = {
   storage: {
     local: {
-      get: async (key) => ({ [key]: mockStorage.local.get(key) }),
+      get: async (keys) => {
+        const res = {};
+        if (Array.isArray(keys)) {
+          keys.forEach(k => { res[k] = mockStorage.local.get(k); });
+        } else if (typeof keys === 'string') {
+          res[keys] = mockStorage.local.get(keys);
+        } else {
+          mockStorage.local.forEach((v, k) => { res[k] = v; });
+        }
+        return res;
+      },
       set: async (obj) => Object.entries(obj).forEach(([k, v]) => mockStorage.local.set(k, v))
     }
   }
@@ -25,9 +35,12 @@ import {
   getDailySignRecord,
   setDailySignRecord,
   isDailySignedToday,
-  shouldRunDailySign
+  shouldRunDailySign,
+  getActiveCodes,
+  setActiveCodes,
+  getCodeRedeemStats
 } from '../src/services/storage-service.js';
-import { API_CONFIG } from '../src/config/constants.js';
+import { API_CONFIG, STATUS_MAP } from '../src/config/constants.js';
 
 test('addExecutionLog: ログの追加と最大保持件数(MAX_EXECUTION_LOGS: 50)の維持', async () => {
   mockStorage.local.clear();
@@ -140,6 +153,118 @@ test('getDailySignRecord / setDailySignRecord / isDailySignedToday / shouldRunDa
     skippedNoChar: true
   });
   assert.equal(await shouldRunDailySign(['hk4e_global', 'hkrpg_global'], testNowMs), false, '全タイトルが本日受取済または未プレイ確定のためfalse');
+});
+
+test('getActiveCodes / setActiveCodes: 有効コード配列の保存と取得', async () => {
+  mockStorage.local.clear();
+
+  const initial = await getActiveCodes('hk4e_global');
+  assert.equal(initial, null, '未保存時はnullを返す');
+
+  const sampleCodes = ['GENSHINGIFT', 'GS6ACJ775KNV'];
+  await setActiveCodes('hk4e_global', sampleCodes);
+  const loaded = await getActiveCodes('hk4e_global');
+  assert.deepEqual(loaded, sampleCodes, '保存した有効コード配列が取得できる');
+});
+
+test('getCodeRedeemStats: 月間・通算・有効コード消化率の正確な集計', async () => {
+  mockStorage.local.clear();
+
+  // 基準日時: 2026年10月17日 12:00:00 JST (= 03:00 UTC = 11:00 UTC+8)
+  const nowMs = Date.parse('2026-10-17T03:00:00Z');
+  // 当月1日: 2026-10-01 00:00:00 UTC+8 = 2026-09-30 16:00:00 UTC (1759248000 秒)
+  const thisMonthSec = Math.floor(Date.parse('2026-10-05T00:00:00Z') / 1000);
+  const lastMonthSec = Math.floor(Date.parse('2026-09-20T00:00:00Z') / 1000);
+
+  // 1. 空ストレージ時
+  const emptyStats = await getCodeRedeemStats('hk4e_global', nowMs);
+  assert.equal(emptyStats.monthlyCount, 0);
+  assert.equal(emptyStats.totalCount, 0);
+  assert.equal(emptyStats.activeTotal, null);
+  assert.equal(emptyStats.activeClaimed, null);
+
+  // 2. 履歴データの投入
+  await chrome.storage.local.set({
+    redeemed_hk4e_global: {
+      CODE_THIS_MONTH_SUCCESS: { s: STATUS_MAP.SUCCESS, t: thisMonthSec },
+      CODE_THIS_MONTH_CLAIMED: { s: STATUS_MAP.ALREADY_CLAIMED, t: thisMonthSec },
+      CODE_LAST_MONTH_SUCCESS: { s: STATUS_MAP.SUCCESS, t: lastMonthSec },
+      CODE_LAST_MONTH_CLAIMED: { s: STATUS_MAP.ALREADY_CLAIMED, t: lastMonthSec },
+      CODE_EXPIRED: { s: STATUS_MAP.EXPIRED, t: thisMonthSec },
+      CODE_FAILED: { s: STATUS_MAP.FAILED, t: thisMonthSec },
+      CODE_PENDING: { s: STATUS_MAP.PENDING_RETRY, t: thisMonthSec }
+    }
+  });
+
+  const statsWithoutActive = await getCodeRedeemStats('hk4e_global', nowMs);
+  assert.equal(statsWithoutActive.monthlyCount, 2, '今月分(SUCCESS + ALREADY_CLAIMED)は2件');
+  assert.equal(statsWithoutActive.totalCount, 4, '通算(SUCCESS + ALREADY_CLAIMED)は4件 (EXPIRED/FAILED/PENDING除外)');
+  assert.equal(statsWithoutActive.activeTotal, null, 'active_codes未保存時はnull');
+
+  // 3. activeCodes を設定して消化率検証
+  // 有効コード5件: CODE_THIS_MONTH_SUCCESS (済), CODE_THIS_MONTH_CLAIMED (済), CODE_UNCLAIMED (未), CODE_EXPIRED (期限切れ確定), CODE_FAILED (失敗確定)
+  await setActiveCodes('hk4e_global', [
+    'CODE_THIS_MONTH_SUCCESS',
+    'CODE_THIS_MONTH_CLAIMED',
+    'CODE_UNCLAIMED',
+    'CODE_EXPIRED',
+    'CODE_FAILED'
+  ]);
+
+  const statsWithActive = await getCodeRedeemStats('hk4e_global', nowMs);
+  assert.equal(statsWithActive.activeTotal, 3, '有効コード総数はEXPIREDおよびFAILEDを除外した3件');
+  assert.equal(statsWithActive.activeClaimed, 2, 'うち適用済みは2件');
+});
+
+test('getSettings / updateSettings: enabledGames のデフォルト値と既存設定からの後方互換フォールバック', async () => {
+  mockStorage.local.clear();
+
+  // 1. 未保存（初回）状態
+  const initial = await getSettings();
+  assert.deepEqual(initial.enabledGames, ['GENSHIN', 'STAR_RAIL', 'ZZZ'], '初回未保存時は全ゲームが有効');
+  assert.equal(initial.activeGameKey, 'GENSHIN');
+
+  // 2. 既存ユーザー（enabledGames キーが存在しない旧設定）
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      autoSignEnabled: true,
+      activeGameKey: 'STAR_RAIL'
+    }
+  });
+
+  const legacy = await getSettings();
+  assert.deepEqual(legacy.enabledGames, ['GENSHIN', 'STAR_RAIL', 'ZZZ'], '既存ユーザーの設定から全ゲームが自動補完される');
+  assert.equal(legacy.activeGameKey, 'STAR_RAIL', '既存のアクティブゲームが維持される');
+
+  // 3. 不正値（空配列や未知のキー）の場合のフォールバック
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      enabledGames: [],
+      activeGameKey: 'GENSHIN'
+    }
+  });
+  const emptyGamesSettings = await getSettings();
+  assert.deepEqual(emptyGamesSettings.enabledGames, ['GENSHIN', 'STAR_RAIL', 'ZZZ'], '空配列時は全ゲームにフォールバック');
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      enabledGames: ['UNKNOWN_GAME', 'ZZZ'],
+      activeGameKey: 'UNKNOWN_GAME'
+    }
+  });
+  const filteredSettings = await getSettings();
+  assert.deepEqual(filteredSettings.enabledGames, ['ZZZ'], '未知のゲームキーは除外される');
+  assert.equal(filteredSettings.activeGameKey, 'ZZZ', 'アクティブキーが無効な場合は有効ゲーム先頭に補正される');
+
+  // 4. 正常な部分更新
+  await updateSettings({ enabledGames: ['GENSHIN', 'ZZZ'], activeGameKey: 'ZZZ' });
+  const updated = await getSettings();
+  assert.deepEqual(updated.enabledGames, ['GENSHIN', 'ZZZ']);
+  assert.equal(updated.activeGameKey, 'ZZZ');
 });
 
 

@@ -27,18 +27,85 @@ const starrailIconBase64 = getBase64Image(path.join(ROOT_DIR, 'assets', 'icons',
 const zzzIconBase64 = getBase64Image(path.join(ROOT_DIR, 'assets', 'icons', 'zzz.png'));
 const extIconBase64 = getBase64Image(path.join(ROOT_DIR, 'icons', 'icon128.png'));
 const popupCss = fs.readFileSync(path.join(ROOT_DIR, 'src', 'popup', 'popup.css'), 'utf8');
+// html, body スタイルを除去（スクリーンショット全体の 1280x800 body を上書き汚染させないため）
+const cleanPopupCss = popupCss.replace(/html,\s*body\s*\{[^}]*\}/g, '');
 
 // ポップアップ本体の共通HTML
-function renderPopupHtml({ showDialog = false } = {}) {
+function renderPopupHtml({ showDialog = false, dialog = null, lang = 'ja' } = {}) {
+  const isEn = lang === 'en';
+
+  const defaultDialog = isEn
+    ? {
+        title: 'Code Redemption Succeeded',
+        message: '[Genshin Impact] Successfully redeemed 3 code(s)!\nPlease check your in-game mailbox.'
+      }
+    : {
+        title: 'コード交換成功',
+        message: '【原神】3件のコードを引き換えました！\nゲーム内メールをご確認ください。'
+      };
+
+  const dialogData = dialog || defaultDialog;
+
+  const labels = isEn
+    ? {
+        tab1: 'Genshin',
+        tab2: 'Star Rail',
+        tab3: 'ZZZ',
+        settingsTitle: 'Settings',
+        gameTitle: 'Genshin Impact',
+        statusOnline: 'Logged in: Lumine',
+        uid: '800123456',
+        uidCopied: 'Copied!',
+        signCardTitle: 'Daily Check-In',
+        btnOfficial: 'Official ↗',
+        signStatusLabel: "Today's Status",
+        signStatusVal: 'Claimed Today (Total: 24 days)',
+        autoSignLabel: 'Auto Claim (Daily 01:05)',
+        redeemCardTitle: 'Auto Code Redeemer',
+        redeemStatusLabel: 'Active Codes 6/6 Claimed',
+        redeemStatsBadge: 'Month: 6 / Total: 42',
+        autoRedeemLabel: 'Auto Redeem (Every 3h)',
+        latestSummary: 'Latest: Success (10/24 21:50)',
+        log1: '[10/24 21:50] Finished redeeming (3 new succeeded)',
+        log2: '[10/24 01:05] [Check-in] Claimed (Total: 24 days)',
+        guide: 'User Guide',
+        privacy: 'Privacy Policy',
+        disclaimer: 'Unofficial Fan-made Tool<br>(Not affiliated with COGNOSPHERE / HoYoverse)'
+      }
+    : {
+        tab1: '原神',
+        tab2: 'スタレ',
+        tab3: 'ZZZ',
+        settingsTitle: '設定',
+        gameTitle: '原神',
+        statusOnline: 'ログイン中: 蛍',
+        uid: '800123456',
+        uidCopied: 'コピー完了!',
+        signCardTitle: 'デイリーログインボーナス',
+        btnOfficial: '公式 ↗',
+        signStatusLabel: '本日の受取状況',
+        signStatusVal: '本日受取済 (累計 24日)',
+        autoSignLabel: '自動受け取り (毎日 01:05)',
+        redeemCardTitle: '交換コード自動引き換え',
+        redeemStatusLabel: '有効コード 6/6 適用済',
+        redeemStatsBadge: '今月 6件 / 通算 42件',
+        autoRedeemLabel: '定期自動引き換え (3時間毎)',
+        latestSummary: '直近のログ: 正常完了 (10/24 21:50)',
+        log1: '[10/24 21:50] 引き換え完了 (新規成功: 3件)',
+        log2: '[10/24 01:05] [ログボ] 受取完了 (今月累計: 24日)',
+        guide: '使い方ガイド',
+        privacy: 'プライバシーポリシー',
+        disclaimer: '非公式ファンメイドツール<br>（COGNOSPHERE / HoYoverseとは関係ありません）'
+      };
+
   return `
   <div class="mockup-popup">
     <!-- 結果モーダル -->
     <div id="alert-modal" class="modal-overlay ${showDialog ? '' : 'hidden'}" style="${showDialog ? 'position: absolute; border-radius: 12px;' : ''}">
       <div class="modal-card dialog-card">
-        <h2 id="alert-modal-title" style="color: #60a5fa; font-size: 15px; margin-bottom: 8px;">ログインボーナス受取成功</h2>
+        <h2 id="alert-modal-title" style="color: #60a5fa; font-size: 15px; margin-bottom: 8px;">${dialogData.title}</h2>
         <p id="alert-modal-message" class="modal-desc dialog-message" style="white-space: pre-line; line-height: 1.5; font-size: 13px; color: #e2e8f0;">
-【原神】本日のログインボーナスを受け取りました！（今月累計: 20日）
-ゲーム内メールをご確認ください。
+${dialogData.message}
         </p>
         <button id="alert-modal-ok-btn" class="btn btn-primary btn-block" style="margin-top: 14px;">OK</button>
       </div>
@@ -46,45 +113,64 @@ function renderPopupHtml({ showDialog = false } = {}) {
 
     <div class="app-container">
       <!-- ゲーム選択タブ -->
-      <nav class="game-tabs" id="game-tabs">
-        <button class="tab-btn active" data-game="GENSHIN">原神</button>
-        <button class="tab-btn" data-game="STAR_RAIL">スタレ</button>
-        <button class="tab-btn" data-game="ZZZ">ZZZ</button>
-      </nav>
+      <div class="tabs-header-row">
+        <nav class="game-tabs" id="game-tabs" aria-label="Game Selection">
+          <button class="tab-btn active" data-game="GENSHIN">${labels.tab1}</button>
+          <button class="tab-btn" data-game="STAR_RAIL">${labels.tab2}</button>
+          <button class="tab-btn" data-game="ZZZ">${labels.tab3}</button>
+        </nav>
+        <button id="tab-settings-btn" class="btn-icon tab-settings-btn" type="button" title="${labels.settingsTitle}" aria-label="${labels.settingsTitle}">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
 
       <header class="app-header">
         <div class="header-title">
-          <div class="icon-wrapper" id="game-icon-wrapper">
-            <img id="game-icon" src="${genshinIconBase64}" alt="原神" class="game-badge-icon">
+          <div class="icon-wrapper" id="game-icon-wrapper" role="button" tabindex="0">
+            <img id="game-icon" src="${genshinIconBase64}" alt="Genshin" class="game-badge-icon">
           </div>
-          <h1 id="game-title">原神</h1>
+          <h1 id="game-title">${labels.gameTitle}</h1>
         </div>
-        <span id="login-status-badge" class="badge online">ログイン中: 蛍</span>
+        <div class="header-user-status">
+          <span id="login-status-badge" class="badge online">${labels.statusOnline}</span>
+          <button id="uid-copy-chip" class="uid-chip" type="button" title="UID">
+            <span class="uid-prefix">UID:</span>
+            <span id="uid-value" class="uid-text">${labels.uid}</span>
+            <svg class="uid-copy-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span id="uid-copied-tooltip" class="uid-tooltip">${labels.uidCopied}</span>
+          </button>
+        </div>
       </header>
 
       <main class="main-content">
         <!-- カード1: デイリーログインボーナス -->
-        <section class="control-card feature-card sign-card">
+        <section class="control-card feature-card sign-card" aria-labelledby="sign-card-heading">
           <div class="card-header">
-            <h2 class="card-title">
+            <h2 id="sign-card-heading" class="card-title">
               <span class="card-icon" aria-hidden="true">🎁</span>
-              <span>デイリーログインボーナス</span>
+              <span>${labels.signCardTitle}</span>
             </h2>
-            <button class="btn-site-link" type="button">公式 ↗</button>
+            <button id="open-checkin-site-btn" class="btn-site-link" type="button">${labels.btnOfficial}</button>
           </div>
           <div class="status-row">
-            <span class="status-label">本日の受取状況</span>
-            <span id="sign-status-badge" class="status-pill signed">本日受取済 (累計 20日)</span>
+            <span class="status-label">${labels.signStatusLabel}</span>
+            <span id="sign-status-badge" class="status-pill signed">${labels.signStatusVal}</span>
           </div>
           <div class="control-row">
-            <span id="auto-sign-label" class="control-label">自動受け取り (毎日 01:05)</span>
+            <span id="auto-sign-label" class="control-label">${labels.autoSignLabel}</span>
             <div class="control-actions">
               <label class="switch">
                 <input type="checkbox" id="auto-sign-toggle" checked>
                 <span class="slider"></span>
               </label>
-              <button class="btn-icon" type="button" title="今すぐボーナス受取 (手動実行)">
-                <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <button id="manual-sign-btn" class="btn-icon" type="button">
+                <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                   <path d="M3 3v5h5"/>
                   <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
@@ -96,27 +182,27 @@ function renderPopupHtml({ showDialog = false } = {}) {
         </section>
 
         <!-- カード2: 交換コード自動引き換え -->
-        <section class="control-card feature-card redeem-card">
+        <section class="control-card feature-card redeem-card" aria-labelledby="redeem-card-heading">
           <div class="card-header">
-            <h2 class="card-title">
+            <h2 id="redeem-card-heading" class="card-title">
               <span class="card-icon" aria-hidden="true">🎟️</span>
-              <span>交換コード自動引き換え</span>
+              <span>${labels.redeemCardTitle}</span>
             </h2>
-            <button class="btn-site-link" type="button">公式 ↗</button>
+            <button id="open-gift-site-btn" class="btn-site-link" type="button">${labels.btnOfficial}</button>
           </div>
           <div class="status-row">
-            <span class="status-label">次回の実行予定</span>
-            <span id="redeem-status-badge" class="status-pill scheduled">次回 21:00</span>
+            <span id="redeem-status-label" class="status-label">${labels.redeemStatusLabel}</span>
+            <span id="redeem-status-badge" class="status-pill signed">${labels.redeemStatsBadge}</span>
           </div>
           <div class="control-row">
-            <span id="auto-redeem-label" class="control-label">定期自動引き換え (3時間毎)</span>
+            <span id="auto-redeem-label" class="control-label">${labels.autoRedeemLabel}</span>
             <div class="control-actions">
               <label class="switch">
                 <input type="checkbox" id="auto-redeem-toggle" checked>
                 <span class="slider"></span>
               </label>
-              <button class="btn-icon" type="button" title="今すぐ引き換え実行 (手動実行)">
-                <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <button id="manual-trigger-btn" class="btn-icon" type="button">
+                <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                   <path d="M3 3v5h5"/>
                   <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
@@ -127,50 +213,90 @@ function renderPopupHtml({ showDialog = false } = {}) {
           </div>
         </section>
 
-        <!-- 実行ログ（1行サマリー＋展開式アコーディオン） -->
+        <!-- 実行ログ -->
         <details id="logs-accordion" class="logs-accordion">
           <summary class="logs-summary">
             <span class="logs-chevron" aria-hidden="true">›</span>
-            <span id="latest-log-summary" class="logs-summary-text">直近のログ: 正常完了 (10/21 18:54)</span>
+            <span id="latest-log-summary" class="logs-summary-text">${labels.latestSummary}</span>
           </summary>
           <div id="logs-container" class="logs-list">
-            <div class="log-item">[10/21 18:54] 引き換え完了 (新規成功: 3件)</div>
-            <div class="log-item">[10/21 01:05] [ログボ] 受取完了 (今月累計: 20日)</div>
+            <div class="log-item">${labels.log1}</div>
+            <div class="log-item">${labels.log2}</div>
           </div>
         </details>
       </main>
 
       <footer class="app-footer">
         <div class="footer-links">
-          <span class="footer-link">使い方・README</span>
+          <a href="#" class="footer-link">${labels.guide}</a>
           <span class="footer-separator">•</span>
-          <span class="footer-link">プライバシーポリシー</span>
+          <a href="#" class="footer-link">${labels.privacy}</a>
         </div>
-        <p class="footer-disclaimer">
-          非公式ファンメイドツール（COGNOSPHERE / HoYoverseとは関係ありません）
-        </p>
+        <p class="footer-disclaimer">${labels.disclaimer}</p>
       </footer>
     </div>
   </div>
   `;
 }
 
-// 1. ストア用プロモーション画像 (1280x800) - メイン画面 & 3件成功ログ
-function generateScreenshot1Html() {
-  return `<!DOCTYPE html>
-<html lang="ja">
+// 共通CSSスタイル
+const baseScreenshotStyles = `
+  ${cleanPopupCss}
+
+  .mockup-popup {
+    width: 340px;
+    height: 480px;
+    background-color: #11151f;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    border: 1px solid #283147;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+`;
+
+// スクリーンショット1: メイン画面
+function generateScreenshot1Html(lang = 'ja') {
+  const isEn = lang === 'en';
+  const badgeText = isEn ? 'Genshin Impact / Honkai: Star Rail / ZZZ' : '原神・崩壊：スターレイル・ゼンレスゾーンゼロ';
+  const headingHtml = isEn
+    ? 'Auto Daily Check-In &<br>Gift Code Redeemer.'
+    : '毎日のログボも交換コードも、<br>ぜんぶ自動で取りこぼしゼロへ。';
+  const leadText = isEn
+    ? 'Fully automate HoYoLAB daily check-in rewards and latest redemption codes in the background. Enjoy seamless rewards delivered straight to your in-game mailbox.'
+    : '原神・崩壊：スターレイル・ゼンレスゾーンゼロのデイリーログインボーナス受け取りと最新ギフト交換コードの引き換えをバックグラウンドで全自動化。報酬の取りこぼしを防ぎます。';
+
+  const feats = isEn
+    ? [
+        { icon: '🎁', title: 'Daily Check-In Auto Claim', desc: 'Claims check-in rewards across all 3 games daily at 00:05 UTC+8.' },
+        { icon: '🎟️', title: 'Automatic Code Redemption', desc: 'Checks and redeems newly released codes every 3 hours.' },
+        { icon: '🛡️', title: 'Zero-Trust Secure Design', desc: 'No passwords or cookies collected. Uses local browser session only.' }
+      ]
+    : [
+        { icon: '🎁', title: 'ログインボーナス完全自動受取', desc: '毎日 01:05 JST に全3タイトルのログボを自動巡回して取得' },
+        { icon: '🎟️', title: '交換コード3時間毎自動引き換え', desc: '最新の有効シリアルコードを検知し、バックグラウンドで即時適用' },
+        { icon: '🛡️', title: '最高水準のゼロトラスト安全性', desc: 'パスワードやCookie送信なし。お使いのPCローカル内のみで完結' }
+      ];
+
+  const popupHtml = renderPopupHtml({ showDialog: false, lang });
+
+  return `
+<!DOCTYPE html>
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <style>
-    ${popupCss}
-    
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      width: 1280px;
-      height: 800px;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
-      background: radial-gradient(circle at 75% 40%, #1e293b 0%, #0f172a 45%, #050811 100%);
+    html, body {
+      width: 1280px !important;
+      height: 800px !important;
+      overflow: hidden !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: radial-gradient(circle at 75% 40%, #1e293b 0%, #0f172a 45%, #050811 100%) !important;
       color: #f8fafc;
       display: flex;
       align-items: center;
@@ -178,8 +304,6 @@ function generateScreenshot1Html() {
       padding: 0 90px;
       position: relative;
     }
-
-    /* 背景装飾 */
     .bg-glow-1 {
       position: absolute;
       width: 600px;
@@ -198,12 +322,7 @@ function generateScreenshot1Html() {
       right: 350px;
       pointer-events: none;
     }
-
-    /* 左側: 紹介カラム */
-    .brand-col {
-      max-width: 540px;
-      z-index: 2;
-    }
+    .brand-col { max-width: 540px; z-index: 2; }
     .brand-badge {
       display: inline-flex;
       align-items: center;
@@ -217,151 +336,110 @@ function generateScreenshot1Html() {
       color: #60a5fa;
       margin-bottom: 22px;
     }
-    .brand-header {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      margin-bottom: 16px;
-    }
-    .brand-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-    .brand-title {
-      font-size: 42px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .tagline {
-      font-size: 23px;
-      font-weight: 700;
-      color: #38bdf8;
-      line-height: 1.35;
-      margin-bottom: 20px;
-    }
-    .description {
-      font-size: 15px;
-      line-height: 1.6;
-      color: #94a3b8;
-      margin-bottom: 32px;
-    }
-    .feature-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 15px;
-      font-weight: 500;
-      color: #cbd5e1;
-    }
-    .feature-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: rgba(37, 99, 235, 0.2);
-      border: 1px solid rgba(59, 130, 246, 0.5);
-      color: #60a5fa;
+    .brand-header { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+    .brand-icon { width: 64px; height: 64px; border-radius: 14px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); }
+    .brand-title { font-size: 38px; font-weight: 800; letter-spacing: -0.5px; }
+    .brand-headline { font-size: 32px; font-weight: 750; line-height: 1.3; margin-bottom: 18px; color: #ffffff; }
+    .brand-lead { font-size: 15px; line-height: 1.6; color: #94a3b8; margin-bottom: 32px; }
+    .feature-list { display: flex; flex-direction: column; gap: 14px; }
+    .feat-item { display: flex; align-items: flex-start; gap: 14px; }
+    .feat-icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
-      font-weight: bold;
+      font-size: 18px;
+      flex-shrink: 0;
     }
-
-    /* 右側: ポップアップモックアップ */
-    .popup-wrapper {
-      position: relative;
-      z-index: 2;
-    }
-    .mockup-popup {
-      width: 360px;
-      background-color: #12141a;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 30px rgba(37, 99, 235, 0.2);
-      position: relative;
-      overflow: hidden;
-    }
-    .mockup-popup .app-container {
-      padding: 16px;
-    }
-    .mockup-popup .logs-list {
-      max-height: 160px;
-    }
+    .feat-title { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 2px; }
+    .feat-desc { font-size: 12.5px; color: #94a3b8; line-height: 1.4; }
+    .popup-wrapper { z-index: 2; transform: scale(1.18); transform-origin: center right; }
+    ${baseScreenshotStyles}
   </style>
 </head>
 <body>
   <div class="bg-glow-1"></div>
   <div class="bg-glow-2"></div>
-
-  <!-- 左カラム -->
   <div class="brand-col">
-    <div class="brand-badge">
-      <span>Chrome 拡張機能 (Manifest V3)</span>
-    </div>
+    <div class="brand-badge">${badgeText}</div>
     <div class="brand-header">
       <img src="${extIconBase64}" alt="HoYoPass" class="brand-icon">
       <h1 class="brand-title">HoYoPass</h1>
     </div>
-    <div class="tagline">ログボ受取＆交換コードを<br>バックグラウンドで完全自動化</div>
-    <p class="description">
-      原神・崩壊：スターレイル・ゼンレスゾーンゼロに対応。<br>
-      毎日のログインボーナスと最新交換コードの取りこぼしを防ぎます。
-    </p>
-
+    <h2 class="brand-headline">${headingHtml}</h2>
+    <p class="brand-lead">${leadText}</p>
     <div class="feature-list">
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>デイリーログボ自動受取</strong> — 毎日 01:05 JST＆起動時に自動取得</span>
+      ${feats.map(f => `
+      <div class="feat-item">
+        <div class="feat-icon-box">${f.icon}</div>
+        <div>
+          <div class="feat-title">${f.title}</div>
+          <div class="feat-desc">${f.desc}</div>
+        </div>
       </div>
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>交換コード自動引き換え</strong> — 3時間ごとに新着コードを順次交換</span>
-      </div>
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>個別ON/OFF＆3作対応</strong> — 機能ごとの制御とタブ切り替え</span>
-      </div>
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>ゼロトラスト設計</strong> — Cookie収集・外部送信なしの安全仕様</span>
-      </div>
+      `).join('')}
     </div>
   </div>
-
-  <!-- 右カラム: 3件成功状態のポップアップUI -->
   <div class="popup-wrapper">
-    ${renderPopupHtml({ showDialog: false })}
+    ${popupHtml}
   </div>
 </body>
-</html>`;
+</html>
+  `;
 }
 
-// 2. ストア用プロモーション画像 (1280x800) - 交換成功ダイアログ表示状態
-function generateScreenshot2Html() {
-  return `<!DOCTYPE html>
-<html lang="ja">
+// スクリーンショット2: 手動実行・ダイアログ
+function generateScreenshot2Html(lang = 'ja') {
+  const isEn = lang === 'en';
+  const badgeText = isEn ? 'Instant Manual Run' : '手動ワンクリック実行対応';
+  const headingHtml = isEn
+    ? 'One-Click Execution<br>& Clear Status Dialog.'
+    : 'ワンクリックで即座に実行。<br>完了ダイアログで安心確認。';
+  const leadText = isEn
+    ? 'Trigger check-in or code redemption right after special program livestreams. Instant modal displays redeem outcomes with breakdown.'
+    : '生放送直後の新着コードや、今すぐボーナスを受け取りたい時も安心。ポップアップ内の実行ボタンを押すだけで、現在選択中のゲームを即座に引き換えます。';
+
+  const feats = isEn
+    ? [
+        { icon: '⚡', title: 'Targeted Game Execution', desc: 'Runs only the currently selected title without waiting for timers.' },
+        { icon: '📬', title: 'Delivery Outcome Display', desc: 'Displays exact count of redeemed codes and in-game mailbox notice.' },
+        { icon: '🔄', title: 'Seamless Duplicate Handling', desc: 'Codes already used in-game are safely handled without account risk.' }
+      ]
+    : [
+        { icon: '⚡', title: '選択中ゲームのみを即時実行', desc: 'タブで開いているタイトルだけを無駄なくピンポイントで手動処理' },
+        { icon: '📬', title: '詳細な受取結果メッセージ', desc: '何件のコードが交換されゲーム内メールへ届いたかをダイアログで表示' },
+        { icon: '🔄', title: '事前引き換え済みコードの自動判別', desc: 'ゲーム内で交換済みのコードも重複エラーなく正しく適用済として記録' }
+      ];
+
+  const dialogData = isEn
+    ? {
+        title: 'Code Redemption Succeeded',
+        message: '[Genshin Impact] Successfully redeemed 3 code(s)!\nPlease check your in-game mailbox.'
+      }
+    : {
+        title: 'コード交換成功',
+        message: '【原神】3件のコードを引き換えました！\nゲーム内メールをご確認ください。'
+      };
+
+  const popupHtml = renderPopupHtml({ showDialog: true, dialog: dialogData, lang });
+
+  return `
+<!DOCTYPE html>
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <style>
-    ${popupCss}
-    
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      width: 1280px;
-      height: 800px;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
-      background: radial-gradient(circle at 75% 40%, #1e1b4b 0%, #0f172a 50%, #050811 100%);
+    html, body {
+      width: 1280px !important;
+      height: 800px !important;
+      overflow: hidden !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: radial-gradient(circle at 75% 40%, #1e1b4b 0%, #0f172a 45%, #050811 100%) !important;
       color: #f8fafc;
       display: flex;
       align-items: center;
@@ -369,431 +447,245 @@ function generateScreenshot2Html() {
       padding: 0 90px;
       position: relative;
     }
-
     .bg-glow-1 {
       position: absolute;
       width: 600px;
       height: 600px;
-      background: radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, rgba(168, 85, 247, 0) 70%);
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0) 70%);
       top: -100px;
       right: 150px;
       pointer-events: none;
     }
-    .bg-glow-2 {
-      position: absolute;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(56, 189, 248, 0) 70%);
-      bottom: -100px;
-      right: 350px;
-      pointer-events: none;
-    }
-
-    .brand-col {
-      max-width: 540px;
-      z-index: 2;
-    }
+    .brand-col { max-width: 540px; z-index: 2; }
     .brand-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(168, 85, 247, 0.15);
-      border: 1px solid rgba(192, 132, 252, 0.4);
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(129, 140, 248, 0.4);
       padding: 6px 14px;
       border-radius: 20px;
       font-size: 13px;
       font-weight: 600;
-      color: #c084fc;
+      color: #818cf8;
       margin-bottom: 22px;
     }
-    .brand-header {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      margin-bottom: 16px;
-    }
-    .brand-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-    .brand-title {
-      font-size: 42px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .tagline {
-      font-size: 23px;
-      font-weight: 700;
-      color: #a855f7;
-      line-height: 1.35;
-      margin-bottom: 20px;
-    }
-    .description {
-      font-size: 15px;
-      line-height: 1.6;
-      color: #94a3b8;
-      margin-bottom: 32px;
-    }
-    .feature-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 15px;
-      font-weight: 500;
-      color: #cbd5e1;
-    }
-    .feature-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: rgba(168, 85, 247, 0.2);
-      border: 1px solid rgba(192, 132, 252, 0.5);
-      color: #c084fc;
+    .brand-headline { font-size: 32px; font-weight: 750; line-height: 1.3; margin-bottom: 18px; color: #ffffff; }
+    .brand-lead { font-size: 15px; line-height: 1.6; color: #94a3b8; margin-bottom: 32px; }
+    .feature-list { display: flex; flex-direction: column; gap: 14px; }
+    .feat-item { display: flex; align-items: flex-start; gap: 14px; }
+    .feat-icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
-      font-weight: bold;
+      font-size: 18px;
+      flex-shrink: 0;
     }
-
-    .popup-wrapper {
-      position: relative;
-      z-index: 2;
-    }
-    .mockup-popup {
-      width: 360px;
-      background-color: #12141a;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 30px rgba(168, 85, 247, 0.25);
-      position: relative;
-      overflow: hidden;
-    }
-    .mockup-popup .app-container {
-      padding: 16px;
-    }
-    .mockup-popup .logs-list {
-      max-height: 160px;
-    }
+    .feat-title { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 2px; }
+    .feat-desc { font-size: 12.5px; color: #94a3b8; line-height: 1.4; }
+    .popup-wrapper { z-index: 2; transform: scale(1.18); transform-origin: center right; }
+    ${baseScreenshotStyles}
   </style>
 </head>
 <body>
   <div class="bg-glow-1"></div>
-  <div class="bg-glow-2"></div>
-
   <div class="brand-col">
-    <div class="brand-badge">
-      <span>交換結果ダイアログ</span>
-    </div>
-    <div class="brand-header">
-      <img src="${extIconBase64}" alt="HoYoPass" class="brand-icon">
-      <h1 class="brand-title">HoYoPass</h1>
-    </div>
-    <div class="tagline">交換結果をひと目で通知<br>ゲーム内メールへ即座に付与</div>
-    <p class="description">
-      手動実行時は引き換え完了ダイアログが即座に表示。<br>
-      バックグラウンド定期実行時もデスクトップ通知でお知らせします。
-    </p>
-
+    <div class="brand-badge">${badgeText}</div>
+    <h2 class="brand-headline">${headingHtml}</h2>
+    <p class="brand-lead">${leadText}</p>
     <div class="feature-list">
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>即時フィードバック</strong> — 新規成功件数と内訳をダイアログ表示</span>
+      ${feats.map(f => `
+      <div class="feat-item">
+        <div class="feat-icon-box">${f.icon}</div>
+        <div>
+          <div class="feat-title">${f.title}</div>
+          <div class="feat-desc">${f.desc}</div>
+        </div>
       </div>
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>重複交換ガード</strong> — 引き換え済みコードは自動スキップ</span>
-      </div>
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>安全なAPIレート制限</strong> — 連続リクエストによる負荷を防止</span>
-      </div>
-      <div class="feature-item">
-        <span class="feature-icon">✓</span>
-        <span><strong>デスクトップ通知連携</strong> — セッション期限切れ時も迅速に誘導</span>
-      </div>
+      `).join('')}
     </div>
   </div>
-
   <div class="popup-wrapper">
-    ${renderPopupHtml({ showDialog: true })}
+    ${popupHtml}
   </div>
 </body>
-</html>`;
+</html>
+  `;
 }
 
-// 3. ブラウザ画面モックアップ (1280x800) - Chromeブラウザと拡張機能ドロップダウン
-function generateScreenshot3Html() {
-  return `<!DOCTYPE html>
-<html lang="ja">
+// スクリーンショット3: ブラウザ操作イメージ
+function generateScreenshot3Html(lang = 'ja') {
+  const isEn = lang === 'en';
+  const title = isEn
+    ? 'Seamlessly Integrated with Chrome.<br>Set it and forget it.'
+    : 'ブラウザに常駐して自動サポート。<br>設定後は放っておくだけ。';
+  const desc = isEn
+    ? 'HoYoPass runs quietly in the background without opening tabs. Automatic catch-up claims rewards even when your PC wakes up from sleep.'
+    : '拡張機能アイコンをクリックするだけでいつでも受取実績や稼働状況を確認可能。PCのスリープ復帰時や起動時も自動キャッチアップで取りこぼしません。';
+
+  const popupHtml = renderPopupHtml({ showDialog: false, lang });
+
+  return `
+<!DOCTYPE html>
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <style>
-    ${popupCss}
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      width: 1280px;
-      height: 800px;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #0b0f17;
-      color: #e2e8f0;
-      position: relative;
-    }
-
-    /* Chromeウィンドウヘッダー */
-    .browser-frame {
-      width: 1280px;
-      height: 800px;
-      background: #18181b;
+    html, body {
+      width: 1280px !important;
+      height: 800px !important;
+      overflow: hidden !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: #090d16 !important;
+      color: #f8fafc;
       display: flex;
       flex-direction: column;
+      align-items: center;
+      padding-top: 36px;
+      position: relative;
     }
-    .window-header {
-      background: #1e1e24;
+    .header-text-block { text-align: center; margin-bottom: 30px; z-index: 2; }
+    .header-title { font-size: 28px; font-weight: 800; color: #ffffff; margin-bottom: 8px; }
+    .header-desc { font-size: 14.5px; color: #94a3b8; }
+    .browser-frame {
+      width: 1120px;
+      height: 640px;
+      background-color: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px 12px 0 0;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .browser-titlebar {
       height: 42px;
+      background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 14px;
+    }
+    .window-dots { display: flex; gap: 8px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .url-bar {
+      flex: 1;
+      height: 28px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       padding: 0 12px;
-      border-bottom: 1px solid #27272a;
-    }
-    .window-controls {
-      display: flex;
-      gap: 8px;
-      margin-right: 18px;
-    }
-    .win-btn {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-    .win-close { background: #ef4444; }
-    .win-min { background: #f59e0b; }
-    .win-max { background: #10b981; }
-
-    .tab-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .browser-tab {
-      background: #27272a;
-      padding: 6px 16px;
-      border-radius: 8px 8px 0 0;
       font-size: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #f4f4f5;
-    }
-    .tab-icon {
-      width: 14px;
-      height: 14px;
-      border-radius: 2px;
-    }
-
-    /* アドレスバー・ツールバー */
-    .toolbar {
-      background: #27272a;
-      height: 44px;
-      display: flex;
-      align-items: center;
-      padding: 0 14px;
-      gap: 12px;
-      border-bottom: 1px solid #3f3f46;
-    }
-    .nav-icons {
-      display: flex;
-      gap: 12px;
-      color: #71717a;
-      font-size: 15px;
-    }
-    .address-bar {
-      flex: 1;
-      background: #18181b;
-      height: 30px;
-      border-radius: 15px;
-      display: flex;
-      align-items: center;
-      padding: 0 14px;
-      font-size: 12px;
-      color: #a1a1aa;
+      color: #8b949e;
       gap: 8px;
     }
-    .address-lock {
-      color: #10b981;
-      font-size: 11px;
-    }
-    .extension-icons {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      position: relative;
-    }
-    .ext-icon-btn {
-      position: relative;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 4px;
-      border-radius: 6px;
-      background: rgba(37, 99, 235, 0.25);
-      border: 1px solid rgba(59, 130, 246, 0.4);
-    }
-    .ext-icon-img {
-      width: 20px;
-      height: 20px;
-      border-radius: 4px;
-    }
-
-    /* Webページ領域 */
-    .web-viewport {
+    .browser-toolbar-icons { display: flex; align-items: center; gap: 12px; }
+    .browser-ext-icon { width: 20px; height: 20px; border-radius: 4px; box-shadow: 0 0 8px rgba(59, 130, 246, 0.5); }
+    .browser-page-body {
       flex: 1;
-      background: linear-gradient(135deg, #090d16 0%, #111827 50%, #1e1b4b 100%);
+      background: radial-gradient(circle at 50% 30%, #1a2234 0%, #0d1117 70%);
       position: relative;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      justify-content: flex-end;
+      padding-right: 50px;
+      padding-top: 10px;
     }
-    .bg-watermark {
-      font-size: 54px;
-      font-weight: 900;
-      color: rgba(255, 255, 255, 0.04);
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      user-select: none;
-    }
-
-    /* ドロップダウンポップアップの位置調整 */
-    .dropdown-popup-anchor {
-      position: absolute;
-      top: 10px;
-      right: 28px;
-      z-index: 100;
-    }
-    .mockup-popup {
-      width: 360px;
-      background-color: #12141a;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.8), 0 0 25px rgba(37, 99, 235, 0.25);
-      overflow: hidden;
-    }
-    .mockup-popup .app-container {
-      padding: 16px;
-    }
-    .mockup-popup .logs-list {
-      max-height: 160px;
-    }
+    .pinned-popup { transform: scale(1.05); transform-origin: top right; z-index: 10; }
+    ${baseScreenshotStyles}
   </style>
 </head>
 <body>
+  <div class="header-text-block">
+    <h2 class="header-title">${title}</h2>
+    <p class="header-desc">${desc}</p>
+  </div>
   <div class="browser-frame">
-    <!-- ウィンドウヘッダー -->
-    <div class="window-header">
-      <div class="window-controls">
-        <div class="win-btn win-close"></div>
-        <div class="win-btn win-min"></div>
-        <div class="win-btn win-max"></div>
+    <div class="browser-titlebar">
+      <div class="window-dots">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
       </div>
-      <div class="tab-bar">
-        <div class="browser-tab">
-          <img src="${genshinIconBase64}" class="tab-icon" alt="">
-          <span>原神 コード交換公式サイト - HoYoverse</span>
-        </div>
+      <div class="url-bar">
+        <span>🔒</span>
+        <span>https://hoyolab.com/</span>
       </div>
-    </div>
-
-    <!-- ツールバー -->
-    <div class="toolbar">
-      <div class="nav-icons">
-        <span>←</span>
-        <span>→</span>
-        <span>↻</span>
-      </div>
-      <div class="address-bar">
-        <span class="address-lock">🔒</span>
-        <span>https://genshin.hoyoverse.com/ja/gift</span>
-      </div>
-      <div class="extension-icons">
-        <div class="ext-icon-btn">
-          <img src="${extIconBase64}" class="ext-icon-img" alt="HoYoPass">
-        </div>
+      <div class="browser-toolbar-icons">
+        <img src="${extIconBase64}" alt="HoYoPass" class="browser-ext-icon">
       </div>
     </div>
-
-    <!-- ページ本体＆ポップアップオーバーレイ -->
-    <div class="web-viewport">
-      <div class="bg-watermark">GENSHIN IMPACT GIFT REDEEM</div>
-
-      <!-- 右上にポップアップが展開 -->
-      <div class="dropdown-popup-anchor">
-        ${renderPopupHtml({ showDialog: false })}
+    <div class="browser-page-body">
+      <div class="pinned-popup">
+        ${popupHtml}
       </div>
     </div>
   </div>
 </body>
-</html>`;
+</html>
+  `;
 }
 
-// 4. ポップアップ単体 (実寸 360x580)
-function generateScreenshotStandaloneHtml() {
-  return `<!DOCTYPE html>
-<html lang="ja">
+// ポップアップ単体プレビュー
+function generateScreenshotStandaloneHtml(lang = 'ja') {
+  const popupHtml = renderPopupHtml({ showDialog: false, lang });
+
+  return `
+<!DOCTYPE html>
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <style>
-    ${popupCss}
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
+    body {
       width: 340px;
-      height: 455px;
-      background: #11151f;
+      height: 480px;
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
     }
+    ${baseScreenshotStyles}
     .mockup-popup {
-      width: 340px;
-      background-color: #11151f;
-      overflow: hidden;
-    }
-    .mockup-popup .app-container {
-      padding: 14px;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
     }
   </style>
 </head>
 <body>
-  ${renderPopupHtml({ showDialog: false })}
+  ${popupHtml}
 </body>
-</html>`;
+</html>
+  `;
 }
 
-// スクリーンショット撮影実行
+// Chrome Headless によるキャプチャ実行
 function captureScreenshot(htmlPath, outPngPath, width, height) {
+  const fileUrl = `file:///${htmlPath.replace(/\\/g, '/')}`;
+  console.log(`📸 撮影中: ${path.basename(outPngPath)} (${width}x${height})...`);
+
   const args = [
     '--headless=new',
-    `--screenshot=${outPngPath}`,
-    `--window-size=${width},${height}`,
-    '--hide-scrollbars',
     '--disable-gpu',
-    `file:///${htmlPath.replace(/\\/g, '/')}`
+    '--hide-scrollbars',
+    '--no-sandbox',
+    '--force-device-scale-factor=1',
+    `--window-size=${width},${height}`,
+    `--screenshot=${outPngPath}`,
+    fileUrl
   ];
 
-  console.log(`📸 撮影中: ${path.basename(outPngPath)} (${width}x${height})...`);
   const res = spawnSync(CHROME_PATH, args, { stdio: 'pipe', encoding: 'utf8' });
   if (res.error) {
     throw res.error;
@@ -809,37 +701,72 @@ async function main() {
   console.log('🚀 [HoYoPass] Chrome Web Store 向け画面キャプチャの自動生成を開始します...\n');
 
   const tasks = [
+    // 日本語版 (JA)
     {
       name: 'screenshot1_main_1280x800.png',
-      htmlContent: generateScreenshot1Html(),
-      tempHtml: path.join(TEMP_DIR, 'screen1.html'),
+      htmlContent: generateScreenshot1Html('ja'),
+      tempHtml: path.join(TEMP_DIR, 'screen1_ja.html'),
       outPng: path.join(OUTPUT_DIR, 'screenshot1_main_1280x800.png'),
       width: 1280,
       height: 800
     },
     {
       name: 'screenshot2_dialog_1280x800.png',
-      htmlContent: generateScreenshot2Html(),
-      tempHtml: path.join(TEMP_DIR, 'screen2.html'),
+      htmlContent: generateScreenshot2Html('ja'),
+      tempHtml: path.join(TEMP_DIR, 'screen2_ja.html'),
       outPng: path.join(OUTPUT_DIR, 'screenshot2_dialog_1280x800.png'),
       width: 1280,
       height: 800
     },
     {
       name: 'screenshot3_browser_1280x800.png',
-      htmlContent: generateScreenshot3Html(),
-      tempHtml: path.join(TEMP_DIR, 'screen3.html'),
+      htmlContent: generateScreenshot3Html('ja'),
+      tempHtml: path.join(TEMP_DIR, 'screen3_ja.html'),
       outPng: path.join(OUTPUT_DIR, 'screenshot3_browser_1280x800.png'),
       width: 1280,
       height: 800
     },
     {
       name: 'popup_3items_success.png',
-      htmlContent: generateScreenshotStandaloneHtml(),
-      tempHtml: path.join(TEMP_DIR, 'screen_popup.html'),
+      htmlContent: generateScreenshotStandaloneHtml('ja'),
+      tempHtml: path.join(TEMP_DIR, 'screen_popup_ja.html'),
       outPng: path.join(OUTPUT_DIR, 'popup_3items_success.png'),
       width: 340,
-      height: 455
+      height: 480
+    },
+
+    // 英語版 (EN)
+    {
+      name: 'screenshot1_main_1280x800_en.png',
+      htmlContent: generateScreenshot1Html('en'),
+      tempHtml: path.join(TEMP_DIR, 'screen1_en.html'),
+      outPng: path.join(OUTPUT_DIR, 'screenshot1_main_1280x800_en.png'),
+      width: 1280,
+      height: 800
+    },
+    {
+      name: 'screenshot2_dialog_1280x800_en.png',
+      htmlContent: generateScreenshot2Html('en'),
+      tempHtml: path.join(TEMP_DIR, 'screen2_en.html'),
+      outPng: path.join(OUTPUT_DIR, 'screenshot2_dialog_1280x800_en.png'),
+      width: 1280,
+      height: 800
+    },
+    {
+      name: 'screenshot3_browser_1280x800_en.png',
+      htmlContent: generateScreenshot3Html('en'),
+      tempHtml: path.join(TEMP_DIR, 'screen3_en.html'),
+      outPng: path.join(OUTPUT_DIR, 'screenshot3_browser_1280x800_en.png'),
+      width: 1280,
+      height: 800
+    },
+    {
+      name: 'popup_3items_success_en.png',
+      htmlContent: generateScreenshotStandaloneHtml('en'),
+      tempHtml: path.join(TEMP_DIR, 'screen_popup_en.html'),
+      outPng: path.join(OUTPUT_DIR, 'popup_3items_success_en.png'),
+      width: 340,
+      height: 480
     }
   ];
 
@@ -851,7 +778,7 @@ async function main() {
   // 一時ファイルの整理
   fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 
-  console.log('\n🎉 全ての画面キャプチャが正常に生成されました！');
+  console.log('\n🎉 全ての画面キャプチャ（日・英 計8枚）が正常に生成されました！');
   console.log(`📂 保存先: ${OUTPUT_DIR}`);
 }
 

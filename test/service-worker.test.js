@@ -11,6 +11,7 @@ const mockClearedNotifications = [];
 const mockCreatedNotifications = [];
 const mockAlarms = new Map();
 const mockIdleListeners = [];
+const mockMessageListeners = [];
 
 globalThis.chrome = {
   storage: {
@@ -52,7 +53,9 @@ globalThis.chrome = {
     getURL: (p) => `chrome-extension://test-ext-id/${p}`,
     onInstalled: { addListener: () => {} },
     onStartup: { addListener: () => {} },
-    onMessage: { addListener: () => {} }
+    onMessage: {
+      addListener: (fn) => { mockMessageListeners.push(fn); }
+    }
   }
 };
 
@@ -523,6 +526,147 @@ test('maybeRunAllCatchUp: 起動・復帰時にログインボーナスとコー
     const { signResult, redeemResult } = await maybeRunAllCatchUp('STARTUP');
     assert.equal(signResult.success, true, 'ログインボーナスキャッチアップが成功すること');
     assert.equal(redeemResult.success, true, 'コード引き換えキャッチアップもALREADY_RUNNINGにならず成功すること');
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow & runDailySignFlow: enabledGames で指定したタイトルのみ巡回されること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  // STAR_RAIL のみ有効化
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['STAR_RAIL'],
+      activeGameKey: 'STAR_RAIL'
+    }
+  });
+
+  const calledGames = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hkrpg_global')) calledGames.push('STAR_RAIL');
+      if (u.includes('hk4e_global')) calledGames.push('GENSHIN');
+      if (u.includes('nap_global')) calledGames.push('ZZZ');
+      return {
+        status: 200,
+        json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } })
+      };
+    }
+    return { status: 200, json: async () => ({}), text: async () => JSON.stringify({ retcode: 0, data: {} }) };
+  };
+
+  try {
+    // 1. コード自動引き換え
+    const redeemRes = await runAutoRedeemFlow('ALARM');
+    assert.equal(redeemRes.success, true);
+    assert.deepEqual(Object.keys(redeemRes.results), ['STAR_RAIL'], '巡回結果キーにSTAR_RAILのみが含まれること');
+    assert.ok(calledGames.includes('STAR_RAIL'));
+    assert.ok(!calledGames.includes('GENSHIN'), 'GENSHINのAPIは呼ばれないこと');
+    assert.ok(!calledGames.includes('ZZZ'), 'ZZZのAPIは呼ばれないこと');
+
+    // 2. ログボ自動受取
+    calledGames.length = 0;
+    const signRes = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(signRes.success, true);
+    assert.deepEqual(Object.keys(signRes.results), ['STAR_RAIL'], 'ログボ巡回結果キーにSTAR_RAILのみが含まれること');
+    assert.ok(calledGames.includes('STAR_RAIL'));
+    assert.ok(!calledGames.includes('GENSHIN'));
+    assert.ok(!calledGames.includes('ZZZ'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('maybeRunAllCatchUp: skipDelay=true 指定時に待機ディレイをスキップして即座にログボ・コード引き換えを実行すること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    }
+  });
+
+  const originalDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  // テスト検知用に大きなディレイを設定（スキップされない場合はタイムアウトまたは遅延する）
+  API_CONFIG.CATCH_UP_DELAY_MS = 10_000;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }),
+    text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { list: [] } })
+  });
+
+  const startTime = Date.now();
+  try {
+    const { signResult, redeemResult } = await maybeRunAllCatchUp('INITIAL_RUN', true);
+    const elapsed = Date.now() - startTime;
+    assert.ok(elapsed < 2000, `ディレイがスキップされ高速に完了すること (実績: ${elapsed}ms)`);
+    assert.equal(signResult.success, true);
+    assert.equal(redeemResult.success, true);
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('onMessage: TRIGGER_INITIAL_CATCH_UP 受信時に maybeRunAllCatchUp が実行され結果を返すこと', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    }
+  });
+
+  const originalDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  API_CONFIG.CATCH_UP_DELAY_MS = 0;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }),
+    text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { list: [] } })
+  });
+
+  try {
+    let handled = false;
+    const responsePromise = new Promise((resolve) => {
+      for (const listener of mockMessageListeners) {
+        const res = listener({ type: 'TRIGGER_INITIAL_CATCH_UP' }, { id: chrome.runtime.id }, (data) => {
+          resolve(data);
+        });
+        if (res === true) {
+          handled = true;
+          break;
+        }
+      }
+    });
+
+    assert.ok(handled, 'TRIGGER_INITIAL_CATCH_UP メッセージが処理されること');
+
+    const responseData = await responsePromise;
+    assert.ok(responseData, 'レスポンスが返却されること');
+    assert.equal(responseData.signResult.success, true);
+    assert.equal(responseData.redeemResult.success, true);
   } finally {
     API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
     globalThis.fetch = originalFetch;

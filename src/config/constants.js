@@ -1,8 +1,12 @@
-import { FLAVOR_CONFIG } from './env.js';
+import { FLAVOR_CONFIG, GA_MEASUREMENT_ID, GA_API_SECRET } from './env.js';
 
 export const API_CONFIG = {
   CODE_API_TIMEOUT_MS: 10_000,
   HOYO_API_TIMEOUT_MS: 10_000,
+  GA_TIMEOUT_MS: 5_000,
+  GA_SESSION_TIMEOUT_MS: 30 * 60 * 1000,
+  GA_MEASUREMENT_ID: GA_MEASUREMENT_ID ?? '',
+  GA_API_SECRET: GA_API_SECRET ?? '',
   REDEEM_INTERVAL_MINUTES: FLAVOR_CONFIG?.config?.REDEEM_INTERVAL_MINUTES ?? 180,
   RETRY_INTERVAL_MINUTES: 2, // 2分後短期リトライ
   CATCH_UP_DELAY_MS: FLAVOR_CONFIG?.config?.CATCH_UP_DELAY_MS ?? 15_000,
@@ -39,10 +43,13 @@ export const STATUS_MAP = {
   PENDING_RETRY: 5
 };
 
+export const DEFAULT_ENABLED_GAMES = ['GENSHIN', 'STAR_RAIL', 'ZZZ'];
+
 export const GAMES = {
   GENSHIN: {
     name: '原神',
     shortName: '原',
+    tabLabel: '原神',
     iconPath: '/assets/icons/genshin.png',
     gameBiz: 'hk4e_global',
     exchangeHost: 'https://sg-hk4e-api.hoyoverse.com',
@@ -62,6 +69,7 @@ export const GAMES = {
   STAR_RAIL: {
     name: '崩壊：スターレイル',
     shortName: '星',
+    tabLabel: 'スタレ',
     iconPath: '/assets/icons/starrail.png',
     gameBiz: 'hkrpg_global',
     exchangeHost: 'https://sg-hkrpg-api.hoyoverse.com',
@@ -81,6 +89,7 @@ export const GAMES = {
   ZZZ: {
     name: 'ゼンレスゾーンゼロ',
     shortName: '絶',
+    tabLabel: 'ZZZ',
     iconPath: '/assets/icons/zzz.png',
     gameBiz: 'nap_global',
     exchangeHost: 'https://public-operation-nap.hoyoverse.com',
@@ -106,6 +115,6 @@ export const ALLOWED_REGIONS = [
 ];
 
 export const DOCS_URLS = {
-  README: 'https://github.com/zyanpoyo/HoYoPass#readme',
-  PRIVACY_POLICY: 'https://github.com/zyanpoyo/HoYoPass/blob/master/docs/legal/privacy_policy.md'
+  README: 'https://hoyopass.pages.dev/',
+  PRIVACY_POLICY: 'https://hoyopass.pages.dev/privacy'
 };
