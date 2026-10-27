@@ -12,7 +12,7 @@ import {
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, getDailySignInfo } from '../services/hoyo-api.js';
 import { formatRedeemResult, formatSignResult, formatLogTimestamp } from '../utils/message-formatter.js';
-import { resolveLanguage, getGameLocalized, formatDailySignTimeLocal, getPrivacyPolicyUrl, t } from '../utils/i18n.js';
+import { resolveLanguage, getGameLocalized, formatDailySignTimeLocal, getPrivacyPolicyUrl, getGuideUrl, t } from '../utils/i18n.js';
 import { toGaGameKey, syncConsentBadge } from '../services/analytics-service.js';
 
 let currentGameKey = 'GENSHIN';
@@ -314,7 +314,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   bindExternalLink('optin-privacy-link', () => getPrivacyPolicyUrl(currentLang));
 
-  bindExternalLink('footer-link-readme', DOCS_URLS.README);
+  bindExternalLink('footer-link-readme', () => getGuideUrl(currentLang));
   bindExternalLink('footer-link-privacy', () => getPrivacyPolicyUrl(currentLang));
 
   // 表示設定モーダルの制御（言語設定 ＋ ゲーム選択 ＋ 匿名の利用統計）
@@ -492,6 +492,16 @@ function applyI18nToDom(lang) {
   const footerDisclaimer = document.getElementById('footer-disclaimer-text');
   if (footerDisclaimer) {
     footerDisclaimer.innerHTML = t('footerDisclaimer', [], lang);
+  }
+
+  // フッターリンクURLの言語追従
+  const footerReadmeLink = document.getElementById('footer-link-readme');
+  if (footerReadmeLink) {
+    footerReadmeLink.href = getGuideUrl(lang);
+  }
+  const footerPrivacyLink = document.getElementById('footer-link-privacy');
+  if (footerPrivacyLink) {
+    footerPrivacyLink.href = getPrivacyPolicyUrl(lang);
   }
 
   // ゲーム選択チェックボックスのラベル名

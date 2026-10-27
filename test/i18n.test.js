@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   resolveLanguage,
   getPrivacyPolicyUrl,
+  getGuideUrl,
   formatDailySignTimeLocal,
   getGameLocalized,
   getExchangeApiLang,
@@ -33,6 +34,12 @@ test('getPrivacyPolicyUrl: 言語別のURL解決', () => {
   assert.equal(getPrivacyPolicyUrl('ja'), 'https://hoyopass.pages.dev/privacy');
   assert.equal(getPrivacyPolicyUrl('en'), 'https://hoyopass.pages.dev/privacy_en');
   assert.equal(getPrivacyPolicyUrl(), 'https://hoyopass.pages.dev/privacy', 'デフォルトは日本語URL');
+});
+
+test('getGuideUrl: 言語別の使い方ガイドURL解決', () => {
+  assert.equal(getGuideUrl('ja'), 'https://hoyopass.pages.dev/');
+  assert.equal(getGuideUrl('en'), 'https://hoyopass.pages.dev/index_en');
+  assert.equal(getGuideUrl(), 'https://hoyopass.pages.dev/', 'デフォルトは日本語URL');
 });
 
 test('formatDailySignTimeLocal: 形式検証 (HH:mm)', () => {

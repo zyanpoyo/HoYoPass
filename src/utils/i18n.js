@@ -55,6 +55,15 @@ export function getPrivacyPolicyUrl(lang = 'ja') {
   return lang === 'en' ? DOCS_URLS.PRIVACY_POLICY_EN : DOCS_URLS.PRIVACY_POLICY;
 }
 
+/**
+ * 言語別の使い方ガイドURLを取得する
+ * @param {'ja'|'en'} [lang]
+ * @returns {string}
+ */
+export function getGuideUrl(lang = 'ja') {
+  return lang === 'en' ? DOCS_URLS.README_EN : DOCS_URLS.README;
+}
+
 export function formatDailySignTimeLocal() {
   const d = new Date();
   d.setUTCHours(16, 5, 0, 0);

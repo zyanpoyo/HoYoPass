@@ -9,7 +9,9 @@ test('PRIVACY_POLICY_VERSION: ISO日付形式 (YYYY-MM-DD)', () => {
   assert.match(LEGACY_POLICY_VERSION, /^\d{4}-\d{2}-\d{2}$/, '基準バージョンもISO形式であること');
 });
 
-test('DOCS_URLS: プライバシーポリシーURLの整合性', () => {
+test('DOCS_URLS: プライバシーポリシーおよびガイドURLの整合性', () => {
+  assert.equal(DOCS_URLS.README, 'https://hoyopass.pages.dev/');
+  assert.equal(DOCS_URLS.README_EN, 'https://hoyopass.pages.dev/index_en');
   assert.equal(DOCS_URLS.PRIVACY_POLICY, 'https://hoyopass.pages.dev/privacy');
   assert.equal(DOCS_URLS.PRIVACY_POLICY_EN, 'https://hoyopass.pages.dev/privacy_en');
 });
@@ -85,4 +87,16 @@ test('ドリフト検知: docs/legal/privacy_policy_en.md と PRIVACY_POLICY_VER
     content.includes(`**${expectedEnDate} (Revised)**`),
     `privacy_policy_en.md の改定履歴最新項目に "**${expectedEnDate} (Revised)**" が含まれること`
   );
+});
+
+test('Webページ相互リンク: index.html と index_en.html の整合性', () => {
+  const jaContent = fs.readFileSync('webpages/index.html', 'utf8');
+  const enContent = fs.readFileSync('webpages/index_en.html', 'utf8');
+
+  assert.ok(jaContent.includes('href="index_en.html"'), 'index.html に index_en.html への切替リンクが存在すること');
+  assert.ok(jaContent.includes('hreflang="en"'), 'index.html に hreflang="en" が存在すること');
+
+  assert.ok(enContent.includes('href="index.html"'), 'index_en.html に index.html への切替リンクが存在すること');
+  assert.ok(enContent.includes('hreflang="ja"'), 'index_en.html に hreflang="ja" が存在すること');
+  assert.ok(enContent.includes('href="privacy_en.html"'), 'index_en.html から privacy_en.html へ遷移すること');
 });

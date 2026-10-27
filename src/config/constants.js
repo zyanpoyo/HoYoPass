@@ -122,6 +122,7 @@ export const LEGACY_POLICY_VERSION = '2026-10-26'; // 既存ユーザー補完�
 
 export const DOCS_URLS = {
   README: 'https://hoyopass.pages.dev/',
+  README_EN: 'https://hoyopass.pages.dev/index_en',
   PRIVACY_POLICY: 'https://hoyopass.pages.dev/privacy',
   PRIVACY_POLICY_EN: 'https://hoyopass.pages.dev/privacy_en'
 };

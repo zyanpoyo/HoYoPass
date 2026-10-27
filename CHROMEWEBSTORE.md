@@ -179,10 +179,10 @@ zyanpoyo
 (※ Chrome Web Store デベロッパーダッシュボードに登録したメールアドレスを入力)
 
 **Support URL / Email** [RECOMMENDED]
-https://hoyopass.pages.dev/
+https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 **Homepage URL** [RECOMMENDED]
-https://hoyopass.pages.dev/
+https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 
 ## Version History
