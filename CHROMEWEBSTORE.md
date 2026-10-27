@@ -60,7 +60,7 @@ English (Default) / Japanese
 HoYoPass - Auto Daily Check-In & Code Redeemer
 
 **Short Description** [REQUIRED]
-Unofficial tool that automatically claims daily check-in rewards and redemption codes for Genshin Impact, Honkai: Star Rail, and ZZZ.
+Unofficial tool that auto-claims daily check-in rewards and redemption codes for Genshin Impact, Honkai: Star Rail, and ZZZ.
 
 **Detailed Description** [REQUIRED]
 HoYoPass is an unofficial, fan-made productivity tool designed to help travelers, trailblazers, and proxies never miss a single reward. It quietly and automatically claims HoYoLAB daily check-in bonuses and redeems newly released gift codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero directly in the background.

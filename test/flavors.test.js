@@ -78,3 +78,13 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
   assert.match(envContent, /"CATCH_UP_DELAY_MS": 15000/);
   assert.match(envContent, /"IS_DEV": false/);
 });
+
+test('messages.json: description が 132 文字以内であること (Chrome Web Store 制限)', () => {
+  const locales = ['ja', 'en'];
+  for (const loc of locales) {
+    const raw = fs.readFileSync(path.resolve('_locales', loc, 'messages.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    const desc = parsed.extDescription.message;
+    assert.ok(desc.length <= 132, loc + ' description is too long: ' + desc.length + ' (max 132)');
+  }
+});
