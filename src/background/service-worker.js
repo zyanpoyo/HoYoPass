@@ -1,4 +1,4 @@
-import { GAMES, API_CONFIG, STATUS_MAP, ALARM_NAMES } from '../config/constants.js';
+import { GAMES, API_CONFIG, STATUS_MAP, ALARM_NAMES, UNINSTALL_URL } from '../config/constants.js';
 import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
 import {
   acquireExecutionLock,
@@ -46,6 +46,16 @@ export function getNextDailySignTimestamp(nowMs = Date.now()) {
     nextWhen += 24 * 60 * 60 * 1000;
   }
   return nextWhen;
+}
+
+export async function setupUninstallUrl() {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.setUninstallURL) {
+    try {
+      await chrome.runtime.setUninstallURL(UNINSTALL_URL);
+    } catch (err) {
+      console.warn('Failed to set uninstall URL:', err);
+    }
+  }
 }
 
 export async function setupAlarm() {
@@ -242,12 +252,14 @@ export async function handleNotificationClick(notificationId) {
 chrome.notifications.onClicked.addListener(handleNotificationClick);
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await setupUninstallUrl();
   await setupAlarm();
   await setupDailySignAlarm();
   await syncConsentBadge();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  await setupUninstallUrl();
   await setupAlarm();
   await setupDailySignAlarm();
   await syncConsentBadge();

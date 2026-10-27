@@ -12,6 +12,7 @@ const mockCreatedNotifications = [];
 const mockAlarms = new Map();
 const mockIdleListeners = [];
 const mockMessageListeners = [];
+let mockUninstallUrl = null;
 
 globalThis.chrome = {
   storage: {
@@ -53,6 +54,7 @@ globalThis.chrome = {
     getURL: (p) => `chrome-extension://test-ext-id/${p}`,
     onInstalled: { addListener: () => {} },
     onStartup: { addListener: () => {} },
+    setUninstallURL: async (url) => { mockUninstallUrl = url; },
     onMessage: {
       addListener: (fn) => { mockMessageListeners.push(fn); }
     }
@@ -60,8 +62,9 @@ globalThis.chrome = {
 };
 
 import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord } from '../src/services/storage-service.js';
-import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG } from '../src/config/constants.js';
+import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
 const {
+  setupUninstallUrl,
   handleNotificationClick,
   LOGIN_NOTIFICATION_PREFIX,
   SIGN_LOGIN_NOTIFICATION_PREFIX,
@@ -675,3 +678,26 @@ test('onMessage: TRIGGER_INITIAL_CATCH_UP 受信時に maybeRunAllCatchUp が実
 
 
 
+
+test('setupUninstallUrl: 正しいアンインストールURLが設定されること', async () => {
+  mockUninstallUrl = null;
+  await setupUninstallUrl();
+  assert.equal(mockUninstallUrl, UNINSTALL_URL);
+  assert.equal(mockUninstallUrl, 'https://forms.gle/xWmVdhKJhpcuvmhP9');
+});
+
+test('setupUninstallUrl: API例外発生時に例外を外部へスローせず安全に処理されること', async () => {
+  const originalSetUninstallURL = chrome.runtime.setUninstallURL;
+  chrome.runtime.setUninstallURL = async () => {
+    throw new Error('API failure simulation');
+  };
+
+  try {
+    // 例外がスローされず正常終了することを確認
+    await assert.doesNotReject(async () => {
+      await setupUninstallUrl();
+    });
+  } finally {
+    chrome.runtime.setUninstallURL = originalSetUninstallURL;
+  }
+});

@@ -118,3 +118,6 @@ export const DOCS_URLS = {
   README: 'https://hoyopass.pages.dev/',
   PRIVACY_POLICY: 'https://hoyopass.pages.dev/privacy'
 };
+
+
+export const UNINSTALL_URL = 'https://forms.gle/xWmVdhKJhpcuvmhP9';
