@@ -1,4 +1,4 @@
-import { GAMES } from '../config/constants.js';
+import { GAMES, DOCS_URLS } from '../config/constants.js';
 
 export const SUPPORTED_LANGUAGES = ['auto', 'ja', 'en'];
 
@@ -51,6 +51,10 @@ export function resolveLanguage(preferredLang, fallbackBrowserLang = null) {
  * 00:05 UTC+8 (16:05 UTC) をユーザーのローカル環境の「HH:mm」形式で取得する
  * @returns {string} 例: '01:05'
  */
+export function getPrivacyPolicyUrl(lang = 'ja') {
+  return lang === 'en' ? DOCS_URLS.PRIVACY_POLICY_EN : DOCS_URLS.PRIVACY_POLICY;
+}
+
 export function formatDailySignTimeLocal() {
   const d = new Date();
   d.setUTCHours(16, 5, 0, 0);
@@ -141,6 +145,11 @@ export const MESSAGES = {
     analyticsConsentDesc: 'HoYoPassでは機能改善のため、個人情報を含まない匿名の利用統計情報（引き換え成否やエラー発生状況など）を収集しています。UIDやアカウント情報、Cookieは一切収集されません。後からいつでも設定で変更できます。',
     analyticsConsentAcceptBtn: '協力する',
     analyticsConsentDeclineBtn: '協力しない',
+
+    // ポリシー改定モーダル
+    policyUpdateTitle: 'プライバシーポリシー改定のお知らせ',
+    policyUpdateDesc: 'プライバシーポリシーが改定されました（改定日: {0}）。引き続きご利用いただく前に、{1}をご確認ください。',
+    policyUpdateAcceptBtn: '確認して同意する',
 
     // 設定モーダル
     settingsTitle: '設定',
@@ -252,6 +261,11 @@ export const MESSAGES = {
     analyticsConsentDesc: 'HoYoPass collects anonymous usage metrics (such as redemption success rates and error types) to help improve quality. No personal data, UIDs, account details, or cookies are collected. You can change this at any time in Settings.',
     analyticsConsentAcceptBtn: 'Allow',
     analyticsConsentDeclineBtn: 'Decline',
+
+    // Policy Update Modal
+    policyUpdateTitle: 'Privacy Policy Update',
+    policyUpdateDesc: 'Our Privacy Policy has been updated (Effective: {0}). Please review the {1} before continuing.',
+    policyUpdateAcceptBtn: 'Agree and Continue',
 
     // Settings Modal
     settingsTitle: 'Settings',

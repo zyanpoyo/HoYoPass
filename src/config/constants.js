@@ -114,10 +114,16 @@ export const ALLOWED_REGIONS = [
   'prod_gf_us', 'prod_gf_eu', 'prod_gf_jp', 'prod_gf_sg'
 ];
 
+// ポリシーのバージョン（制定・改定日, ISO形式）。
+// 上げる基準: ユーザーの権利・取得データ・外部送信先に関わる実質変更のみ。
+// 誤字修正・明確化では上げない（上げると全ユーザーに再同意モーダルが出る）。
+export const PRIVACY_POLICY_VERSION = '2026-10-26';
+export const LEGACY_POLICY_VERSION = '2026-10-26'; // 既存ユーザー補完用。変更しない。
+
 export const DOCS_URLS = {
   README: 'https://hoyopass.pages.dev/',
-  PRIVACY_POLICY: 'https://hoyopass.pages.dev/privacy'
+  PRIVACY_POLICY: 'https://hoyopass.pages.dev/privacy',
+  PRIVACY_POLICY_EN: 'https://hoyopass.pages.dev/privacy_en'
 };
-
 
 export const UNINSTALL_URL = 'https://forms.gle/xWmVdhKJhpcuvmhP9';

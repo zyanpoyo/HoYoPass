@@ -145,7 +145,7 @@ test('getOrCreateSessionId: 30分セッション管理', async () => {
   assert.notEqual(sid1, sid3, '30分タイムアウト後は新セッションIDが生成されること');
 });
 
-test('syncConsentBadge: 既存ユーザーへの "!" バッジ表示と確認後の消去', async () => {
+test('syncConsentBadge: 既存ユーザーへの "!" バッジ表示とポリシー改定連動', async () => {
   mockStorage.local.clear();
   badgeState = { text: '', color: '' };
 
@@ -163,14 +163,36 @@ test('syncConsentBadge: 既存ユーザーへの "!" バッジ表示と確認後
   assert.equal(badgeState.text, '!');
   assert.equal(badgeState.color, '#f59e0b');
 
-  // 3. 合意確認完了後 (analyticsConsentReviewed: true): バッジ消去
+  // 3. 統計同意完了 & agreedPolicyVersion未保存（既存ユーザー）:
+  //    2026-10-26 に自動補完されるためバッジは非表示
   mockStorage.local.set('app_settings', {
     optInAccepted: true,
     analyticsConsentReviewed: true,
     analyticsEnabled: true
   });
   await syncConsentBadge();
-  assert.equal(badgeState.text, '');
+  assert.equal(badgeState.text, '', '現行版補完によりバッジは非表示');
+
+  // 4. 旧ポリシーバージョン同意ユーザー: "!" バッジ表示
+  mockStorage.local.set('app_settings', {
+    optInAccepted: true,
+    analyticsConsentReviewed: true,
+    analyticsEnabled: true,
+    agreedPolicyVersion: '2026-10-12'
+  });
+  await syncConsentBadge();
+  assert.equal(badgeState.text, '!', '旧版同意ユーザーにはバッジを表示');
+  assert.equal(badgeState.color, '#f59e0b');
+
+  // 5. 改定ポリシー同意後: バッジ消去
+  mockStorage.local.set('app_settings', {
+    optInAccepted: true,
+    analyticsConsentReviewed: true,
+    analyticsEnabled: true,
+    agreedPolicyVersion: '2026-10-26'
+  });
+  await syncConsentBadge();
+  assert.equal(badgeState.text, '', '最新版同意後はバッジ消去');
 });
 
 test('sendGAEvent: オプトアウト状態での完全遮断', async () => {

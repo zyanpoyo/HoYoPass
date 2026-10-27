@@ -38,9 +38,10 @@ import {
   shouldRunDailySign,
   getActiveCodes,
   setActiveCodes,
-  getCodeRedeemStats
+  getCodeRedeemStats,
+  needsPolicyReview
 } from '../src/services/storage-service.js';
-import { API_CONFIG, STATUS_MAP } from '../src/config/constants.js';
+import { API_CONFIG, STATUS_MAP, PRIVACY_POLICY_VERSION, LEGACY_POLICY_VERSION } from '../src/config/constants.js';
 
 test('addExecutionLog: ログの追加と最大保持件数(MAX_EXECUTION_LOGS: 50)の維持', async () => {
   mockStorage.local.clear();
@@ -268,3 +269,34 @@ test('getSettings / updateSettings: enabledGames のデフォルト値と既存�
 });
 
 
+
+test('getSettings / needsPolicyReview: agreedPolicyVersion の自動補完と改定検知', async () => {
+  mockStorage.local.clear();
+
+  // 1. 新規ユーザー初期状態
+  const initial = await getSettings();
+  assert.equal(initial.agreedPolicyVersion, null, '未保存時は null');
+  assert.equal(needsPolicyReview(initial), false, '未オプトイン時はポリシー改定通知不要');
+
+  // 2. 既存ユーザー（agreedPolicyVersion 未定義、optInAccepted: true）
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true
+    }
+  });
+  const legacy = await getSettings();
+  assert.equal(legacy.agreedPolicyVersion, LEGACY_POLICY_VERSION, '既存ユーザーは LEGACY_POLICY_VERSION (2026-10-26) に自動補完される');
+  assert.equal(needsPolicyReview(legacy), false, '現行バージョン (2026-10-26) と一致するため改定通知は不要');
+
+  // 3. 将来ポリシー改定時（新バージョンが設定された場合）
+  assert.equal(needsPolicyReview(legacy, '2027-01-01'), true, '最新版が新しい日付の場合は改定通知が必要');
+
+  // 4. 古いバージョンが保存されている場合
+  const oldSettings = { optInAccepted: true, agreedPolicyVersion: '2026-10-12' };
+  assert.equal(needsPolicyReview(oldSettings, '2026-10-26'), true, '旧版同意ユーザーは改定通知が必要');
+
+  // 5. 将来版が保存されている場合（ダウングレード時など）
+  const futureSettings = { optInAccepted: true, agreedPolicyVersion: '2027-05-01' };
+  assert.equal(needsPolicyReview(futureSettings, '2026-10-26'), false, '保存版が新しい場合は通知不要');
+});

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HoYoPass - プライバシーポリシー</title>
   <meta name="description" content="Chrome拡張機能「HoYoPass - ログボ＆交換コード自動受取ツール」のプライバシーポリシーです。個人情報の非収集方針、Cookieや外部通信の取り扱いについて明記しています。">
+  <link rel="alternate" hreflang="en" href="privacy_en.html">
+  <link rel="alternate" hreflang="ja" href="privacy.html">
   <link rel="icon" type="image/png" href="img/icon128.png">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -19,6 +21,7 @@
       <nav class="site-nav">
         <a href="index.html" class="nav-link">使い方</a>
         <a href="privacy.html" class="nav-link active">プライバシーポリシー</a>
+        <a href="privacy_en.html" class="nav-link lang-switch-link" hreflang="en">English</a>
       </nav>
     </div>
   </header>
@@ -66,11 +69,14 @@
           <li>
             <strong>ユーザー設定情報</strong>:
             <ul>
-              <li>ログインボーナス自動受取の有効/無効フラグ</li>
-              <li>交換コード定期自動引き換えの有効/無効フラグ</li>
+              <li>ログインボーナス自動受取の有効/無効フラグ（<code>autoSignEnabled</code>）</li>
+              <li>交換コード定期自動引き換えの有効/無効フラグ（<code>autoRedeemEnabled</code>）</li>
               <li>表示するゲームタイトルの選択状態（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）</li>
               <li>現在選択中のゲームタブ</li>
-              <li>初回起動時の利用規約同意フラグ</li>
+              <li>初回起動時の利用規約同意フラグ（<code>optInAccepted</code>）</li>
+              <li>匿名の利用統計送信の有効/無効フラグ（<code>analyticsEnabled</code>）</li>
+              <li>匿名利用統計同意確認済みフラグ（<code>analyticsConsentReviewed</code>）</li>
+              <li>プライバシーポリシー同意バージョン（<code>agreedPolicyVersion</code>）</li>
             </ul>
           </li>
           <li>
@@ -89,6 +95,12 @@
             <strong>実行ログ</strong>:
             <ul>
               <li>ポップアップ画面に表示するための直近のログボ受取・コード引き換え結果ログ（最大50件）</li>
+            </ul>
+          </li>
+          <li>
+            <strong>ランダム統計識別子</strong>:
+            <ul>
+              <li>個人特定不可能な乱数生成されたクライアント識別子（UUIDv4）</li>
             </ul>
           </li>
         </ol>
@@ -150,7 +162,7 @@
             </tbody>
           </table>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-muted);">
+        <p class="policy-note">
           ※ 上記以外のサードパーティサーバー、広告ネットワークへの通信は一切行いません。
         </p>
       </section>
@@ -195,12 +207,26 @@
         </p>
       </section>
 
-      <!-- 9. プライバシーポリシーの改定 -->
+      <!-- 9. プライバシーポリシーの改定および改定履歴 -->
       <section class="policy-section">
-        <h2>9. プライバシーポリシーの改定</h2>
+        <h2>9. プライバシーポリシーの改定および改定履歴</h2>
         <p>
-          本ポリシーは、機能追加や法規制の変更、ブラウザ仕様の改定等に伴い改定される場合があります。重要な改定がある場合は、本Webサイトや拡張機能のアップデート等にて告知します。
+          本ポリシーは、機能追加や法規制の変更、ブラウザ仕様の改定等に伴い改定される場合があります。重要な改定（ユーザーの権利、取り扱うデータ項目、外部送信先の変更等）がある場合は、本Webサイトや拡張機能のアップデート等にて告知し、必要に応じて再同意を求めます。
         </p>
+        <ul class="revision-history-list">
+          <li class="revision-history-item">
+            <span class="revision-date">2026年10月26日 (改定)</span>
+            <span class="revision-summary">サービス品質向上のための匿名利用統計（Google アナリティクス 4 Measurement Protocol）に関する条項およびオプトアウト手順を追加</span>
+          </li>
+          <li class="revision-history-item">
+            <span class="revision-date">2026年10月17日 (改定)</span>
+            <span class="revision-summary">デイリーログインボーナス自動受取機能の追加に伴い、ローカル保存データ（受取記録）、要求権限、および公式API通信先の記載を拡充</span>
+          </li>
+          <li class="revision-history-item">
+            <span class="revision-date">2026年10月12日 (制定)</span>
+            <span class="revision-summary">初版制定（原神・崩壊：スターレイル・ゼンレスゾーンゼロの交換コード自動引き換え機能）</span>
+          </li>
+        </ul>
       </section>
 
       <!-- 10. お問い合わせ -->
@@ -219,6 +245,7 @@
       <nav class="footer-nav">
         <a href="index.html">使い方ガイド</a>
         <a href="privacy.html">プライバシーポリシー</a>
+        <a href="privacy_en.html">English</a>
       </nav>
       <p class="footer-disclaimer">
         本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。<br>

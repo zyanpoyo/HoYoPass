@@ -1,4 +1,11 @@
-import { API_CONFIG, STATUS_MAP, GAMES, DEFAULT_ENABLED_GAMES } from '../config/constants.js';
+import {
+  API_CONFIG,
+  STATUS_MAP,
+  GAMES,
+  DEFAULT_ENABLED_GAMES,
+  PRIVACY_POLICY_VERSION,
+  LEGACY_POLICY_VERSION
+} from '../config/constants.js';
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const STORAGE_MAX_BYTES = 10 * 1024 * 1024;
@@ -31,6 +38,11 @@ export async function setBackoff(durationMs = API_CONFIG.BACKOFF_DURATION_MS) {
   await chrome.storage.local.set({ backoff_until: Date.now() + durationMs });
 }
 
+export function needsPolicyReview(settings, current = PRIVACY_POLICY_VERSION) {
+  return Boolean(settings?.optInAccepted) &&
+    (settings?.agreedPolicyVersion ?? '') < current;
+}
+
 export async function getSettings() {
   const data = await chrome.storage.local.get('app_settings');
   const saved = data.app_settings;
@@ -45,7 +57,8 @@ export async function getSettings() {
       enabledGames: [...defaultGames],
       language: 'auto',
       analyticsConsentReviewed: false,
-      analyticsEnabled: false
+      analyticsEnabled: false,
+      agreedPolicyVersion: null
     };
   }
 
@@ -66,6 +79,9 @@ export async function getSettings() {
   const language = (saved.language === 'ja' || saved.language === 'en') ? saved.language : 'auto';
   const analyticsConsentReviewed = Boolean(saved.analyticsConsentReviewed);
   const analyticsEnabled = analyticsConsentReviewed ? Boolean(saved.analyticsEnabled) : false;
+  const agreedPolicyVersion = saved.agreedPolicyVersion
+    ? String(saved.agreedPolicyVersion)
+    : (saved.optInAccepted ? LEGACY_POLICY_VERSION : null);
 
   return {
     optInAccepted: false,
@@ -76,7 +92,8 @@ export async function getSettings() {
     activeGameKey,
     language,
     analyticsConsentReviewed,
-    analyticsEnabled
+    analyticsEnabled,
+    agreedPolicyVersion
   };
 }
 
@@ -316,5 +333,3 @@ export async function shouldRunDailySign(gameBizList, nowMs = Date.now()) {
   }
   return false;
 }
-
-

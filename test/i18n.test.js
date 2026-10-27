@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   resolveLanguage,
+  getPrivacyPolicyUrl,
   formatDailySignTimeLocal,
   getGameLocalized,
   getExchangeApiLang,
@@ -26,6 +27,12 @@ test('resolveLanguage: auto指定時のブラウザ/navigator判定', () => {
 
   // ブラウザ情報なし時はjaへフォールバック
   assert.equal(resolveLanguage('auto', ''), 'ja');
+});
+
+test('getPrivacyPolicyUrl: 言語別のURL解決', () => {
+  assert.equal(getPrivacyPolicyUrl('ja'), 'https://hoyopass.pages.dev/privacy');
+  assert.equal(getPrivacyPolicyUrl('en'), 'https://hoyopass.pages.dev/privacy_en');
+  assert.equal(getPrivacyPolicyUrl(), 'https://hoyopass.pages.dev/privacy', 'デフォルトは日本語URL');
 });
 
 test('formatDailySignTimeLocal: 形式検証 (HH:mm)', () => {
@@ -76,4 +83,18 @@ test('t: プレースホルダー置換と多言語メッセージ取得', () =>
 
   assert.equal(t('redeemStatsBadge', [5, 42], 'ja'), '今月 5件 / 通算 42件');
   assert.equal(t('redeemStatsBadge', [5, 42], 'en'), 'Month: 5 / Total: 42');
+
+  // ポリシー改定モーダル文言の検証
+  assert.equal(t('policyUpdateTitle', [], 'ja'), 'プライバシーポリシー改定のお知らせ');
+  assert.equal(t('policyUpdateTitle', [], 'en'), 'Privacy Policy Update');
+  assert.equal(t('policyUpdateAcceptBtn', [], 'ja'), '確認して同意する');
+  assert.equal(t('policyUpdateAcceptBtn', [], 'en'), 'Agree and Continue');
+
+  const jaDesc = t('policyUpdateDesc', ['2026-10-26', '<link>'], 'ja');
+  assert.ok(jaDesc.includes('2026-10-26'));
+  assert.ok(jaDesc.includes('<link>'));
+
+  const enDesc = t('policyUpdateDesc', ['2026-10-26', '<link>'], 'en');
+  assert.ok(enDesc.includes('2026-10-26'));
+  assert.ok(enDesc.includes('<link>'));
 });

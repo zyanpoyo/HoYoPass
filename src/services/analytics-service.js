@@ -1,5 +1,5 @@
 import { API_CONFIG } from '../config/constants.js';
-import { getSettings, getOrCreateGaClientId } from './storage-service.js';
+import { getSettings, getOrCreateGaClientId, needsPolicyReview } from './storage-service.js';
 import { resolveLanguage } from '../utils/i18n.js';
 
 export function toGaGameKey(gameKey) {
@@ -84,7 +84,8 @@ export async function syncConsentBadge() {
   try {
     if (typeof chrome === 'undefined' || !chrome.action?.setBadgeText) return;
     const settings = await getSettings();
-    if (settings.optInAccepted && !settings.analyticsConsentReviewed) {
+    const needsReview = !settings.analyticsConsentReviewed || needsPolicyReview(settings);
+    if (settings.optInAccepted && needsReview) {
       await chrome.action.setBadgeText({ text: '!' });
       if (chrome.action.setBadgeBackgroundColor) {
         await chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' });

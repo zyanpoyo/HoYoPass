@@ -1,7 +1,8 @@
-import { GAMES, DOCS_URLS, API_CONFIG, ALARM_NAMES } from '../config/constants.js';
+import { GAMES, DOCS_URLS, API_CONFIG, ALARM_NAMES, PRIVACY_POLICY_VERSION } from '../config/constants.js';
 import {
   getSettings,
   updateSettings,
+  needsPolicyReview,
   getDailySignRecord,
   setDailySignRecord,
   getHoyoTodayDateString,
@@ -11,7 +12,7 @@ import {
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, getDailySignInfo } from '../services/hoyo-api.js';
 import { formatRedeemResult, formatSignResult, formatLogTimestamp } from '../utils/message-formatter.js';
-import { resolveLanguage, getGameLocalized, formatDailySignTimeLocal, t } from '../utils/i18n.js';
+import { resolveLanguage, getGameLocalized, formatDailySignTimeLocal, getPrivacyPolicyUrl, t } from '../utils/i18n.js';
 import { toGaGameKey, syncConsentBadge } from '../services/analytics-service.js';
 
 let currentGameKey = 'GENSHIN';
@@ -38,6 +39,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   const analyticsConsentModal = document.getElementById('analytics-consent-modal');
   const analyticsConsentAcceptBtn = document.getElementById('analytics-consent-accept-btn');
   const analyticsConsentDeclineBtn = document.getElementById('analytics-consent-decline-btn');
+  const policyUpdateModal = document.getElementById('policy-update-modal');
+  const policyUpdateAcceptBtn = document.getElementById('policy-update-accept-btn');
+  const policyUpdateDesc = document.getElementById('policy-update-desc');
+
+  const checkPolicyReviewModal = async () => {
+    const cur = await getSettings();
+    if (cur.optInAccepted && cur.analyticsConsentReviewed && needsPolicyReview(cur)) {
+      if (policyUpdateDesc) {
+        const policyUrl = getPrivacyPolicyUrl(currentLang);
+        const linkHtml = `<a href="${policyUrl}" target="_blank" rel="noopener noreferrer" class="link-inline" id="policy-update-privacy-link">${t('privacyPolicy', [], currentLang)}</a>`;
+        policyUpdateDesc.innerHTML = t('policyUpdateDesc', [PRIVACY_POLICY_VERSION, linkHtml], currentLang);
+        const policyLink = document.getElementById('policy-update-privacy-link');
+        if (policyLink) {
+          policyLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            openExternalTab(getPrivacyPolicyUrl(currentLang));
+          });
+        }
+      }
+      policyUpdateModal?.classList.remove('hidden');
+    }
+  };
   const autoSignToggle = document.getElementById('auto-sign-toggle');
   const autoRedeemToggle = document.getElementById('auto-redeem-toggle');
   const manualSignBtn = document.getElementById('manual-sign-btn');
@@ -78,6 +101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 既存ユーザー向け同意モーダル（未確認の場合のみ表示）
     if (!settings.analyticsConsentReviewed && analyticsConsentModal) {
       analyticsConsentModal.classList.remove('hidden');
+    } else {
+      await checkPolicyReviewModal();
     }
   }
 
@@ -86,10 +111,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     analyticsConsentAcceptBtn.addEventListener('click', async () => {
       await updateSettings({
         analyticsEnabled: true,
-        analyticsConsentReviewed: true
+        analyticsConsentReviewed: true,
+        agreedPolicyVersion: PRIVACY_POLICY_VERSION
       });
       await syncConsentBadge();
       if (analyticsConsentModal) analyticsConsentModal.classList.add('hidden');
+      await checkPolicyReviewModal();
     });
   }
 
@@ -101,6 +128,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       await syncConsentBadge();
       if (analyticsConsentModal) analyticsConsentModal.classList.add('hidden');
+      await checkPolicyReviewModal();
+    });
+  }
+
+  // ポリシー改定モーダルボタン処理
+  if (policyUpdateAcceptBtn) {
+    policyUpdateAcceptBtn.addEventListener('click', async () => {
+      await updateSettings({
+        agreedPolicyVersion: PRIVACY_POLICY_VERSION
+      });
+      await syncConsentBadge();
+      if (policyUpdateModal) policyUpdateModal.classList.add('hidden');
     });
   }
 
@@ -127,7 +166,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       enabledGames: chosenGames,
       activeGameKey: currentGameKey,
       analyticsEnabled: isAnalyticsEnabled,
-      analyticsConsentReviewed: true
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION
     });
     await syncConsentBadge();
 
@@ -263,17 +303,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  const bindExternalLink = (elementId, url) => {
-    const el = document.getElementById(elementId);
+  const bindExternalLink = (target, urlOrFn) => {
+    const el = typeof target === 'string' ? document.getElementById(target) : target;
     if (!el) return;
     el.addEventListener('click', (e) => {
       e.preventDefault();
-      openExternalTab(url);
+      const targetUrl = typeof urlOrFn === 'function' ? urlOrFn() : urlOrFn;
+      openExternalTab(targetUrl);
     });
   };
+  bindExternalLink('optin-privacy-link', () => getPrivacyPolicyUrl(currentLang));
 
   bindExternalLink('footer-link-readme', DOCS_URLS.README);
-  bindExternalLink('footer-link-privacy', DOCS_URLS.PRIVACY_POLICY);
+  bindExternalLink('footer-link-privacy', () => getPrivacyPolicyUrl(currentLang));
 
   // 表示設定モーダルの制御（言語設定 ＋ ゲーム選択 ＋ 匿名の利用統計）
   const tabSettingsBtn = document.getElementById('tab-settings-btn');
@@ -442,7 +484,7 @@ function applyI18nToDom(lang) {
   // 初回オプトインのセキュリティリンク文言
   const optinSecNote = document.getElementById('optin-security-note');
   if (optinSecNote) {
-    const privacyLinkHtml = `<a href="https://hoyopass.pages.dev/privacy" target="_blank" rel="noopener noreferrer" class="link-inline" id="optin-privacy-link">${t('privacyPolicy', [], lang)}</a>`;
+    const privacyLinkHtml = `<a href="${getPrivacyPolicyUrl(lang)}" target="_blank" rel="noopener noreferrer" class="link-inline" id="optin-privacy-link">${t('privacyPolicy', [], lang)}</a>`;
     optinSecNote.innerHTML = t('optinSecurityNote', [privacyLinkHtml], lang);
   }
 

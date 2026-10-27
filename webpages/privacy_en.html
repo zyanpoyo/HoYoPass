@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HoYoPass - Privacy Policy</title>
+  <meta name="description" content="Privacy Policy for HoYoPass - Auto Daily Check-In & Code Redeemer Chrome extension. Details our zero-data-collection philosophy, cookie handling, and external network communications.">
+  <link rel="alternate" hreflang="ja" href="privacy.html">
+  <link rel="alternate" hreflang="en" href="privacy_en.html">
+  <link rel="icon" type="image/png" href="img/icon128.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-brand">
+        <img src="img/icon128.png" alt="HoYoPass Icon" class="brand-icon">
+        <span class="brand-name">HoYoPass</span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" class="nav-link">Guide</a>
+        <a href="privacy_en.html" class="nav-link active">Privacy Policy</a>
+        <a href="privacy.html" class="nav-link lang-switch-link" hreflang="ja">日本語</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-wrapper">
+    <article class="card">
+      <div class="policy-header">
+        <h1 class="card-title-lg">Privacy Policy</h1>
+        <div class="policy-meta">
+          <span>Effective Date: October 12, 2026</span> • <span>Last Revised: October 26, 2026</span><br>
+          <span>Target Software: HoYoPass - Auto Daily Check-In &amp; Code Redeemer (Chrome Extension)</span>
+        </div>
+      </div>
+
+      <!-- 1. Fundamental Principle -->
+      <section class="policy-section">
+        <h2>1. Fundamental Principle</h2>
+        <p>
+          HoYoPass (hereinafter referred to as "the Extension") places the highest priority on user privacy protection and is developed under a zero-trust architecture: <strong>"Never collect or transmit personal information."</strong> The Extension never stores or sends your account credentials to third-party servers, nor does it conduct any personally identifiable tracking.
+        </p>
+      </section>
+
+      <!-- 2. Data Not Collected -->
+      <section class="policy-section">
+        <h2>2. Data Not Collected</h2>
+        <p>The Extension does not collect, record, or transmit any of the following information:</p>
+        <ul>
+          <li>Personally identifiable information such as names, usernames, email addresses, or phone numbers</li>
+          <li>Passwords or authentication tokens for HoYoverse / HoYoLAB accounts</li>
+          <li>Raw cookie data stored in the browser (the Extension code never extracts or saves raw cookie strings)</li>
+          <li>Credit card numbers, payment details, or purchase history</li>
+          <li>In-game inventory, transaction logs, or friends list</li>
+          <li>Browsing history or visited URLs outside the Extension</li>
+        </ul>
+      </section>
+
+      <!-- 3. Data Stored Locally Within Your Browser -->
+      <section class="policy-section">
+        <h2>3. Data Stored Locally Within Your Browser</h2>
+        <p>
+          To ensure proper functionality, the Extension stores only the following operational data in your browser's local storage (<code>chrome.storage.local</code>). None of this data is ever transmitted to external servers or third parties.
+        </p>
+        <ol>
+          <li>
+            <strong>User Settings &amp; Preferences</strong>:
+            <ul>
+              <li>Daily check-in auto-claim toggle flag (<code>autoSignEnabled</code>)</li>
+              <li>Periodic code auto-redemption toggle flag (<code>autoRedeemEnabled</code>)</li>
+              <li>Enabled game selection state (Genshin Impact, Honkai: Star Rail, Zenless Zone Zero)</li>
+              <li>Currently active game tab</li>
+              <li>First-run terms agreement flag (<code>optInAccepted</code>)</li>
+              <li>Anonymous usage statistics toggle flag (<code>analyticsEnabled</code>)</li>
+              <li>Anonymous usage statistics review flag (<code>analyticsConsentReviewed</code>)</li>
+              <li>Agreed privacy policy version (<code>agreedPolicyVersion</code>)</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Daily Check-In Records</strong>:
+            <ul>
+              <li>Last check-in date and cumulative login days per game (used solely to prevent duplicate requests on the same day)</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Redeemed Code History</strong>:
+            <ul>
+              <li>List of previously redeemed code strings and their completion status (used solely to prevent re-submitting identical codes)</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Execution Logs</strong>:
+            <ul>
+              <li>Recent execution logs for check-ins and code redemptions displayed in the popup UI (up to 50 entries)</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Random Client Identifier</strong>:
+            <ul>
+              <li>Pseudonymous, randomly generated UUIDv4 client identifier (contains no personal or device identifiers)</li>
+            </ul>
+          </li>
+        </ol>
+      </section>
+
+      <!-- 4. Handling of Credentials (Cookies) -->
+      <section class="policy-section">
+        <h2>4. Handling of Credentials (Cookies)</h2>
+        <p>
+          When sending requests to official APIs on your behalf to claim check-in rewards and redeem codes, the Extension uses standard browser secure transport (<code>credentials: 'include'</code>).
+        </p>
+        <ul>
+          <li><strong>No Cookie Reading</strong>: The Extension's JavaScript code never reads, inspects, or loads your session cookies into memory.</li>
+          <li><strong>No Cookie Storage</strong>: Cookies are never stored in local storage, session storage, or file caches.</li>
+          <li><strong>No Cookie Leakage</strong>: Your browser automatically attaches existing official cookies only when communicating directly with official domains (<code>*.hoyolab.com</code> and <code>*.hoyoverse.com</code>).</li>
+        </ul>
+      </section>
+
+      <!-- 5. External Communications & Purposes -->
+      <section class="policy-section">
+        <h2>5. External Communications &amp; Purposes</h2>
+        <p>External network communications performed by the Extension are strictly limited to the following endpoints and purposes:</p>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Destination Domain</th>
+                <th>Primary Purpose</th>
+                <th>Data Transmitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>*.hoyoverse.com</code><br><code>*.hoyolab.com</code><br>(Official Takumi API)</td>
+                <td>Confirm character profiles (nickname, UID, server region)</td>
+                <td>Session cookies managed by browser (automatically attached)</td>
+              </tr>
+              <tr>
+                <td><code>*.hoyolab.com</code><br><code>*.hoyoverse.com</code><br>(Official Check-In APIs)</td>
+                <td>Check daily check-in status and claim rewards</td>
+                <td>Event ID, request headers, session cookies (automatically attached)</td>
+              </tr>
+              <tr>
+                <td><code>*.hoyoverse.com</code><br>(Official Redemption APIs)</td>
+                <td>Redeem promotional gift codes</td>
+                <td>Game identifier, UID, code string, session cookies (automatically attached)</td>
+              </tr>
+              <tr>
+                <td><code>https://hoyo-codes.seria.moe</code><br>(Open-Source API)</td>
+                <td>Fetch verified active promotional codes list</td>
+                <td>None (standard anonymous HTTP GET request for public data)</td>
+              </tr>
+              <tr>
+                <td><code>https://www.google-analytics.com</code><br>(Google Analytics 4<br>Measurement Protocol)</td>
+                <td>Monitor feature usage, success/error rates, and troubleshoot issues to improve quality</td>
+                <td>Anonymous metrics (game type, success/failure status, error category code, UI action type, extension version, UI language, random session ID and client ID).<br><strong>* No UIDs, account names, passwords, cookies, or personal identifiers are ever collected.</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="policy-note">
+          * The Extension never communicates with any third-party ad networks, trackers, or unauthorized servers.
+        </p>
+      </section>
+
+      <!-- 6. Browser Permissions Justification -->
+      <section class="policy-section">
+        <h2>6. Browser Permissions Justification</h2>
+        <p>The Extension requests only the minimal permissions required for its operation:</p>
+        <ul>
+          <li><strong><code>storage</code></strong>: To store user preferences, daily check-in records, and redeemed code history locally.</li>
+          <li><strong><code>alarms</code></strong>: To trigger background alarms for daily check-in (01:05 UTC+8) and periodic code checks (every 3 hours).</li>
+          <li><strong><code>notifications</code></strong>: To notify you upon reward claiming, CAPTCHA verification requirements, or session expiration.</li>
+          <li><strong><code>idle</code></strong>: To detect system wake or unlock, catching up on missed daily rewards safely after network reconnection.</li>
+          <li><strong><code>host_permissions</code></strong>: To perform secure HTTPS requests to the verified official APIs and open code repository listed in Section 5.</li>
+        </ul>
+        <div class="notice-box info">
+          <strong>* Deliberate Omission of Cookie Permission</strong><br>
+          The <code>cookies</code> permission—which would grant arbitrary access to read user cookie values—is intentionally omitted for enhanced security.
+        </div>
+      </section>
+
+      <!-- 7. Anonymous Usage Metrics (Google Analytics 4) -->
+      <section class="policy-section">
+        <h2>7. Anonymous Usage Metrics (Google Analytics 4)</h2>
+        <p>
+          To monitor redemption reliability and detect service interruptions, the Extension collects anonymous operational metrics via <strong>Google Analytics 4 (Measurement Protocol)</strong> provided by Google LLC.
+        </p>
+        <p>
+          Transmitted data is strictly sanitized against a pre-defined whitelist (game key, status, sanitized error code, UI interaction type, app version, UI language, random session/client ID). In accordance with our security principles, user UIDs, usernames, passwords, cookies, and IP addresses are never collected or sent.
+        </p>
+        <p>
+          <strong>Opt-Out Right:</strong><br>
+          Users may opt out at any time during onboarding or by unchecking "Anonymous Analytics" in settings (⚙). Once opted out, all analytics transmissions are completely silenced. Collected anonymous data is never sold or transferred to any third party.
+        </p>
+      </section>
+
+      <!-- 8. Disclaimer -->
+      <section class="policy-section">
+        <h2>8. Disclaimer</h2>
+        <p>
+          HoYoPass is an unofficial, fan-made tool and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse). The developer assumes no responsibility or liability for any consequences arising from the use of this Extension.
+        </p>
+      </section>
+
+      <!-- 9. Changes to This Privacy Policy & Revision History -->
+      <section class="policy-section">
+        <h2>9. Changes to This Privacy Policy &amp; Revision History</h2>
+        <p>
+          This policy may be updated due to feature additions, legal requirements, or browser platform changes. When material changes occur (such as changes to user rights, collected data types, or new transmission destinations), users will be notified via this website or extension updates, and explicit re-consent will be requested where required.
+        </p>
+        <ul class="revision-history-list">
+          <li class="revision-history-item">
+            <span class="revision-date">October 26, 2026 (Revised)</span>
+            <span class="revision-summary">Added provisions and opt-out instructions for anonymous usage metrics (Google Analytics 4 Measurement Protocol) for quality improvement</span>
+          </li>
+          <li class="revision-history-item">
+            <span class="revision-date">October 17, 2026 (Revised)</span>
+            <span class="revision-summary">Expanded local storage disclosures (check-in records), required permissions, and official API endpoints upon introducing daily check-in automation</span>
+          </li>
+          <li class="revision-history-item">
+            <span class="revision-date">October 12, 2026 (Enacted)</span>
+            <span class="revision-summary">Initial enactment (automatic code redemption for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero)</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 10. Contact & Support -->
+      <section class="policy-section">
+        <h2>10. Contact &amp; Support</h2>
+        <p>
+          If you have questions, feedback, or bug reports regarding this policy or data practices, please reach out via the Support tab on the Extension's Chrome Web Store page.
+        </p>
+      </section>
+    </article>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <nav class="footer-nav">
+        <a href="index.html">User Guide</a>
+        <a href="privacy_en.html">Privacy Policy</a>
+        <a href="privacy.html">日本語</a>
+      </nav>
+      <p class="footer-disclaimer">
+        HoYoPass is an unofficial fan-made tool and is not affiliated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).<br>
+        For inquiries or support, please visit our Chrome Web Store support page.
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
