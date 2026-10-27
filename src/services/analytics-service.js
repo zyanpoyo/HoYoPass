@@ -124,6 +124,9 @@ export async function sendGAEvent(eventName, rawParams = {}) {
     cleanParams.engagement_time_msec = 100;
     cleanParams.lang = resolveLanguage(settings.language);
     cleanParams.session_id = await getOrCreateSessionId();
+    const clientId = await getOrCreateGaClientId();
+    cleanParams.client_id = clientId;
+    cleanParams.custom_client_id = clientId;
 
     // 開発版フレーバー時は通信を行わずローカルログのみ
     if (API_CONFIG.IS_DEV) {
@@ -139,7 +142,6 @@ export async function sendGAEvent(eventName, rawParams = {}) {
       return { success: false, reason: 'NO_CREDENTIALS' };
     }
 
-    const clientId = await getOrCreateGaClientId();
     const payload = {
       client_id: clientId,
       events: [

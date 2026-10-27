@@ -23,7 +23,8 @@ HoYoPass では、機能改善、交換コード引き換え成功率の把握�
    - ゲームアカウントのUID、ゲーム内プレイヤー名、パスワード、認証トークン、Cookieデータは一切収集・送信しません。
    - イベントパラメータは事前定義された厳格なホワイトリスト（`ALLOWED_PARAMS`）によってサニタイズされ、未知のパラメータや不正なキーは送信前に自動削除されます。
 2. **クライアント識別子（Client ID）**:
-   - 拡張機能インストール時にブラウザのローカル環境で生成されるランダムなUUID（`crypto.randomUUID()` または暗号論的疑似乱数フォールバック）を `chrome.storage.local` に保存して利用します。
+   - 拡張機能インストール時やアップデート・起動時にブラウザのローカル環境で生成されるランダムなUUID（`crypto.randomUUID()` または暗号論的疑似乱数フォールバック）を `chrome.storage.local` に保存して利用します（既存ユーザーに対しても自動的に生成・永続化され、同一IDが継続して付与されます）。
+   - リクエストのルートペイロードおよび各イベントの共通パラメータ（`client_id`）として送信され、GA4探索レポート等でのユーザー単位のイベント集計に利用されます。
    - ブラウザや個人の識別情報とは完全に切り離されています。
 3. **セッション管理（Session ID）**:
    - 最後のイベント送信から30分以上経過した場合に新しいタイムスタンプ（ミリ秒）を発行し、セッションを区切ります。
@@ -68,6 +69,8 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 | `http_status` | **HTTPステータスコード** | イベント | APIレスポンスのステータスコード | `200`, `404`, `500`, `0` など |
 | `app_version` | **拡張機能バージョン** | イベント | 実行中のHoYoPassのバージョン | `1.3.0` |
 | `lang` | **UI言語** | イベント | ユーザーの表示言語設定 | `ja`, `en` |
+| `client_id` | **クライアントID** | イベント | ローカル生成される匿名のクライアント識別子（UUIDv4） | `3fa85f64-5717-4562-b3fc-2c963f66afa6` |
+| `custom_client_id` | **カスタムクライアントID** | イベント | `client_id` と同一の匿名クライアント識別子（GA4予約語回避・カスタムディメンション集計用） | `3fa85f64-5717-4562-b3fc-2c963f66afa6` |
 | `session_id` | **セッションID** | イベント | 30分タイムアウトで発行されるセッション識別子 | `1793023326903` |
 | `engagement_time_msec` | **エンゲージメント時間** | イベント | Google標準パラメータ（常時 100） | `100` |
 
@@ -82,7 +85,7 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
   - `status`: 成否（`success` / `already_claimed` / `expired` / `cooldown` / `failed`）
   - `error_reason`: エラー要因（`not_logged_in` / `cooldown` / `network_error` / `unknown` / `none`）
   - `trigger`: 実行契機（`auto` / `manual`）
-  - `app_version`, `lang`, `session_id`, `engagement_time_msec`
+  - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.2. `daily_checkin_result`（デイリーログインボーナス結果）
 - **契機**: 自動アラームまたは手動実行でデイリーログインボーナスの受取APIを実行した際。
@@ -91,12 +94,12 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
   - `status`: 成否（`success` / `already_signed` / `failed`）
   - `error_reason`: エラー要因（`not_logged_in` / `captcha_required` / `api_error` / `network_error` / `none`）
   - `trigger`: 実行契機（`auto` / `manual`）
-  - `app_version`, `lang`, `session_id`, `engagement_time_msec`
+  - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.3. `onboarding_complete`（初回利用開始・オンボーディング完了）
 - **契機**: 新規ユーザーが初回オプトインモーダルの「同意して利用を開始する」ボタンを押下した際。
 - **パラメータ**:
-  - `app_version`, `lang`, `session_id`, `engagement_time_msec`
+  - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.4. `ui_action`（UI操作・機能利用）
 - **契機**: ユーザーがポップアップUIまたは通知で特定のアクションを行った際。
@@ -108,7 +111,7 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
     - `open_official_site`: 公式サイト（ログボページ/交換サイト）を開いた
     - `notification_click`: デスクトップ通知をクリックして再ログイン/公式サイトを開いた
   - `game`: 対象ゲーム（該当しない場合は `'none'`）
-  - `app_version`, `lang`, `session_id`, `engagement_time_msec`
+  - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.5. `code_list_fetch_error`（コード一覧取得失敗）
 - **契機**: 外部の交換コード配布API (`hoyo-codes.seria.moe`) の取得に失敗（タイムアウト・HTTPエラー等）した際。
@@ -116,7 +119,7 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
   - `game`: 対象ゲーム
   - `http_status`: HTTPステータスコード（0はネットワーク遮断またはタイムアウト）
   - `error_type`: エラー分類（`timeout` / `http_error` / `parse_error` / `network_error`）
-  - `app_version`, `lang`, `session_id`, `engagement_time_msec`
+  - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ---
 

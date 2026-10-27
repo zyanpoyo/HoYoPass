@@ -258,6 +258,10 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
     assert.equal(res.params.lang, 'ja');
     assert.equal(res.params.engagement_time_msec, 100);
     assert.ok(res.params.session_id);
+    assert.ok(res.params.client_id);
+    assert.match(res.params.client_id, /^[0-9a-f-]{36}$/i);
+    assert.equal(res.params.custom_client_id, res.params.client_id, 'custom_client_idにclient_idと同じ値が設定されること');
+    assert.equal(res.params.user_id, undefined, 'user_idは付与されないこと');
     assert.equal(capturedRequests.length, 0, 'dev環境ではfetchが呼ばれない');
 
     // 2. IS_DEV === false 時は本番エンドポイントへ単純POST通信
@@ -278,10 +282,24 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
 
     const parsedBody = JSON.parse(req.opts.body);
     assert.ok(parsedBody.client_id);
+    assert.equal(parsedBody.user_id, undefined, 'ルートにuser_idは含まれないこと');
     assert.equal(parsedBody.events.length, 1);
     assert.equal(parsedBody.events[0].name, 'ui_action');
     assert.equal(parsedBody.events[0].params.action_type, 'notification_click');
     assert.equal(parsedBody.events[0].params.game, 'genshin');
+    assert.equal(parsedBody.events[0].params.client_id, parsedBody.client_id, 'イベントパラメータにも同一のclient_idが付与されること');
+    assert.equal(parsedBody.events[0].params.custom_client_id, parsedBody.client_id, 'イベントパラメータのcustom_client_idにも同一のclient_idが付与されること');
+
+    // 3. 既存ユーザー（既にストレージに ga_client_id がある場合）でも同一の client_id が引き継がれて付与されること
+    mockStorage.local.set('ga_client_id', 'existing-user-uuid-9999');
+    const existingUserRes = await sendGAEvent('ui_action', { action_type: 'open_log', game: 'none' });
+    assert.equal(existingUserRes.success, true);
+    assert.equal(existingUserRes.params.client_id, 'existing-user-uuid-9999');
+    assert.equal(existingUserRes.params.custom_client_id, 'existing-user-uuid-9999');
+    const existingReqBody = JSON.parse(capturedRequests[1].opts.body);
+    assert.equal(existingReqBody.client_id, 'existing-user-uuid-9999');
+    assert.equal(existingReqBody.events[0].params.client_id, 'existing-user-uuid-9999');
+    assert.equal(existingReqBody.events[0].params.custom_client_id, 'existing-user-uuid-9999');
   } finally {
     API_CONFIG.IS_DEV = origIsDev;
     API_CONFIG.GA_MEASUREMENT_ID = origMid;

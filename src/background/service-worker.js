@@ -20,7 +20,8 @@ import {
   isDailySignedToday,
   shouldRunDailySign,
   getActiveCodes,
-  setActiveCodes
+  setActiveCodes,
+  getOrCreateGaClientId
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
@@ -256,6 +257,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   await setupAlarm();
   await setupDailySignAlarm();
   await syncConsentBadge();
+  await getOrCreateGaClientId();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -263,6 +265,7 @@ chrome.runtime.onStartup.addListener(async () => {
   await setupAlarm();
   await setupDailySignAlarm();
   await syncConsentBadge();
+  await getOrCreateGaClientId();
   await maybeRunAllCatchUp('STARTUP');
 });
 

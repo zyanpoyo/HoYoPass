@@ -13,6 +13,8 @@ const mockAlarms = new Map();
 const mockIdleListeners = [];
 const mockMessageListeners = [];
 let mockUninstallUrl = null;
+const mockInstalledListeners = [];
+const mockStartupListeners = [];
 
 globalThis.chrome = {
   storage: {
@@ -52,8 +54,8 @@ globalThis.chrome = {
   runtime: {
     id: 'test-ext-id',
     getURL: (p) => `chrome-extension://test-ext-id/${p}`,
-    onInstalled: { addListener: () => {} },
-    onStartup: { addListener: () => {} },
+    onInstalled: { addListener: (fn) => { mockInstalledListeners.push(fn); } },
+    onStartup: { addListener: (fn) => { mockStartupListeners.push(fn); } },
     setUninstallURL: async (url) => { mockUninstallUrl = url; },
     onMessage: {
       addListener: (fn) => { mockMessageListeners.push(fn); }
@@ -700,4 +702,20 @@ test('setupUninstallUrl: API例外発生時に例外を外部へスローせず�
   } finally {
     chrome.runtime.setUninstallURL = originalSetUninstallURL;
   }
+});
+
+test('onInstalled / onStartup: 既存・新規ユーザーに対して ga_client_id が確実に初期化・維持されること', async () => {
+  // 1. 未生成状態で onInstalled (アップデート/インストール) が呼ばれた場合、UUIDが生成・保存されること
+  mockStorage.local.delete('ga_client_id');
+  assert.equal(mockStorage.local.get('ga_client_id'), undefined);
+  assert.ok(mockInstalledListeners.length > 0);
+  await mockInstalledListeners[0]();
+  const generatedId = mockStorage.local.get('ga_client_id');
+  assert.ok(generatedId, 'onInstalled 実行時に ga_client_id が生成されること');
+  assert.match(generatedId, /^[0-9a-f-]{36}$/i);
+
+  // 2. 既存ユーザーが既に ga_client_id を持っている状態で onInstalled が呼ばれても同一IDが維持されること
+  mockStorage.local.set('ga_client_id', 'existing-legacy-client-id');
+  await mockInstalledListeners[0]();
+  assert.equal(mockStorage.local.get('ga_client_id'), 'existing-legacy-client-id', '既存の ga_client_id が上書きされず維持されること');
 });
