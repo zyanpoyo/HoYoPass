@@ -63,7 +63,7 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 | `game` | **対象ゲーム** | イベント | イベント対象のゲームタイトル | `genshin`, `star_rail`, `zzz`, `none` |
 | `status` | **結果ステータス** | イベント | 処理の成否結果 | `success`, `already_claimed`, `expired`, `cooldown`, `failed`, `already_signed` |
 | `error_reason` | **エラー要因** | イベント | 失敗時の詳細エラー分類 | `not_logged_in`, `cooldown`, `captcha_required`, `api_error`, `network_error`, `unknown`, `none` |
-| `trigger` | **実行契機** | イベント | 自動アラームか手動ボタン押下か | `auto`, `manual` |
+| `trigger` | **実行契機** | イベント | 自動アラーム、手動実行、初回起動時 | `auto`, `manual`, `initial` |
 | `action_type` | **UI操作種別** | イベント | ユーザーが実行したUIアクション | `uid_copy`, `open_log`, `change_settings`, `open_official_site`, `notification_click` |
 | `error_type` | **取得エラー種別** | イベント | コード一覧API障害の分類 | `timeout`, `http_error`, `parse_error`, `network_error` |
 | `http_status` | **HTTPステータスコード** | イベント | APIレスポンスのステータスコード | `200`, `404`, `500`, `0` など |
@@ -84,7 +84,7 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
   - `game`: 対象ゲーム
   - `status`: 成否（`success` / `already_claimed` / `expired` / `cooldown` / `failed`）
   - `error_reason`: エラー要因（`not_logged_in` / `cooldown` / `network_error` / `unknown` / `none`）
-  - `trigger`: 実行契機（`auto` / `manual`）
+  - `trigger`: 実行契機（`auto` / `manual` / `initial` ※初回起動巡回時）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.2. `daily_checkin_result`（デイリーログインボーナス結果）
