@@ -32,3 +32,8 @@ yarn-error.log*
 __pycache__/
 *.pyc
 
+# AI・エージェント・セッション情報
+.entire/
+.agents/
+.gemini/
+.system_generated/
