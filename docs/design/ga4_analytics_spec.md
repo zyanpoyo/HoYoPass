@@ -21,7 +21,7 @@ HoYoPass では、機能改善、交換コード引き換え成功率の把握�
 ### 主な設計方針
 1. **ゼロPII（個人情報・機密情報の完全遮断）**:
    - ゲームアカウントのUID、ゲーム内プレイヤー名、パスワード、認証トークン、Cookieデータは一切収集・送信しません。
-   - イベントパラメータは事前定義された厳格なホワイトリスト（`ALLOWED_PARAMS`）によってサニタイズされ、未知のパラメータや不正なキーは送信前に自動削除されます。
+   - イベントパラメータは事前定義された厳格なホワイトリスト（`ALLOWED_EVENT_PARAMS`）によってサニタイズされ、未知のパラメータや不正なキーは送信前に自動削除されます。
 2. **クライアント識別子（Client ID）**:
    - 拡張機能インストール時やアップデート・起動時にブラウザのローカル環境で生成されるランダムなUUID（`crypto.randomUUID()` または暗号論的疑似乱数フォールバック）を `chrome.storage.local` に保存して利用します（既存ユーザーに対しても自動的に生成・永続化され、同一IDが継続して付与されます）。
    - リクエストのルートペイロードおよび各イベントの共通パラメータ（`client_id`）として送信され、GA4探索レポート等でのユーザー単位のイベント集計に利用されます。
@@ -60,13 +60,11 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 
 | パラメータ名 | ディメンション表示名 (日本語) | スコープ | 説明 | 想定される値の例 |
 | :--- | :--- | :--- | :--- | :--- |
-| `game` | **対象ゲーム** | イベント | イベント対象のゲームタイトル | `genshin`, `star_rail`, `zzz`, `none` |
+| `game` | **対象ゲーム** | イベント | イベント対象のゲームタイトル | `genshin`, `hsr`, `zzz`, `none` |
 | `status` | **結果ステータス** | イベント | 処理の成否結果 | `success`, `already_claimed`, `expired`, `cooldown`, `failed`, `already_signed` |
-| `error_reason` | **エラー要因** | イベント | 失敗時の詳細エラー分類 | `not_logged_in`, `cooldown`, `captcha_required`, `api_error`, `network_error`, `unknown`, `none` |
+| `error_reason` | **エラー要因** | イベント | 失敗時の詳細エラー分類 | `not_logged_in`, `cooldown`, `captcha_required`, `api_error`, `unknown`, `none` |
 | `trigger` | **実行契機** | イベント | 自動アラーム、手動実行、初回起動時 | `auto`, `manual`, `initial` |
 | `action_type` | **UI操作種別** | イベント | ユーザーが実行したUIアクション | `uid_copy`, `open_log`, `change_settings`, `open_official_site`, `notification_click` |
-| `error_type` | **取得エラー種別** | イベント | コード一覧API障害の分類 | `timeout`, `http_error`, `parse_error`, `network_error` |
-| `http_status` | **HTTPステータスコード** | イベント | APIレスポンスのステータスコード | `200`, `404`, `500`, `0` など |
 | `app_version` | **拡張機能バージョン** | イベント | 実行中のHoYoPassのバージョン | `1.3.0` |
 | `lang` | **UI言語** | イベント | ユーザーの表示言語設定 | `ja`, `en` |
 | `client_id` | **クライアントID** | イベント | ローカル生成される匿名のクライアント識別子（UUIDv4） | `3fa85f64-5717-4562-b3fc-2c963f66afa6` |
@@ -81,18 +79,18 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 ### 4.1. `code_redeem_result`（コード引き換え結果）
 - **契機**: 自動巡回または手動実行で交換コードの引き換えAPIを呼び出した際、および未ログイン等の理由でコード引き換え処理自体がスキップ・失敗した際。
 - **パラメータ**:
-  - `game`: 対象ゲーム
+  - `game`: 対象ゲーム（`genshin` / `hsr` / `zzz`）
   - `status`: 成否（`success` / `already_claimed` / `expired` / `cooldown` / `failed`）
-  - `error_reason`: エラー要因（`not_logged_in` / `cooldown` / `network_error` / `unknown` / `none`）
+  - `error_reason`: エラー要因（`not_logged_in` / `cooldown` / `unknown` / `none`）
   - `trigger`: 実行契機（`auto` / `manual` / `initial` ※初回起動巡回時）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.2. `daily_checkin_result`（デイリーログインボーナス結果）
 - **契機**: 自動アラームまたは手動実行でデイリーログインボーナスの受取APIを実行した際。
 - **パラメータ**:
-  - `game`: 対象ゲーム
+  - `game`: 対象ゲーム（`genshin` / `hsr` / `zzz`）
   - `status`: 成否（`success` / `already_signed` / `failed`）
-  - `error_reason`: エラー要因（`not_logged_in` / `captcha_required` / `api_error` / `network_error` / `none`）
+  - `error_reason`: エラー要因（`not_logged_in` / `captcha_required` / `api_error` / `none`）
   - `trigger`: 実行契機（`auto` / `manual`）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
@@ -100,6 +98,7 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 - **契機**: 新規ユーザーが初回オプトインモーダルの「同意して利用を開始する」ボタンを押下した際。
 - **パラメータ**:
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
+  - ※ `ALLOWED_EVENT_PARAMS` 上は `genshin_enabled`, `hsr_enabled`, `zzz_enabled` が許可キーとして定義されていますが、`popup.js` からの送信時に指定されていないため、実際には上記共通パラメータのみが送信されます。
 
 ### 4.4. `ui_action`（UI操作・機能利用）
 - **契機**: ユーザーがポップアップUIまたは通知で特定のアクションを行った際。
@@ -110,16 +109,14 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
     - `change_settings`: 設定モーダルで設定を保存した
     - `open_official_site`: 公式サイト（ログボページ/交換サイト）を開いた
     - `notification_click`: デスクトップ通知をクリックして再ログイン/公式サイトを開いた
-  - `game`: 対象ゲーム（該当しない場合は `'none'`）
+  - `game`: 対象ゲーム（`genshin` / `hsr` / `zzz`、該当しない場合は `'none'`）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 
 ### 4.5. `code_list_fetch_error`（コード一覧取得失敗）
 - **契機**: 外部の交換コード配布API (`hoyo-codes.seria.moe`) の取得に失敗（タイムアウト・HTTPエラー等）した際。
 - **パラメータ**:
-  - `game`: 対象ゲーム
-  - `http_status`: HTTPステータスコード（0はネットワーク遮断またはタイムアウト）
-  - `error_type`: エラー分類（`timeout` / `http_error` / `parse_error` / `network_error`）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
+  - ※ 呼び出し元（`service-worker.js`）では `game`, `http_status`, `error_type` を渡していますが、`analytics-service.js` の `ALLOWED_EVENT_PARAMS` が `['status_code']` と定義されているため、サニタイズ処理（`sanitizeEventParams`）によってこれらは除外され、実際には上記共通パラメータのみが送信されます。
 
 ---
 
