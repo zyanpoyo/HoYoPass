@@ -97,8 +97,10 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 ### 4.3. `onboarding_complete`（初回利用開始・オンボーディング完了）
 - **契機**: 新規ユーザーが初回オプトインモーダルの「同意して利用を開始する」ボタンを押下した際。
 - **パラメータ**:
+  - `genshin_enabled`: 原神の有効状態（`'true'` / `'false'`）
+  - `hsr_enabled`: 崩壊：スターレイルの有効状態（`'true'` / `'false'`）
+  - `zzz_enabled`: ゼンレスゾーンゼロの有効状態（`'true'` / `'false'`）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
-  - ※ `ALLOWED_EVENT_PARAMS` 上は `genshin_enabled`, `hsr_enabled`, `zzz_enabled` が許可キーとして定義されていますが、`popup.js` からの送信時に指定されていないため、実際には上記共通パラメータのみが送信されます。
 
 ### 4.4. `ui_action`（UI操作・機能利用）
 - **契機**: ユーザーがポップアップUIまたは通知で特定のアクションを行った際。
@@ -118,8 +120,10 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 ### 4.5. `code_list_fetch_error`（コード一覧取得失敗）
 - **契機**: 外部の交換コード配布API (`hoyo-codes.seria.moe`) の取得に失敗（タイムアウト・HTTPエラー等）した際。
 - **パラメータ**:
+  - `game`: 対象ゲーム（`genshin` / `hsr` / `zzz`）
+  - `http_status`: HTTPステータスコード（タイムアウト・ネットワークエラー時は `0`）
+  - `error_type`: エラー種別（`timeout` / `http_error` / `parse_error` / `network_error`）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
-  - ※ 呼び出し元（`service-worker.js`）では `game`, `http_status`, `error_type` を渡していますが、`analytics-service.js` の `ALLOWED_EVENT_PARAMS` が `['status_code']` と定義されているため、サニタイズ処理（`sanitizeEventParams`）によってこれらは除外され、実際には上記共通パラメータのみが送信されます。
 
 ---
 

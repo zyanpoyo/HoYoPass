@@ -1,36 +1,33 @@
-import { GAMES, DOCS_URLS, API_CONFIG, ALARM_NAMES, PRIVACY_POLICY_VERSION, REVIEW_PROMPT_CONFIG } from '../config/constants.js';
-import {
-  getSettings,
-  updateSettings,
-  needsPolicyReview,
-  getDailySignRecord,
-  setDailySignRecord,
-  getHoyoTodayDateString,
-  getCodeRedeemStats,
-  setActiveCodes,
-  shouldShowReviewPrompt,
-  updateReviewPromptState,
-  postponeReviewPrompt
-} from '../services/storage-service.js';
-import { fetchValidCodes } from '../services/code-fetcher.js';
-import { getUserGameRoles, getDailySignInfo } from '../services/hoyo-api.js';
-import { formatRedeemResult, formatSignResult, formatLogTimestamp } from '../utils/message-formatter.js';
-import { resolveLanguage, getGameLocalized, formatDailySignTimeLocal, getPrivacyPolicyUrl, getGuideUrl, t } from '../utils/i18n.js';
+import { GAMES, API_CONFIG, PRIVACY_POLICY_VERSION } from '../config/constants.js';
+import { getSettings, updateSettings } from '../services/storage-service.js';
+import { formatRedeemResult, formatSignResult } from '../utils/message-formatter.js';
+import { resolveLanguage, getGameLocalized, getPrivacyPolicyUrl, getGuideUrl, t } from '../utils/i18n.js';
 import { toGaGameKey, syncConsentBadge } from '../services/analytics-service.js';
+import {
+  openExternalTab,
+  bindExternalLink,
+  setupCheckboxMinimumValidation,
+  showAlertModal,
+  checkPolicyReviewModal,
+  initReviewPromptBanner,
+  initConsentModals,
+  initSettingsModal
+} from './modals.js';
+import {
+  applyI18nToDom,
+  updateDailySignStatusView,
+  updateRedeemStatusView,
+  updateGameView
+} from './status-view.js';
+import { renderLogs } from './log-view.js';
 
-let currentGameKey = 'GENSHIN';
-let currentUid = null;
-let uidCopyResetTimer = null;
-let currentLang = 'ja';
-
-
-const openExternalTab = (url) => {
-  if (url && typeof chrome !== 'undefined' && chrome.tabs?.create) {
-    chrome.tabs.create({ url });
-  } else if (url) {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
+const state = {
+  currentGameKey: 'GENSHIN',
+  currentUid: null,
+  currentLang: 'ja'
 };
+let uidCopyResetTimer = null;
+
 function trackGAEvent(eventName, params = {}) {
   try {
     chrome.runtime.sendMessage({
@@ -43,35 +40,61 @@ function trackGAEvent(eventName, params = {}) {
   }
 }
 
+function renderGameTabs(enabledGames) {
+  const gameTabs = document.getElementById('game-tabs');
+  if (!gameTabs) return;
+  gameTabs.innerHTML = '';
+
+  enabledGames.forEach(gKey => {
+    const localized = getGameLocalized(gKey, state.currentLang);
+    const btn = document.createElement('button');
+    btn.className = `tab-btn${gKey === state.currentGameKey ? ' active' : ''}`;
+    btn.dataset.game = gKey;
+    btn.textContent = localized.tabLabel || localized.name;
+    btn.addEventListener('click', async () => {
+      if (gKey === state.currentGameKey) return;
+      state.currentGameKey = gKey;
+      gameTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.game === state.currentGameKey));
+      await updateSettings({ activeGameKey: state.currentGameKey });
+      updateGameView(state);
+      renderLogs(state.currentGameKey, state.currentLang);
+    });
+    gameTabs.appendChild(btn);
+  });
+}
+
+function bindManualActionButton(buttonEl, messageType, formatResultFn, fallbackTitleKey, onComplete) {
+  if (!buttonEl) return;
+  buttonEl.addEventListener('click', async () => {
+    buttonEl.disabled = true;
+    buttonEl.classList.add('is-loading');
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        type: messageType,
+        gameKey: state.currentGameKey
+      });
+      const { title, message, detail } = formatResultFn(resp, state.currentLang);
+      await showAlertModal(title, message, detail);
+    } catch (err) {
+      await showAlertModal(
+        t(fallbackTitleKey, [], state.currentLang),
+        err?.message || 'Error',
+        err?.message
+      );
+    } finally {
+      buttonEl.disabled = false;
+      buttonEl.classList.remove('is-loading');
+      await onComplete();
+      await renderLogs(state.currentGameKey, state.currentLang);
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const optInModal = document.getElementById('optin-modal');
   const optInAcceptBtn = document.getElementById('optin-accept-btn');
   const optinAnalyticsCb = document.getElementById('optin-analytics-cb');
   const analyticsConsentModal = document.getElementById('analytics-consent-modal');
-  const analyticsConsentAcceptBtn = document.getElementById('analytics-consent-accept-btn');
-  const analyticsConsentDeclineBtn = document.getElementById('analytics-consent-decline-btn');
-  const policyUpdateModal = document.getElementById('policy-update-modal');
-  const policyUpdateAcceptBtn = document.getElementById('policy-update-accept-btn');
-  const policyUpdateDesc = document.getElementById('policy-update-desc');
-
-  const checkPolicyReviewModal = async () => {
-    const cur = await getSettings();
-    if (cur.optInAccepted && cur.analyticsConsentReviewed && needsPolicyReview(cur)) {
-      if (policyUpdateDesc) {
-        const policyUrl = getPrivacyPolicyUrl(currentLang);
-        const linkHtml = `<a href="${policyUrl}" target="_blank" rel="noopener noreferrer" class="link-inline" id="policy-update-privacy-link">${t('privacyPolicy', [], currentLang)}</a>`;
-        policyUpdateDesc.innerHTML = t('policyUpdateDesc', [PRIVACY_POLICY_VERSION, linkHtml], currentLang);
-        const policyLink = document.getElementById('policy-update-privacy-link');
-        if (policyLink) {
-          policyLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            openExternalTab(getPrivacyPolicyUrl(currentLang));
-          });
-        }
-      }
-      policyUpdateModal?.classList.remove('hidden');
-    }
-  };
   const autoSignToggle = document.getElementById('auto-sign-toggle');
   const autoRedeemToggle = document.getElementById('auto-redeem-toggle');
   const manualSignBtn = document.getElementById('manual-sign-btn');
@@ -80,78 +103,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openGiftSiteBtn = document.getElementById('open-gift-site-btn');
   const flavorBadge = document.getElementById('flavor-badge');
 
-  // レビュー促進バナー要素
-  const reviewBanner = document.getElementById('review-prompt-banner');
-  const reviewWriteBtn = document.getElementById('review-prompt-write-btn');
-  const reviewLaterBtn = document.getElementById('review-prompt-later-btn');
-  const reviewDismissBtn = document.getElementById('review-prompt-dismiss-btn');
+  const refreshReviewPromptBanner = initReviewPromptBanner({
+    getCurrentLang: () => state.currentLang,
+    trackGAEvent
+  });
 
-  const refreshReviewPromptBanner = async () => {
-    if (!reviewBanner) return;
-    // 同意系モーダルが表示中の場合は表示しない
-    const isModalOpen = [optInModal, analyticsConsentModal, policyUpdateModal]
-      .some(modal => modal && !modal.classList.contains('hidden'));
-    if (isModalOpen) {
-      reviewBanner.hidden = true;
-      return;
-    }
-    const show = await shouldShowReviewPrompt();
-    reviewBanner.hidden = !show;
-  };
-
-  if (reviewWriteBtn) {
-    reviewWriteBtn.addEventListener('click', async () => {
-      if (reviewBanner) reviewBanner.hidden = true;
-      await updateReviewPromptState({ status: 'completed' });
-      trackGAEvent('ui_action', { action_type: 'review_prompt_write', game: 'none', lang: currentLang });
-      openExternalTab(REVIEW_PROMPT_CONFIG.REVIEW_URL);
-    });
-  }
-
-  if (reviewLaterBtn) {
-    reviewLaterBtn.addEventListener('click', async () => {
-      if (reviewBanner) reviewBanner.hidden = true;
-      await postponeReviewPrompt();
-      trackGAEvent('ui_action', { action_type: 'review_prompt_later', game: 'none', lang: currentLang });
-    });
-  }
-
-  if (reviewDismissBtn) {
-    reviewDismissBtn.addEventListener('click', async () => {
-      if (reviewBanner) reviewBanner.hidden = true;
-      await updateReviewPromptState({ status: 'dismissed' });
-      trackGAEvent('ui_action', { action_type: 'review_prompt_dismiss', game: 'none', lang: currentLang });
-    });
-  }
-
-  // DEVバッジクリックによるワンクリック検証（案A）
-  if (API_CONFIG.IS_DEV && flavorBadge) {
-    flavorBadge.classList.add('dev-interactive');
-    flavorBadge.title = '[DEV] クリックでレビューバナーをリセット＆表示';
-    flavorBadge.addEventListener('click', async () => {
-      await updateReviewPromptState({
-        successCount: REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT,
-        status: 'pending',
-        postponeCount: 0,
-        nextEligibleTimestamp: 0
-      });
-      await refreshReviewPromptBanner();
-    });
-  }
-
-  // 設定読み込み & 言語解決
   const settings = await getSettings();
-  currentGameKey = settings.activeGameKey || 'GENSHIN';
-  currentLang = resolveLanguage(settings.language);
+  state.currentGameKey = settings.activeGameKey || 'GENSHIN';
+  state.currentLang = resolveLanguage(settings.language);
   const initialEnabledGames = settings.enabledGames || Object.keys(GAMES);
 
-  // バッジ状態と設定を確実に同期
   await syncConsentBadge();
+  applyI18nToDom(state.currentLang);
 
-  // DOMに初期言語を適用
-  applyI18nToDom(currentLang);
-
-  // フレーバーUIバッジの反映
   if (API_CONFIG.FLAVOR_UI && flavorBadge && API_CONFIG.FLAVOR_UI.badgeText) {
     flavorBadge.textContent = API_CONFIG.FLAVOR_UI.badgeText;
     flavorBadge.style.display = 'inline-block';
@@ -163,68 +127,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (!settings.optInAccepted) {
-    optInModal.classList.remove('hidden');
+    optInModal?.classList.remove('hidden');
   } else {
     if (autoSignToggle) autoSignToggle.checked = !!settings.autoSignEnabled;
     if (autoRedeemToggle) autoRedeemToggle.checked = !!settings.autoRedeemEnabled;
 
-    // 既存ユーザー向け同意モーダル（未確認の場合のみ表示）
     if (!settings.analyticsConsentReviewed && analyticsConsentModal) {
       analyticsConsentModal.classList.remove('hidden');
     } else {
-      await checkPolicyReviewModal();
+      await checkPolicyReviewModal(state.currentLang);
     }
   }
 
-  // 既存ユーザー向け同意モーダルボタン処理
-  if (analyticsConsentAcceptBtn) {
-    analyticsConsentAcceptBtn.addEventListener('click', async () => {
-      await updateSettings({
-        analyticsEnabled: true,
-        analyticsConsentReviewed: true,
-        agreedPolicyVersion: PRIVACY_POLICY_VERSION
-      });
-      await syncConsentBadge();
-      if (analyticsConsentModal) analyticsConsentModal.classList.add('hidden');
-      await checkPolicyReviewModal();
-    });
-  }
-
-  if (analyticsConsentDeclineBtn) {
-    analyticsConsentDeclineBtn.addEventListener('click', async () => {
-      await updateSettings({
-        analyticsEnabled: false,
-        analyticsConsentReviewed: true
-      });
-      await syncConsentBadge();
-      if (analyticsConsentModal) analyticsConsentModal.classList.add('hidden');
-      await checkPolicyReviewModal();
-    });
-  }
-
-  // ポリシー改定モーダルボタン処理
-  if (policyUpdateAcceptBtn) {
-    policyUpdateAcceptBtn.addEventListener('click', async () => {
-      await updateSettings({
-        agreedPolicyVersion: PRIVACY_POLICY_VERSION
-      });
-      await syncConsentBadge();
-      if (policyUpdateModal) policyUpdateModal.classList.add('hidden');
-    });
-  }
-
-  // ゲーム選択タブの初期動的描画
+  initConsentModals({ getCurrentLang: () => state.currentLang });
   renderGameTabs(initialEnabledGames);
 
-  // 初回同意ボタン
-  optInAcceptBtn.addEventListener('click', async () => {
+  optInAcceptBtn?.addEventListener('click', async () => {
     const selected = Array.from(optinCheckboxes)
       .filter(cb => cb.checked)
       .map(cb => cb.value);
     const chosenGames = selected.length > 0 ? selected : Object.keys(GAMES);
 
-    if (!chosenGames.includes(currentGameKey)) {
-      currentGameKey = chosenGames[0];
+    if (!chosenGames.includes(state.currentGameKey)) {
+      state.currentGameKey = chosenGames[0];
     }
 
     const isAnalyticsEnabled = optinAnalyticsCb ? optinAnalyticsCb.checked : true;
@@ -234,127 +159,79 @@ document.addEventListener('DOMContentLoaded', async () => {
       autoSignEnabled: true,
       autoRedeemEnabled: true,
       enabledGames: chosenGames,
-      activeGameKey: currentGameKey,
+      activeGameKey: state.currentGameKey,
       analyticsEnabled: isAnalyticsEnabled,
       analyticsConsentReviewed: true,
       agreedPolicyVersion: PRIVACY_POLICY_VERSION
     });
     await syncConsentBadge();
 
-    optInModal.classList.add('hidden');
+    optInModal?.classList.add('hidden');
     await refreshReviewPromptBanner();
     if (autoSignToggle) autoSignToggle.checked = true;
     if (autoRedeemToggle) autoRedeemToggle.checked = true;
     renderGameTabs(chosenGames);
-    updateGameView();
-    updateRedeemStatusView();
+    updateGameView(state);
+    updateRedeemStatusView(state.currentGameKey, state);
 
-    trackGAEvent('onboarding_complete', { lang: currentLang });
+    trackGAEvent('onboarding_complete', {
+      genshin_enabled: chosenGames.includes('GENSHIN'),
+      hsr_enabled: chosenGames.includes('STAR_RAIL'),
+      zzz_enabled: chosenGames.includes('ZZZ'),
+      lang: state.currentLang
+    });
 
-    // 同意直後にバックグラウンドで初回自動受取（ログボ＆交換コード）を即時開始
     chrome.runtime.sendMessage({ type: 'TRIGGER_INITIAL_CATCH_UP' })
       .then(async () => {
-        await updateDailySignStatusView(currentGameKey);
-        await updateRedeemStatusView(currentGameKey);
-        await renderLogs();
+        await updateDailySignStatusView(state.currentGameKey, state);
+        await updateRedeemStatusView(state.currentGameKey, state);
+        await renderLogs(state.currentGameKey, state.currentLang);
       })
       .catch(() => {});
   });
 
-  // 自動ログインボーナス受取トグル（個別制御）
-  if (autoSignToggle) {
-    autoSignToggle.addEventListener('change', async (e) => {
-      await updateSettings({ autoSignEnabled: e.target.checked });
-    });
-  }
+  autoSignToggle?.addEventListener('change', async (e) => {
+    await updateSettings({ autoSignEnabled: e.target.checked });
+  });
 
-  // 自動コード引き換えトグル（個別制御）
-  if (autoRedeemToggle) {
-    autoRedeemToggle.addEventListener('change', async (e) => {
-      await updateSettings({ autoRedeemEnabled: e.target.checked });
-      await updateRedeemStatusView();
-    });
-  }
+  autoRedeemToggle?.addEventListener('change', async (e) => {
+    await updateSettings({ autoRedeemEnabled: e.target.checked });
+    await updateRedeemStatusView(state.currentGameKey, state);
+  });
 
-  // 手動ログインボーナス受取トリガー
-  if (manualSignBtn) {
-    manualSignBtn.addEventListener('click', async () => {
-      manualSignBtn.disabled = true;
-      manualSignBtn.classList.add('is-loading');
-      try {
-        const resp = await chrome.runtime.sendMessage({
-          type: 'TRIGGER_MANUAL_SIGN',
-          gameKey: currentGameKey
-        });
-        const { title, message, detail } = formatSignResult(resp, currentLang);
-        await showAlertModal(title, message, detail);
-      } catch (err) {
-        await showAlertModal(
-          t('signCardTitle', [], currentLang),
-          err?.message || 'Error',
-          err?.message
-        );
-      } finally {
-        manualSignBtn.disabled = false;
-        manualSignBtn.classList.remove('is-loading');
-        await updateDailySignStatusView(currentGameKey);
-        await renderLogs();
-      }
-    });
-  }
+  bindManualActionButton(
+    manualSignBtn,
+    'TRIGGER_MANUAL_SIGN',
+    formatSignResult,
+    'signCardTitle',
+    () => updateDailySignStatusView(state.currentGameKey, state)
+  );
 
-  // 手動コード引き換えトリガー
-  if (manualTriggerBtn) {
-    manualTriggerBtn.addEventListener('click', async () => {
-      manualTriggerBtn.disabled = true;
-      manualTriggerBtn.classList.add('is-loading');
-      try {
-        const resp = await chrome.runtime.sendMessage({
-          type: 'TRIGGER_MANUAL_REDEEM',
-          gameKey: currentGameKey
-        });
-        const { title, message, detail } = formatRedeemResult(resp, currentLang);
-        await showAlertModal(title, message, detail);
-      } catch (err) {
-        await showAlertModal(
-          t('redeemCardTitle', [], currentLang),
-          err?.message || 'Error',
-          err?.message
-        );
-      } finally {
-        manualTriggerBtn.disabled = false;
-        manualTriggerBtn.classList.remove('is-loading');
-        await updateRedeemStatusView();
-        await renderLogs();
-      }
-    });
-  }
+  bindManualActionButton(
+    manualTriggerBtn,
+    'TRIGGER_MANUAL_REDEEM',
+    formatRedeemResult,
+    'redeemCardTitle',
+    () => updateRedeemStatusView(state.currentGameKey, state)
+  );
 
-  // 外部サイトオープン用ヘルパー（モジュールスコープへ定義済み）
+  openCheckinSiteBtn?.addEventListener('click', () => {
+    const config = GAMES[state.currentGameKey];
+    if (config?.checkInSiteUrl) {
+      trackGAEvent('ui_action', { action_type: 'open_official_site', game: toGaGameKey(state.currentGameKey), lang: state.currentLang });
+      openExternalTab(config.checkInSiteUrl);
+    }
+  });
 
-  // 公式ログインボーナスページを開くボタン
-  if (openCheckinSiteBtn) {
-    openCheckinSiteBtn.addEventListener('click', () => {
-      const config = GAMES[currentGameKey];
-      if (config?.checkInSiteUrl) {
-        trackGAEvent('ui_action', { action_type: 'open_official_site', game: toGaGameKey(currentGameKey), lang: currentLang });
-        openExternalTab(config.checkInSiteUrl);
-      }
-    });
-  }
-
-  // 公式コード交換サイトを開くボタン & ゲームアイコンクリック
   const openCurrentGameGiftSite = () => {
-    const localized = getGameLocalized(currentGameKey, currentLang);
+    const localized = getGameLocalized(state.currentGameKey, state.currentLang);
     if (localized?.giftSiteUrl) {
-      trackGAEvent('ui_action', { action_type: 'open_official_site', game: toGaGameKey(currentGameKey), lang: currentLang });
+      trackGAEvent('ui_action', { action_type: 'open_official_site', game: toGaGameKey(state.currentGameKey), lang: state.currentLang });
       openExternalTab(localized.giftSiteUrl);
     }
   };
 
-  if (openGiftSiteBtn) {
-    openGiftSiteBtn.addEventListener('click', openCurrentGameGiftSite);
-  }
+  openGiftSiteBtn?.addEventListener('click', openCurrentGameGiftSite);
 
   const gameIconWrapper = document.getElementById('game-icon-wrapper');
   if (gameIconWrapper) {
@@ -367,125 +244,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  const bindExternalLink = (target, urlOrFn) => {
-    const el = typeof target === 'string' ? document.getElementById(target) : target;
-    if (!el) return;
-    el.addEventListener('click', (e) => {
-      e.preventDefault();
-      const targetUrl = typeof urlOrFn === 'function' ? urlOrFn() : urlOrFn;
-      openExternalTab(targetUrl);
-    });
-  };
-  bindExternalLink('optin-privacy-link', () => getPrivacyPolicyUrl(currentLang));
+  bindExternalLink('optin-privacy-link', () => getPrivacyPolicyUrl(state.currentLang));
+  bindExternalLink('footer-link-readme', () => getGuideUrl(state.currentLang));
+  bindExternalLink('footer-link-privacy', () => getPrivacyPolicyUrl(state.currentLang));
 
-  bindExternalLink('footer-link-readme', () => getGuideUrl(currentLang));
-  bindExternalLink('footer-link-privacy', () => getPrivacyPolicyUrl(currentLang));
-
-  // 表示設定モーダルの制御（言語設定 ＋ ゲーム選択 ＋ 匿名の利用統計）
-  const tabSettingsBtn = document.getElementById('tab-settings-btn');
-  const filterModal = document.getElementById('game-filter-modal');
-  const filterCancelBtn = document.getElementById('filter-modal-cancel-btn');
-  const filterSaveBtn = document.getElementById('filter-modal-save-btn');
-  const filterCheckboxes = document.querySelectorAll('.filter-game-cb');
-  const langRadios = document.querySelectorAll('input[name="app-lang"]');
-  const settingsAnalyticsCb = document.getElementById('settings-analytics-cb');
-
-  const syncFilterValidation = setupCheckboxMinimumValidation(filterCheckboxes);
-
-  const openFilterModal = async () => {
-    const curSettings = await getSettings();
-    const currentEnabled = curSettings.enabledGames || Object.keys(GAMES);
-    filterCheckboxes.forEach(cb => {
-      cb.checked = currentEnabled.includes(cb.value);
-    });
-    const curLangSetting = curSettings.language || 'auto';
-    langRadios.forEach(r => {
-      r.checked = r.value === curLangSetting;
-    });
-    if (settingsAnalyticsCb) {
-      settingsAnalyticsCb.checked = !!curSettings.analyticsEnabled;
-    }
-    syncFilterValidation();
-    filterModal.classList.remove('hidden');
-  };
-
-  if (tabSettingsBtn) {
-    tabSettingsBtn.addEventListener('click', openFilterModal);
-  }
-
-  if (filterCancelBtn) {
-    filterCancelBtn.addEventListener('click', () => {
-      filterModal.classList.add('hidden');
-    });
-  }
-
-  if (filterSaveBtn) {
-    filterSaveBtn.addEventListener('click', async () => {
-      const selectedGames = Array.from(filterCheckboxes)
-        .filter(cb => cb.checked)
-        .map(cb => cb.value);
-      const validSelectedGames = selectedGames.length > 0 ? selectedGames : Object.keys(GAMES);
-
-      if (!validSelectedGames.includes(currentGameKey)) {
-        currentGameKey = validSelectedGames[0];
-      }
-
-      const selectedLangRadio = Array.from(langRadios).find(r => r.checked);
-      const chosenLangSetting = selectedLangRadio ? selectedLangRadio.value : 'auto';
-      const chosenAnalytics = settingsAnalyticsCb ? settingsAnalyticsCb.checked : true;
-
-      await updateSettings({
-        enabledGames: validSelectedGames,
-        activeGameKey: currentGameKey,
-        language: chosenLangSetting,
-        analyticsEnabled: chosenAnalytics,
-        analyticsConsentReviewed: true
-      });
-      await syncConsentBadge();
-
-      trackGAEvent('ui_action', { action_type: 'change_settings', game: 'none', lang: currentLang });
-
-      // 新しい言語を適用
-      currentLang = resolveLanguage(chosenLangSetting);
-      applyI18nToDom(currentLang);
-
-      filterModal.classList.add('hidden');
+  initSettingsModal({
+    state,
+    trackGAEvent,
+    onSettingsApplied: (validSelectedGames) => {
+      applyI18nToDom(state.currentLang);
+      bindExternalLink('optin-privacy-link', () => getPrivacyPolicyUrl(state.currentLang));
       renderGameTabs(validSelectedGames);
-      updateGameView();
-      renderLogs();
-    });
-  }
+      updateGameView(state);
+      renderLogs(state.currentGameKey, state.currentLang);
+    }
+  });
 
-  // UIDワンクリックコピー処理
   const uidChipBtn = document.getElementById('uid-copy-chip');
-  if (uidChipBtn) {
-    uidChipBtn.addEventListener('click', async () => {
-      if (!currentUid) return;
-      try {
-        await navigator.clipboard.writeText(currentUid);
-        trackGAEvent('ui_action', { action_type: 'uid_copy', game: toGaGameKey(currentGameKey), lang: currentLang });
-        uidChipBtn.classList.add('copied');
-        if (uidCopyResetTimer) clearTimeout(uidCopyResetTimer);
-        uidCopyResetTimer = setTimeout(() => {
-          uidChipBtn.classList.remove('copied');
-        }, 1500);
-      } catch (err) {
-        console.error('Failed to copy UID to clipboard:', err);
-      }
-    });
-  }
+  uidChipBtn?.addEventListener('click', async () => {
+    if (!state.currentUid) return;
+    try {
+      await navigator.clipboard.writeText(state.currentUid);
+      trackGAEvent('ui_action', { action_type: 'uid_copy', game: toGaGameKey(state.currentGameKey), lang: state.currentLang });
+      uidChipBtn.classList.add('copied');
+      if (uidCopyResetTimer) clearTimeout(uidCopyResetTimer);
+      uidCopyResetTimer = setTimeout(() => {
+        uidChipBtn.classList.remove('copied');
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to copy UID to clipboard:', err);
+    }
+  });
 
-  // ログアコーディオンの開閉検知（UIアクション追跡）
   const logsAccordion = document.getElementById('logs-accordion');
-  if (logsAccordion) {
-    logsAccordion.addEventListener('toggle', () => {
-      if (logsAccordion.open) {
-        trackGAEvent('ui_action', { action_type: 'open_log', game: toGaGameKey(currentGameKey), lang: currentLang });
-      }
-    });
-  }
+  logsAccordion?.addEventListener('toggle', () => {
+    if (logsAccordion.open) {
+      trackGAEvent('ui_action', { action_type: 'open_log', game: toGaGameKey(state.currentGameKey), lang: state.currentLang });
+    }
+  });
 
-  // 画像フォールバック制御
   const gameIconEl = document.getElementById('game-icon');
   const iconFallbackEl = document.getElementById('icon-fallback');
   if (gameIconEl && iconFallbackEl) {
@@ -499,501 +296,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  updateActiveTabButton();
-  updateGameView();
-  updateRedeemStatusView();
-  renderLogs();
+  document.querySelectorAll('#game-tabs .tab-btn').forEach(tabBtn => {
+    tabBtn.classList.toggle('active', tabBtn.dataset.game === state.currentGameKey);
+  });
+
+  updateGameView(state);
+  updateRedeemStatusView(state.currentGameKey, state);
+  renderLogs(state.currentGameKey, state.currentLang);
   await refreshReviewPromptBanner();
 
-  // バックグラウンド実行中のログやステータス変更をリアルタイム反映
-  if (chrome.storage && chrome.storage.onChanged) {
+  if (chrome.storage?.onChanged) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local') return;
       if (changes.exec_logs) {
-        renderLogs();
+        renderLogs(state.currentGameKey, state.currentLang);
       }
-      const relevantBiz = GAMES[currentGameKey]?.gameBiz;
+      const relevantBiz = GAMES[state.currentGameKey]?.gameBiz;
       if (relevantBiz) {
         if (changes[`redeemed_${relevantBiz}`] || changes[`active_codes_${relevantBiz}`]) {
-          updateRedeemStatusView(currentGameKey);
+          updateRedeemStatusView(state.currentGameKey, state);
         }
         if (changes[`daily_sign_${relevantBiz}`]) {
-          updateDailySignStatusView(currentGameKey);
+          updateDailySignStatusView(state.currentGameKey, state);
         }
       }
     });
   }
 });
-
-function applyI18nToDom(lang) {
-  document.documentElement.lang = lang;
-
-  // text content
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    el.textContent = t(key, [], lang);
-  });
-
-  // title
-  document.querySelectorAll('[data-i18n-title]').forEach(el => {
-    const key = el.getAttribute('data-i18n-title');
-    el.title = t(key, [], lang);
-  });
-
-  // aria-label
-  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
-    const key = el.getAttribute('data-i18n-aria-label');
-    el.setAttribute('aria-label', t(key, [], lang));
-  });
-
-  // 初回オプトインのセキュリティリンク文言
-  const optinSecNote = document.getElementById('optin-security-note');
-  if (optinSecNote) {
-    const privacyLinkHtml = `<a href="${getPrivacyPolicyUrl(lang)}" target="_blank" rel="noopener noreferrer" class="link-inline" id="optin-privacy-link">${t('privacyPolicy', [], lang)}</a>`;
-    optinSecNote.innerHTML = t('optinSecurityNote', [privacyLinkHtml], lang);
-  }
-
-  // フッター免責事項
-  const footerDisclaimer = document.getElementById('footer-disclaimer-text');
-  if (footerDisclaimer) {
-    footerDisclaimer.innerHTML = t('footerDisclaimer', [], lang);
-  }
-
-  // フッターリンクURLの言語追従
-  const footerReadmeLink = document.getElementById('footer-link-readme');
-  if (footerReadmeLink) {
-    footerReadmeLink.href = getGuideUrl(lang);
-  }
-  const footerPrivacyLink = document.getElementById('footer-link-privacy');
-  if (footerPrivacyLink) {
-    footerPrivacyLink.href = getPrivacyPolicyUrl(lang);
-  }
-
-  // ゲーム選択チェックボックスのラベル名
-  document.querySelectorAll('[data-game-label]').forEach(el => {
-    const gKey = el.getAttribute('data-game-label');
-    const localized = getGameLocalized(gKey, lang);
-    el.textContent = localized.name;
-  });
-
-  // アラーム定期ラベル
-  updateIntervalLabels(lang);
-}
-
-function updateIntervalLabels(lang) {
-  const autoSignLabel = document.getElementById('auto-sign-label');
-  const autoRedeemLabel = document.getElementById('auto-redeem-label');
-
-  if (autoSignLabel) {
-    autoSignLabel.textContent = t('autoSignLabel', [formatDailySignTimeLocal()], lang);
-  }
-
-  if (autoRedeemLabel) {
-    const intervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES || 180;
-    const intervalStr = (intervalMinutes < 60)
-      ? t('intervalLabelMinutes', [intervalMinutes], lang)
-      : t('intervalLabelHours', [intervalMinutes / 60], lang);
-    autoRedeemLabel.textContent = t('autoRedeemLabel', [intervalStr], lang);
-  }
-}
-
-function setupCheckboxMinimumValidation(checkboxes) {
-  const sync = () => {
-    const checked = Array.from(checkboxes).filter(cb => cb.checked);
-    if (checked.length === 1) {
-      checked[0].disabled = true;
-    } else {
-      checkboxes.forEach(cb => { cb.disabled = false; });
-    }
-  };
-  checkboxes.forEach(cb => {
-    cb.addEventListener('change', sync);
-  });
-  sync();
-  return sync;
-}
-
-function renderGameTabs(enabledGames) {
-  const gameTabs = document.getElementById('game-tabs');
-  if (!gameTabs) return;
-  gameTabs.innerHTML = '';
-
-  enabledGames.forEach(gKey => {
-    const localized = getGameLocalized(gKey, currentLang);
-    const btn = document.createElement('button');
-    btn.className = `tab-btn${gKey === currentGameKey ? ' active' : ''}`;
-    btn.dataset.game = gKey;
-    btn.textContent = localized.tabLabel || localized.name;
-    btn.addEventListener('click', async () => {
-      if (gKey === currentGameKey) return;
-      currentGameKey = gKey;
-      gameTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.game === currentGameKey));
-      await updateSettings({ activeGameKey: currentGameKey });
-      updateGameView();
-      renderLogs();
-    });
-    gameTabs.appendChild(btn);
-  });
-}
-
-function updateActiveTabButton() {
-  const tabs = document.querySelectorAll('#game-tabs .tab-btn');
-  tabs.forEach(t => t.classList.toggle('active', t.dataset.game === currentGameKey));
-}
-
-async function updateGameView() {
-  const targetKey = currentGameKey;
-  const config = GAMES[targetKey];
-  const localized = getGameLocalized(targetKey, currentLang);
-
-  const titleEl = document.getElementById('game-title');
-  const iconEl = document.getElementById('game-icon');
-  const fallbackEl = document.getElementById('icon-fallback');
-  const badgeEl = document.getElementById('login-status-badge');
-  const checkinSiteBtn = document.getElementById('open-checkin-site-btn');
-  const giftSiteBtn = document.getElementById('open-gift-site-btn');
-  const uidChipEl = document.getElementById('uid-copy-chip');
-  const uidValueEl = document.getElementById('uid-value');
-  const manualSignBtn = document.getElementById('manual-sign-btn');
-  const manualTriggerBtn = document.getElementById('manual-trigger-btn');
-  const autoSignToggle = document.getElementById('auto-sign-toggle');
-  const autoRedeemToggle = document.getElementById('auto-redeem-toggle');
-
-  titleEl.textContent = localized.name;
-  fallbackEl.textContent = localized.shortName;
-
-  const wrapperEl = document.getElementById('game-icon-wrapper');
-  if (wrapperEl) {
-    const label = t('gameIconTitle', [localized.name], currentLang);
-    wrapperEl.title = label;
-    wrapperEl.setAttribute('aria-label', label);
-  }
-  if (checkinSiteBtn) {
-    checkinSiteBtn.title = t('btnOfficialSignTitle', [localized.name], currentLang);
-  }
-  if (giftSiteBtn) {
-    giftSiteBtn.title = t('btnOfficialGiftTitle', [localized.name], currentLang);
-  }
-  if (manualSignBtn) {
-    manualSignBtn.title = t('btnManualSignTitle', [], currentLang);
-    manualSignBtn.setAttribute('aria-label', t('btnManualSignTitle', [], currentLang));
-  }
-  if (manualTriggerBtn) {
-    manualTriggerBtn.title = t('btnManualRedeemTitle', [], currentLang);
-    manualTriggerBtn.setAttribute('aria-label', t('btnManualRedeemTitle', [], currentLang));
-  }
-  if (autoSignToggle && autoSignToggle.parentElement) {
-    autoSignToggle.parentElement.title = t('autoSignToggleTitle', [], currentLang);
-  }
-  if (autoRedeemToggle && autoRedeemToggle.parentElement) {
-    autoRedeemToggle.parentElement.title = t('autoRedeemToggleTitle', [], currentLang);
-  }
-
-  if (config.iconPath) {
-    iconEl.src = config.iconPath;
-    if (iconEl.complete) {
-      if (iconEl.naturalWidth === 0) {
-        iconEl.style.display = 'none';
-        fallbackEl.style.display = 'flex';
-      } else {
-        iconEl.style.display = 'block';
-        fallbackEl.style.display = 'none';
-      }
-    }
-  } else {
-    iconEl.style.display = 'none';
-    fallbackEl.style.display = 'flex';
-  }
-
-  badgeEl.textContent = t('statusChecking', [], currentLang);
-  badgeEl.className = 'badge';
-  if (uidChipEl) uidChipEl.classList.add('hidden');
-  if (uidValueEl) uidValueEl.textContent = '--------';
-  currentUid = null;
-
-  // ログインボーナス・交換コード状態表示も並行更新
-  updateDailySignStatusView(targetKey);
-  updateRedeemStatusView(targetKey);
-
-  try {
-    const res = await getUserGameRoles(config.gameBiz, currentLang);
-    if (currentGameKey !== targetKey) return;
-    if (res.success && res.role) {
-      badgeEl.textContent = t('statusOnline', [res.role.nickname], currentLang);
-      badgeEl.classList.add('online');
-      currentUid = String(res.role.game_uid || '');
-      if (currentUid && uidValueEl && uidChipEl) {
-        uidValueEl.textContent = currentUid;
-        uidChipEl.classList.remove('hidden');
-        uidChipEl.setAttribute('aria-label', `UID ${currentUid}`);
-      }
-    } else if (res.retcode === -1 || res.retcode === -2) {
-      badgeEl.textContent = t('statusNoChar', [], currentLang);
-      badgeEl.classList.add('offline');
-    } else {
-      badgeEl.textContent = res.retcode === -100 ? t('statusLoggedOut', [], currentLang) : `${t('statusLoggedOut', [], currentLang)} (${res.retcode ?? 'error'})`;
-      badgeEl.classList.add('offline');
-    }
-  } catch {
-    if (currentGameKey !== targetKey) return;
-    badgeEl.textContent = t('statusOffline', [], currentLang);
-    badgeEl.classList.add('offline');
-  }
-}
-
-async function updateDailySignStatusView(gameKey) {
-  const signBadgeEl = document.getElementById('sign-status-badge');
-  if (!signBadgeEl) return;
-
-  const config = GAMES[gameKey];
-  if (!config) return;
-
-  signBadgeEl.textContent = t('statusChecking', [], currentLang);
-  signBadgeEl.className = 'status-pill';
-
-  const today = getHoyoTodayDateString();
-  const cached = await getDailySignRecord(config.gameBiz);
-  if (currentGameKey !== gameKey) return;
-
-  if (cached && cached.date === today && cached.isSigned) {
-    const daysText = cached.totalSignDay ? t('signStatusDays', [cached.totalSignDay], currentLang) : '';
-    signBadgeEl.textContent = `${t('signStatusSigned', [], currentLang)}${daysText}`;
-    signBadgeEl.className = 'status-pill signed';
-  }
-
-  try {
-    const info = await getDailySignInfo(config, currentLang);
-    if (currentGameKey !== gameKey) return;
-
-    if (info.success) {
-      await setDailySignRecord(config.gameBiz, {
-        date: info.today || today,
-        isSigned: info.isSigned,
-        totalSignDay: info.totalSignDay,
-        skippedNoChar: false
-      });
-      const daysText = info.totalSignDay ? t('signStatusDays', [info.totalSignDay], currentLang) : '';
-      if (info.isSigned) {
-        signBadgeEl.textContent = `${t('signStatusSigned', [], currentLang)}${daysText}`;
-        signBadgeEl.className = 'status-pill signed';
-      } else {
-        signBadgeEl.textContent = `${t('signStatusUnsigned', [], currentLang)}${daysText}`;
-        signBadgeEl.className = 'status-pill unsigned';
-      }
-    } else if (!cached || cached.date !== today || !cached.isSigned) {
-      signBadgeEl.textContent = info.retcode === -100 ? t('statusLoggedOut', [], currentLang) : t('signStatusSkipped', [], currentLang);
-      signBadgeEl.className = 'status-pill skipped';
-    }
-  } catch {
-    if (currentGameKey !== gameKey) return;
-    if (!cached || cached.date !== today || !cached.isSigned) {
-      signBadgeEl.textContent = t('statusOffline', [], currentLang);
-      signBadgeEl.className = 'status-pill skipped';
-    }
-  }
-}
-
-async function updateRedeemStatusView(gameKey = currentGameKey) {
-  const labelEl = document.getElementById('redeem-status-label');
-  const badgeEl = document.getElementById('redeem-status-badge');
-  const autoRedeemToggle = document.getElementById('auto-redeem-toggle');
-  if (!badgeEl) return;
-
-  const config = GAMES[gameKey];
-  if (!config) return;
-
-  const isEnabled = autoRedeemToggle ? autoRedeemToggle.checked : false;
-
-  const intervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES || 180;
-  const intervalStr = (intervalMinutes < 60)
-    ? t('intervalLabelMinutes', [intervalMinutes], currentLang)
-    : t('intervalLabelHours', [intervalMinutes / 60], currentLang);
-
-  let nextRunTooltip = t('nextRunTooltipStopped', [], currentLang);
-  if (isEnabled) {
-    try {
-      if (typeof chrome !== 'undefined' && chrome.alarms?.get) {
-        const alarm = await chrome.alarms.get(ALARM_NAMES.AUTO_REDEEM);
-        if (alarm && alarm.scheduledTime) {
-          const nextDate = new Date(alarm.scheduledTime);
-          const hours = String(nextDate.getHours()).padStart(2, '0');
-          const minutes = String(nextDate.getMinutes()).padStart(2, '0');
-          nextRunTooltip = t('nextRunTooltipScheduled', [`${hours}:${minutes}`], currentLang);
-        } else {
-          nextRunTooltip = t('nextRunTooltipRunning', [intervalStr], currentLang);
-        }
-      }
-    } catch {
-      nextRunTooltip = t('nextRunTooltipRunning', [intervalStr], currentLang);
-    }
-  }
-
-  badgeEl.title = nextRunTooltip;
-
-  try {
-    const stats = await getCodeRedeemStats(config.gameBiz);
-    if (currentGameKey !== gameKey) return;
-
-    if (labelEl) {
-      if (stats.activeTotal !== null) {
-        if (stats.activeTotal === 0) {
-          labelEl.textContent = t('redeemStatusLabelNone', [], currentLang);
-        } else {
-          labelEl.textContent = t('redeemStatusLabelActive', [stats.activeClaimed, stats.activeTotal], currentLang);
-        }
-      } else {
-        labelEl.textContent = t('redeemStatusLabelDefault', [], currentLang);
-        fetchValidCodes(gameKey).then(async (codes) => {
-          if (Array.isArray(codes)) {
-            await setActiveCodes(config.gameBiz, codes);
-            if (currentGameKey === gameKey) {
-              updateRedeemStatusView(gameKey);
-            }
-          }
-        }).catch(() => {});
-      }
-    }
-
-    badgeEl.textContent = t('redeemStatsBadge', [stats.monthlyCount, stats.totalCount], currentLang);
-
-    if (stats.activeTotal !== null) {
-      if (stats.activeClaimed >= stats.activeTotal) {
-        badgeEl.className = 'status-pill signed';
-      } else {
-        badgeEl.className = 'status-pill unsigned';
-      }
-    } else {
-      badgeEl.className = 'status-pill';
-    }
-  } catch {
-    if (currentGameKey !== gameKey) return;
-    if (labelEl) labelEl.textContent = t('redeemStatusLabelDefault', [], currentLang);
-    badgeEl.textContent = t('signStatusSkipped', [], currentLang);
-    badgeEl.className = 'status-pill skipped';
-  }
-}
-
-function isLogForGame(log, gameKey) {
-  if (!log) return false;
-  if (log.gameKey) {
-    return log.gameKey === gameKey;
-  }
-  const msg = log.message || '';
-  const jaName = GAMES[gameKey]?.name;
-  const enName = getGameLocalized(gameKey, 'en')?.name;
-
-  if ((jaName && msg.includes(jaName)) || (enName && msg.includes(enName))) {
-    return true;
-  }
-
-  // 他の特定ゲーム名が含まれている場合は除外
-  const otherNames = [];
-  Object.keys(GAMES).forEach(k => {
-    if (k !== gameKey) {
-      otherNames.push(GAMES[k]?.name);
-      otherNames.push(getGameLocalized(k, 'en')?.name);
-    }
-  });
-
-  return !otherNames.some(name => name && msg.includes(name));
-}
-
-function buildLatestLogSummary(latestLog) {
-  if (!latestLog) {
-    return { text: t('latestLogEmpty', [], currentLang), isError: false };
-  }
-  const time = formatLogTimestamp(latestLog.timestamp);
-  const timeSuffix = time ? ` (${time})` : '';
-  if (latestLog.type === 'ERROR') {
-    return { text: t('latestLogError', [timeSuffix], currentLang), isError: true };
-  }
-  if (latestLog.type === 'WARN') {
-    return { text: t('latestLogWarn', [timeSuffix], currentLang), isError: false };
-  }
-  return { text: t('latestLogSuccess', [timeSuffix], currentLang), isError: false };
-}
-
-async function renderLogs() {
-  const container = document.getElementById('logs-container');
-  const summaryEl = document.getElementById('latest-log-summary');
-  if (!container) return;
-
-  const data = await chrome.storage.local.get('exec_logs');
-  const allLogs = data.exec_logs || [];
-  const logs = allLogs.filter(log => isLogForGame(log, currentGameKey));
-
-  if (summaryEl) {
-    const { text, isError } = buildLatestLogSummary(logs[0]);
-    summaryEl.textContent = text;
-    summaryEl.classList.toggle('has-error', isError);
-  }
-
-  container.innerHTML = '';
-  if (!logs.length) {
-    const empty = document.createElement('div');
-    empty.textContent = t('noLogs', [], currentLang);
-    empty.style.color = '#64748b';
-    container.appendChild(empty);
-    return;
-  }
-
-  const jaPrefix = `${GAMES[currentGameKey]?.name}: `;
-  const enPrefix = `${getGameLocalized(currentGameKey, 'en')?.name}: `;
-
-  logs.forEach(log => {
-    const item = document.createElement('div');
-    item.className = log.type === 'ERROR' ? 'log-item log-error' : 'log-item';
-    const time = formatLogTimestamp(log.timestamp);
-    let cleanMsg = log.message || log.type || '';
-    if (cleanMsg.startsWith(jaPrefix)) {
-      cleanMsg = cleanMsg.slice(jaPrefix.length);
-    } else if (cleanMsg.startsWith(enPrefix)) {
-      cleanMsg = cleanMsg.slice(enPrefix.length);
-    }
-    item.textContent = `[${time}] ${cleanMsg}`;
-    container.appendChild(item);
-  });
-}
-
-function showAlertModal(title, message, detail = null) {
-  const modal = document.getElementById('alert-modal');
-  const titleEl = document.getElementById('alert-modal-title');
-  const msgEl = document.getElementById('alert-modal-message');
-  const detailsEl = document.getElementById('alert-modal-details');
-  const detailTextEl = document.getElementById('alert-modal-detail-text');
-  const okBtn = document.getElementById('alert-modal-ok-btn');
-
-  titleEl.textContent = title;
-  msgEl.textContent = message;
-
-  if (detail) {
-    detailTextEl.textContent = detail;
-    detailsEl.open = false;
-    detailsEl.classList.remove('hidden');
-  } else {
-    detailsEl.classList.add('hidden');
-    detailTextEl.textContent = '';
-  }
-
-  modal.classList.remove('hidden');
-  okBtn.focus();
-
-  return new Promise((resolve) => {
-    const handleClose = () => {
-      okBtn.removeEventListener('click', handleClose);
-      document.removeEventListener('keydown', handleKeyDown);
-      modal.classList.add('hidden');
-      resolve();
-    };
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' || e.key === 'Enter') {
-        e.preventDefault();
-        handleClose();
-      }
-    };
-
-    okBtn.addEventListener('click', handleClose);
-    document.addEventListener('keydown', handleKeyDown);
-  });
-}

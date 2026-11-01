@@ -31,7 +31,7 @@ const ALLOWED_EVENT_PARAMS = {
   daily_checkin_result: ['game', 'trigger', 'status', 'error_reason'],
   onboarding_complete: ['genshin_enabled', 'hsr_enabled', 'zzz_enabled'],
   ui_action: ['action_type', 'game'],
-  code_list_fetch_error: ['status_code']
+  code_list_fetch_error: ['game', 'http_status', 'error_type']
 };
 
 export function sanitizeEventParams(eventName, params = {}) {

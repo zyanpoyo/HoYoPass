@@ -118,6 +118,20 @@ test('sanitizeEventParams: 許可リストによる未知キー・危険キー�
     hsr_enabled: 'false',
     zzz_enabled: 'true'
   });
+
+  // code_list_fetch_error: game, http_status, error_type が保持され未知キーが除去されること
+  const fetchErrClean = sanitizeEventParams('code_list_fetch_error', {
+    game: 'genshin',
+    http_status: 503,
+    error_type: 'http_error',
+    lang: 'ja',
+    secret: 'xxx'
+  });
+  assert.deepEqual(fetchErrClean, {
+    game: 'genshin',
+    http_status: 503,
+    error_type: 'http_error'
+  });
 });
 
 test('getOrCreateGaClientId: UUIDの生成とストレージ永続化', async () => {
