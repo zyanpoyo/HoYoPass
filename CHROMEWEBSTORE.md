@@ -1,17 +1,18 @@
 # Chrome Web Store Listing — HoYoPass
 
-> Last Updated: 2026-10-25
+> Last Updated: 2026-11-01
 
 ## Store Listing (Japanese / 日本語)
 
 **Extension Name** [REQUIRED]
-HoYoPass - ログボ＆交換コード自動受取ツール
+HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ
 
 **Short Description** [REQUIRED]
-HoYoverseゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のデイリーログインボーナスと交換コードを自動受取する非公式ツールです。
+原神・崩壊スターレイル・ゼンゼロのHoYoLABデイリーログインボーナスと最新交換コードを全自動で取得。ブラウザを開くだけで原石などのゲーム内報酬の取り逃がしをゼロにする非公式ツールです。
 
 **Detailed Description** [REQUIRED]
-HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のHoYoLABデイリーログインボーナスと最新ギフト交換コードを自動で受け取り、毎日の報酬獲得をサポートする非公式ファンメイドツールです。
+HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のHoYoLABデイリーログインボーナスと最新ギフト交換コード（シリアルコード）を自動で受け取り、原石・星玉・ポリクロームなどの報酬獲得をサポートする非公式ファンメイドツールです。
+毎日各サイトを開く手間を省き、コードの入力忘れ・期限切れによる報酬の取り逃がしを防ぎます。
 
 【主な機能】
 • 多言語対応（日本語 / 英語）— ブラウザの表示言語に合わせた自動表示に加え、設定（⚙）から手動切り替え可能
@@ -29,10 +30,11 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 ※ 初回利用時、過去に手動交換済みのコードがある場合はゲーム内に「使用済み（重複）」の通知メールが届くことがありますが、API仕様による正常な挙動です（実害はなく、一度処理されたコードは拡張機能内に記録され次回以降再送されません）。
 
 【プライバシーとセキュリティ】
-本拡張機能は「個人情報を一切収集・送信しない」ゼロトラスト設計です。
-• アカウントのログインCookieやパスワードを拡張機能が読み取ったり外部へ送信することはありません。
-• お使いのブラウザに保存された公式セッションを通じて直接公式API（HoYoLAB / HoYoverse）とのみ通信します。
-• 設定情報や受取履歴はすべてお使いのPC内にのみ安全に保存されます。
+本拡張機能は「アカウント安全第一」のゼロトラスト設計です。
+• ログイン情報、Cookie、パスワードを拡張機能が読み取ったり外部サーバーへ送信することはありません。
+• お使いのブラウザに保存された既存セッションを通じ、公式API（HoYoLAB / HoYoverse）とのみ直接通信します。
+• 設定や受取履歴はすべてお使いのPCローカル内に安全に保存されます。
+• ※品質改善用の匿名利用統計（個人を特定しない操作ログ）は、設定画面からいつでも完全無効化（オプトアウト）可能です。
 
 【免責事項】
 本拡張機能はファンメイドの非公式ツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。
@@ -57,13 +59,14 @@ English (Default) / Japanese
 ## Store Listing (English / 英語)
 
 **Extension Name** [REQUIRED]
-HoYoPass - Auto Daily Check-In & Code Redeemer
+HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ
 
 **Short Description** [REQUIRED]
-Unofficial tool that auto-claims daily check-in rewards and redemption codes for Genshin Impact, Honkai: Star Rail, and ZZZ.
+Auto-claims daily check-in rewards & gift codes for Genshin Impact, Honkai: Star Rail and ZZZ in the background. Never miss rewards!
 
 **Detailed Description** [REQUIRED]
 HoYoPass is an unofficial, fan-made productivity tool designed to help travelers, trailblazers, and proxies never miss a single reward. It quietly and automatically claims HoYoLAB daily check-in bonuses and redeems newly released gift codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero directly in the background.
+Say goodbye to opening multiple tabs every single day or missing out on limited-time redemption codes (Primogems, Stellar Jades, Polychromes).
 
 [Key Features]
 • Multi-Language Support (English / Japanese) — Automatically matches your browser language or can be toggled manually from settings (⚙).
@@ -81,10 +84,11 @@ HoYoPass is an unofficial, fan-made productivity tool designed to help travelers
 * Note: On your first run, you may receive in-game mail stating "Code has already been used" for codes you previously claimed manually. This is normal behavior from the official API. These codes are safely remembered and will not be re-submitted.
 
 [Privacy & Security]
-HoYoPass is built from the ground up with a zero-trust, zero-data-collection philosophy:
-• No passwords, tokens, or credentials are ever requested, stored, or sent to external servers.
-• Communicates directly and exclusively with official HoYoLAB / HoYoverse APIs using your existing local browser session.
-• All history and user preferences remain 100% locally on your computer.
+HoYoPass is built from the ground up with a security-first, zero-credential-collection philosophy:
+• No passwords, session tokens, or account credentials are ever read, stored, or sent to external servers.
+• Communicates directly and exclusively with official HoYoLAB / HoYoverse APIs using your local browser session.
+• All preferences and redemption histories are stored 100% locally on your computer.
+• Fully transparent: Anonymous usage metrics for quality improvements can be toggled off at any time via Settings (⚙).
 
 [Disclaimer]
 HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).

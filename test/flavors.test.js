@@ -36,9 +36,9 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
 
   // _locales/ devサフィックス検証
   const jaMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/ja/messages.json'), 'utf8'));
-  assert.equal(jaMsgDev.extName.message, 'HoYoPass - ログボ＆交換コード自動受取ツール [DEV]');
+  assert.equal(jaMsgDev.extName.message, 'HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ [DEV]');
   const enMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/en/messages.json'), 'utf8'));
-  assert.equal(enMsgDev.extName.message, 'HoYoPass - Auto Daily Check-In & Code Redeemer [DEV]');
+  assert.equal(enMsgDev.extName.message, 'HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ [DEV]');
 
   // env.js
   const envContent = fs.readFileSync(path.join(devDir, 'src/config/env.js'), 'utf8');
@@ -67,9 +67,9 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
 
   // _locales/ prod検証
   const jaMsgProd = JSON.parse(fs.readFileSync(path.join(prodDir, '_locales/ja/messages.json'), 'utf8'));
-  assert.equal(jaMsgProd.extName.message, 'HoYoPass - ログボ＆交換コード自動受取ツール');
+  assert.equal(jaMsgProd.extName.message, 'HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ');
   const enMsgProd = JSON.parse(fs.readFileSync(path.join(prodDir, '_locales/en/messages.json'), 'utf8'));
-  assert.equal(enMsgProd.extName.message, 'HoYoPass - Auto Daily Check-In & Code Redeemer');
+  assert.equal(enMsgProd.extName.message, 'HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ');
 
   // env.js
   const envContent = fs.readFileSync(path.join(prodDir, 'src/config/env.js'), 'utf8');
@@ -79,12 +79,14 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
   assert.match(envContent, /"IS_DEV": false/);
 });
 
-test('messages.json: description が 132 文字以内であること (Chrome Web Store 制限)', () => {
+test('messages.json: name が 75 文字以内、description が 132 文字以内であること (Chrome Web Store 制限)', () => {
   const locales = ['ja', 'en'];
   for (const loc of locales) {
     const raw = fs.readFileSync(path.resolve('_locales', loc, 'messages.json'), 'utf8');
     const parsed = JSON.parse(raw);
+    const name = parsed.extName.message;
     const desc = parsed.extDescription.message;
-    assert.ok(desc.length <= 132, loc + ' description is too long: ' + desc.length + ' (max 132)');
+    assert.ok(name.length <= 75, `${loc} name is too long: ${name.length} (max 75)`);
+    assert.ok(desc.length <= 132, `${loc} description is too long: ${desc.length} (max 132)`);
   }
 });

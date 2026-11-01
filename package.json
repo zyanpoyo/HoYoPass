@@ -1,7 +1,7 @@
 {
   "name": "hoyopass",
   "version": "1.3.0",
-  "description": "HoYoPass - ログボ＆交換コード自動受取ツール",
+  "description": "HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ",
   "type": "module",
   "scripts": {
     "build": "npm run build:dev && npm run build:prod",
