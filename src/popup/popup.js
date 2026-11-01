@@ -524,10 +524,10 @@ function updateIntervalLabels(lang) {
   }
 
   if (autoRedeemLabel) {
-    const isDev = API_CONFIG.IS_DEV;
-    const intervalStr = isDev
-      ? t('intervalLabelMinutes', [API_CONFIG.REDEEM_INTERVAL_MINUTES || 3], lang)
-      : t('intervalLabelHours', [(API_CONFIG.REDEEM_INTERVAL_MINUTES || 180) / 60], lang);
+    const intervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES || 180;
+    const intervalStr = (intervalMinutes < 60)
+      ? t('intervalLabelMinutes', [intervalMinutes], lang)
+      : t('intervalLabelHours', [intervalMinutes / 60], lang);
     autoRedeemLabel.textContent = t('autoRedeemLabel', [intervalStr], lang);
   }
 }
@@ -739,10 +739,10 @@ async function updateRedeemStatusView(gameKey = currentGameKey) {
 
   const isEnabled = autoRedeemToggle ? autoRedeemToggle.checked : false;
 
-  const isDev = API_CONFIG.IS_DEV;
-  const intervalStr = isDev
-    ? t('intervalLabelMinutes', [API_CONFIG.REDEEM_INTERVAL_MINUTES || 3], currentLang)
-    : t('intervalLabelHours', [(API_CONFIG.REDEEM_INTERVAL_MINUTES || 180) / 60], currentLang);
+  const intervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES || 180;
+  const intervalStr = (intervalMinutes < 60)
+    ? t('intervalLabelMinutes', [intervalMinutes], currentLang)
+    : t('intervalLabelHours', [intervalMinutes / 60], currentLang);
 
   let nextRunTooltip = t('nextRunTooltipStopped', [], currentLang);
   if (isEnabled) {

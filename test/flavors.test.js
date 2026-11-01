@@ -10,7 +10,7 @@ test('FLAVORS: 定義整合性チェック', () => {
   assert.ok(FLAVORS.prod, 'prod フレーバーが存在すること');
 
   // dev
-  assert.equal(FLAVORS.dev.config.REDEEM_INTERVAL_MINUTES, 3, 'devは3分周期');
+  assert.equal(FLAVORS.dev.config.REDEEM_INTERVAL_MINUTES, 180, 'devは180分(3時間)周期');
   assert.equal(FLAVORS.dev.config.CATCH_UP_DELAY_MS, 15_000, 'devはディレイ15秒');
   assert.equal(FLAVORS.dev.config.IS_DEV, true, 'devはIS_DEV: true');
   assert.equal(FLAVORS.dev.manifest.nameSuffix, ' [DEV]');
@@ -43,7 +43,7 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
   // env.js
   const envContent = fs.readFileSync(path.join(devDir, 'src/config/env.js'), 'utf8');
   assert.match(envContent, /CURRENT_FLAVOR = "dev"/);
-  assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 3/);
+  assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 180/);
   assert.match(envContent, /"CATCH_UP_DELAY_MS": 15000/);
   assert.match(envContent, /"IS_DEV": true/);
 

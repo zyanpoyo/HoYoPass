@@ -7,13 +7,13 @@ export const FLAVORS = {
       versionNameSuffix: '-dev'
     },
     config: {
-      REDEEM_INTERVAL_MINUTES: 3,
+      REDEEM_INTERVAL_MINUTES: 180,
       CATCH_UP_DELAY_MS: 15_000,
       IS_DEV: true
     },
     ui: {
       badgeText: 'DEV',
-      intervalLabel: '定期自動引き換え (開発版: 3分毎)',
+      intervalLabel: '定期自動引き換え (開発版: 3時間毎)',
       signIntervalLabel: '自動受け取り (毎日 01:05)'
     }
   },
