@@ -21,7 +21,9 @@ import {
   shouldRunDailySign,
   getActiveCodes,
   setActiveCodes,
-  getOrCreateGaClientId
+  getOrCreateGaClientId,
+  initReviewPromptState,
+  incrementReviewSuccessCount
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
@@ -258,6 +260,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   await setupDailySignAlarm();
   await syncConsentBadge();
   await getOrCreateGaClientId();
+  await initReviewPromptState();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -576,6 +579,10 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
       await clearRetryAlarm();
     }
 
+    if (totalRedeemed > 0) {
+      await incrementReviewSuccessCount();
+    }
+
     return {
       success: true,
       redeemedCount: totalRedeemed,
@@ -876,6 +883,10 @@ export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGame
 
     if (!targetGameKey) {
       await clearSignRetryAlarm();
+    }
+
+    if (signedCount > 0) {
+      await incrementReviewSuccessCount();
     }
 
     return {

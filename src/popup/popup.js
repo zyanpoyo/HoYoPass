@@ -1,4 +1,4 @@
-import { GAMES, DOCS_URLS, API_CONFIG, ALARM_NAMES, PRIVACY_POLICY_VERSION } from '../config/constants.js';
+import { GAMES, DOCS_URLS, API_CONFIG, ALARM_NAMES, PRIVACY_POLICY_VERSION, REVIEW_PROMPT_CONFIG } from '../config/constants.js';
 import {
   getSettings,
   updateSettings,
@@ -7,7 +7,10 @@ import {
   setDailySignRecord,
   getHoyoTodayDateString,
   getCodeRedeemStats,
-  setActiveCodes
+  setActiveCodes,
+  shouldShowReviewPrompt,
+  updateReviewPromptState,
+  postponeReviewPrompt
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, getDailySignInfo } from '../services/hoyo-api.js';
@@ -20,6 +23,14 @@ let currentUid = null;
 let uidCopyResetTimer = null;
 let currentLang = 'ja';
 
+
+const openExternalTab = (url) => {
+  if (url && typeof chrome !== 'undefined' && chrome.tabs?.create) {
+    chrome.tabs.create({ url });
+  } else if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};
 function trackGAEvent(eventName, params = {}) {
   try {
     chrome.runtime.sendMessage({
@@ -68,6 +79,65 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openCheckinSiteBtn = document.getElementById('open-checkin-site-btn');
   const openGiftSiteBtn = document.getElementById('open-gift-site-btn');
   const flavorBadge = document.getElementById('flavor-badge');
+
+  // レビュー促進バナー要素
+  const reviewBanner = document.getElementById('review-prompt-banner');
+  const reviewWriteBtn = document.getElementById('review-prompt-write-btn');
+  const reviewLaterBtn = document.getElementById('review-prompt-later-btn');
+  const reviewDismissBtn = document.getElementById('review-prompt-dismiss-btn');
+
+  const refreshReviewPromptBanner = async () => {
+    if (!reviewBanner) return;
+    // 同意系モーダルが表示中の場合は表示しない
+    const isModalOpen = [optInModal, analyticsConsentModal, policyUpdateModal]
+      .some(modal => modal && !modal.classList.contains('hidden'));
+    if (isModalOpen) {
+      reviewBanner.hidden = true;
+      return;
+    }
+    const show = await shouldShowReviewPrompt();
+    reviewBanner.hidden = !show;
+  };
+
+  if (reviewWriteBtn) {
+    reviewWriteBtn.addEventListener('click', async () => {
+      if (reviewBanner) reviewBanner.hidden = true;
+      await updateReviewPromptState({ status: 'completed' });
+      trackGAEvent('ui_action', { action_type: 'review_prompt_write', game: 'none', lang: currentLang });
+      openExternalTab(REVIEW_PROMPT_CONFIG.REVIEW_URL);
+    });
+  }
+
+  if (reviewLaterBtn) {
+    reviewLaterBtn.addEventListener('click', async () => {
+      if (reviewBanner) reviewBanner.hidden = true;
+      await postponeReviewPrompt();
+      trackGAEvent('ui_action', { action_type: 'review_prompt_later', game: 'none', lang: currentLang });
+    });
+  }
+
+  if (reviewDismissBtn) {
+    reviewDismissBtn.addEventListener('click', async () => {
+      if (reviewBanner) reviewBanner.hidden = true;
+      await updateReviewPromptState({ status: 'dismissed' });
+      trackGAEvent('ui_action', { action_type: 'review_prompt_dismiss', game: 'none', lang: currentLang });
+    });
+  }
+
+  // DEVバッジクリックによるワンクリック検証（案A）
+  if (API_CONFIG.IS_DEV && flavorBadge) {
+    flavorBadge.classList.add('dev-interactive');
+    flavorBadge.title = '[DEV] クリックでレビューバナーをリセット＆表示';
+    flavorBadge.addEventListener('click', async () => {
+      await updateReviewPromptState({
+        successCount: REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT,
+        status: 'pending',
+        postponeCount: 0,
+        nextEligibleTimestamp: 0
+      });
+      await refreshReviewPromptBanner();
+    });
+  }
 
   // 設定読み込み & 言語解決
   const settings = await getSettings();
@@ -172,6 +242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await syncConsentBadge();
 
     optInModal.classList.add('hidden');
+    await refreshReviewPromptBanner();
     if (autoSignToggle) autoSignToggle.checked = true;
     if (autoRedeemToggle) autoRedeemToggle.checked = true;
     renderGameTabs(chosenGames);
@@ -259,14 +330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // 外部サイトオープン用ヘルパー
-  const openExternalTab = (url) => {
-    if (url && typeof chrome !== 'undefined' && chrome.tabs?.create) {
-      chrome.tabs.create({ url });
-    } else if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  };
+  // 外部サイトオープン用ヘルパー（モジュールスコープへ定義済み）
 
   // 公式ログインボーナスページを開くボタン
   if (openCheckinSiteBtn) {
@@ -439,6 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateGameView();
   updateRedeemStatusView();
   renderLogs();
+  await refreshReviewPromptBanner();
 
   // バックグラウンド実行中のログやステータス変更をリアルタイム反映
   if (chrome.storage && chrome.storage.onChanged) {

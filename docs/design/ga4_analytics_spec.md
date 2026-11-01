@@ -109,6 +109,9 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
     - `change_settings`: 設定モーダルで設定を保存した
     - `open_official_site`: 公式サイト（ログボページ/交換サイト）を開いた
     - `notification_click`: デスクトップ通知をクリックして再ログイン/公式サイトを開いた
+    - `review_prompt_write`: レビュー促進バナーで「レビューを書く」を押下した
+    - `review_prompt_later`: レビュー促進バナーで「あとで」を押下した
+    - `review_prompt_dismiss`: レビュー促進バナーで「✕（今後は表示しない）」を押下した
   - `game`: 対象ゲーム（`genshin` / `hsr` / `zzz`、該当しない場合は `'none'`）
   - `app_version`, `lang`, `client_id`, `custom_client_id`, `session_id`, `engagement_time_msec`
 

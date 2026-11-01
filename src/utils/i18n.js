@@ -149,6 +149,13 @@ export const MESSAGES = {
     privacyPolicy: 'プライバシーポリシー',
     optinAcceptBtn: '同意して利用を開始する',
 
+    // レビュー促進バナー
+    reviewPromptTitle: 'いつもご利用ありがとうございます！',
+    reviewPromptBody: 'HoYoPassはお役に立っていますか？よろしければストアで星評価やレビューをいただけると、開発の大きな励みになります！',
+    reviewPromptBtnWrite: 'レビューを書く',
+    reviewPromptBtnLater: 'あとで',
+    reviewPromptBtnDismiss: '今後は表示しない',
+
     // 既存ユーザー向けアナリティクス同意モーダル
     analyticsConsentTitle: '品質向上のための統計情報収集について',
     analyticsConsentDesc: 'HoYoPassでは機能改善のため、個人情報を含まない匿名の利用統計情報（引き換え成否やエラー発生状況など）を収集しています。UIDやアカウント情報、Cookieは一切収集されません。後からいつでも設定で変更できます。',
@@ -264,6 +271,13 @@ export const MESSAGES = {
     optinAnalyticsLabel: 'Share anonymous usage statistics to help improve HoYoPass',
     privacyPolicy: 'Privacy Policy',
     optinAcceptBtn: 'Agree and Get Started',
+
+    // Review Prompt Banner
+    reviewPromptTitle: 'Enjoying HoYoPass?',
+    reviewPromptBody: 'If HoYoPass has saved you time, please consider leaving a review on the Chrome Web Store. It helps us a lot!',
+    reviewPromptBtnWrite: 'Rate on Web Store',
+    reviewPromptBtnLater: 'Later',
+    reviewPromptBtnDismiss: "Don't show again",
 
     // Existing user analytics consent modal
     analyticsConsentTitle: 'Anonymous Usage Statistics',

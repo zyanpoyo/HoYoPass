@@ -39,9 +39,15 @@ import {
   getActiveCodes,
   setActiveCodes,
   getCodeRedeemStats,
-  needsPolicyReview
+  needsPolicyReview,
+  getReviewPromptState,
+  initReviewPromptState,
+  updateReviewPromptState,
+  incrementReviewSuccessCount,
+  postponeReviewPrompt,
+  shouldShowReviewPrompt
 } from '../src/services/storage-service.js';
-import { API_CONFIG, STATUS_MAP, PRIVACY_POLICY_VERSION, LEGACY_POLICY_VERSION } from '../src/config/constants.js';
+import { API_CONFIG, STATUS_MAP, PRIVACY_POLICY_VERSION, LEGACY_POLICY_VERSION, REVIEW_PROMPT_CONFIG } from '../src/config/constants.js';
 
 test('addExecutionLog: ログの追加と最大保持件数(MAX_EXECUTION_LOGS: 50)の維持', async () => {
   mockStorage.local.clear();
@@ -299,4 +305,132 @@ test('getSettings / needsPolicyReview: agreedPolicyVersion の自動補完と改
   // 5. 将来版が保存されている場合（ダウングレード時など）
   const futureSettings = { optInAccepted: true, agreedPolicyVersion: '2027-05-01' };
   assert.equal(needsPolicyReview(futureSettings, '2026-10-26'), false, '保存版が新しい場合は通知不要');
+});
+
+
+test('getReviewPromptState / initReviewPromptState: 初期状態および既存実績マイグレーション', async () => {
+  mockStorage.local.clear();
+  const nowMs = 1730000000000;
+
+  // 1. 初回未保存状態での取得
+  const emptyState = await getReviewPromptState(nowMs);
+  assert.equal(emptyState.successCount, 0);
+  assert.equal(emptyState.status, 'pending');
+  assert.equal(emptyState.postponeCount, 0);
+  assert.equal(emptyState.nextEligibleTimestamp, 0);
+  assert.equal(emptyState.firstInstalledAt, nowMs);
+  assert.equal(await shouldShowReviewPrompt(nowMs), false, '初期未達時は表示されないこと');
+
+  // 2. 既存ユーザー（過去にコード交換 SUCCESS とログボ受取実績がある場合）のマイグレーション
+  mockStorage.local.clear();
+  await chrome.storage.local.set({
+    redeemed_hk4e_global: {
+      CODE1: { s: STATUS_MAP.SUCCESS },
+      CODE2: { s: STATUS_MAP.ALREADY_CLAIMED }, // 加算対象外
+      CODE3: { s: STATUS_MAP.EXPIRED } // 加算対象外
+    },
+    redeemed_hkrpg_global: {
+      CODE4: { s: STATUS_MAP.SUCCESS }
+    },
+    daily_sign_hk4e_global: {
+      isSigned: true
+    },
+    daily_sign_hkrpg_global: {
+      isSigned: false // 加算対象外
+    }
+  });
+
+  // SUCCESS 2件 + isSigned 1件 = 合計3件
+  const migrated = await initReviewPromptState(nowMs);
+  assert.equal(migrated.successCount, 3, '純粋成功実績のみ合計3件引き継がれること');
+  assert.equal(migrated.status, 'pending');
+  assert.equal(await shouldShowReviewPrompt(nowMs), true, '3件到達のため表示対象となること');
+
+  // 上限（THRESHOLD_SUCCESS_COUNT: 3）を超える実績があっても最大3にキャップされること
+  mockStorage.local.clear();
+  await chrome.storage.local.set({
+    redeemed_hk4e_global: {
+      C1: { s: STATUS_MAP.SUCCESS },
+      C2: { s: STATUS_MAP.SUCCESS },
+      C3: { s: STATUS_MAP.SUCCESS },
+      C4: { s: STATUS_MAP.SUCCESS }
+    }
+  });
+  const capped = await initReviewPromptState(nowMs);
+  assert.equal(capped.successCount, 3, '上限3に制限されること');
+});
+
+test('incrementReviewSuccessCount / shouldShowReviewPrompt: カウント加算とバックオフ抑制', async () => {
+  mockStorage.local.clear();
+  const nowMs = 1730000000000;
+
+  await initReviewPromptState(nowMs);
+  assert.equal(await shouldShowReviewPrompt(nowMs), false);
+
+  await incrementReviewSuccessCount(nowMs);
+  let state = await getReviewPromptState(nowMs);
+  assert.equal(state.successCount, 1);
+  assert.equal(await shouldShowReviewPrompt(nowMs), false);
+
+  await incrementReviewSuccessCount(nowMs);
+  await incrementReviewSuccessCount(nowMs);
+  state = await getReviewPromptState(nowMs);
+  assert.equal(state.successCount, 3);
+  assert.equal(await shouldShowReviewPrompt(nowMs), true, '3回達成で表示対象となること');
+
+  // バックオフ中は抑制されること
+  await chrome.storage.local.set({ backoff_until: nowMs + 10 * 60 * 1000 });
+  assert.equal(await shouldShowReviewPrompt(nowMs), false, 'バックオフ中は表示されないこと');
+
+  // バックオフ解除後は再び表示されること
+  await chrome.storage.local.set({ backoff_until: nowMs - 1000 });
+  assert.equal(await shouldShowReviewPrompt(nowMs), true, 'バックオフ解除後は表示されること');
+});
+
+test('postponeReviewPrompt: 1回目延期（7日間クールダウン）と2回目dismissed自動移行', async () => {
+  mockStorage.local.clear();
+  const baseTime = 1730000000000;
+
+  // 成功回数3で初期化
+  await updateReviewPromptState({ successCount: 3, status: 'pending' }, baseTime);
+  assert.equal(await shouldShowReviewPrompt(baseTime), true);
+
+  // 1回目の「あとで」
+  const postponed1 = await postponeReviewPrompt(baseTime);
+  assert.equal(postponed1.status, 'postponed');
+  assert.equal(postponed1.postponeCount, 1);
+  assert.equal(postponed1.nextEligibleTimestamp, baseTime + REVIEW_PROMPT_CONFIG.POSTPONE_DURATION_MS);
+
+  // 3日後（7日未満）: 非表示
+  assert.equal(await shouldShowReviewPrompt(baseTime + 3 * 24 * 60 * 60 * 1000), false);
+
+  // 7日後（ちょうどまたは経過後）: 再び表示可能
+  const after7Days = baseTime + REVIEW_PROMPT_CONFIG.POSTPONE_DURATION_MS;
+  assert.equal(await shouldShowReviewPrompt(after7Days), true);
+
+  // 2回目の「あとで」（上限到達）
+  const postponed2 = await postponeReviewPrompt(after7Days);
+  assert.equal(postponed2.status, 'dismissed', '2回目の延期はdismissedに遷移すること');
+  assert.equal(postponed2.postponeCount, 2);
+
+  // さらに7日経過後も恒久的に非表示
+  assert.equal(await shouldShowReviewPrompt(after7Days + 14 * 24 * 60 * 60 * 1000), false);
+});
+
+test('updateReviewPromptState: completed および dismissed による恒久非表示', async () => {
+  mockStorage.local.clear();
+  const nowMs = 1730000000000;
+
+  await updateReviewPromptState({ successCount: 5, status: 'pending' }, nowMs);
+  assert.equal(await shouldShowReviewPrompt(nowMs), true);
+
+  // completed（レビューを書く押下済み）
+  await updateReviewPromptState({ status: 'completed' }, nowMs);
+  assert.equal(await shouldShowReviewPrompt(nowMs), false);
+  assert.equal(await shouldShowReviewPrompt(nowMs + 365 * 24 * 60 * 60 * 1000), false, '1年後も非表示');
+
+  // dismissed（今後は表示しない押下済み）
+  await updateReviewPromptState({ status: 'dismissed' }, nowMs);
+  assert.equal(await shouldShowReviewPrompt(nowMs), false);
+  assert.equal(await shouldShowReviewPrompt(nowMs + 365 * 24 * 60 * 60 * 1000), false, '1年後も非表示');
 });

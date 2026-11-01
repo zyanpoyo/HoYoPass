@@ -278,6 +278,24 @@
         </summary>
         <div id="logs-container" class="logs-list"></div>
       </details>
+
+      <!-- ストアレビュー促進バナー -->
+      <aside id="review-prompt-banner" class="review-banner" hidden aria-labelledby="review-prompt-title">
+        <div class="review-banner-header">
+          <div class="review-banner-heading">
+            <span class="review-star-icon" aria-hidden="true">★</span>
+            <h2 id="review-prompt-title" class="review-banner-title" data-i18n="reviewPromptTitle">いつもご利用ありがとうございます！</h2>
+          </div>
+          <button id="review-prompt-dismiss-btn" class="review-close-btn" type="button" title="今後は表示しない" aria-label="今後は表示しない" data-i18n-title="reviewPromptBtnDismiss" data-i18n-aria-label="reviewPromptBtnDismiss">✕</button>
+        </div>
+        <p class="review-banner-body" data-i18n="reviewPromptBody">
+          HoYoPassはお役に立っていますか？よろしければストアで星評価やレビューをいただけると、開発の大きな励みになります！
+        </p>
+        <div class="review-banner-actions">
+          <button id="review-prompt-write-btn" class="btn btn-primary review-btn-primary" type="button" data-i18n="reviewPromptBtnWrite">レビューを書く</button>
+          <button id="review-prompt-later-btn" class="btn btn-secondary review-btn-secondary" type="button" data-i18n="reviewPromptBtnLater">あとで</button>
+        </div>
+      </aside>
     </main>
 
     <footer class="app-footer">

@@ -992,3 +992,97 @@ input:focus-visible + .slider {
   background-color: #2d374d;
   color: #f1f5f9;
 }
+
+/* ストアレビュー促進バナー */
+.review-banner {
+  margin-top: 10px;
+  background-color: #191f2e;
+  border: 1px solid #2d3b55;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.review-banner[hidden],
+.review-banner.hidden {
+  display: none !important;
+}
+
+.review-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.review-banner-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-star-icon {
+  color: #fbbf24;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.review-banner-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.review-close-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.review-close-btn:hover,
+.review-close-btn:focus-visible {
+  color: #cbd5e1;
+  background-color: rgba(148, 163, 184, 0.12);
+  outline: none;
+}
+
+.review-banner-body {
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.review-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.review-btn-primary {
+  flex: 1.4;
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+
+.review-btn-secondary {
+  flex: 1;
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+
+.flavor-badge.dev-interactive {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.flavor-badge.dev-interactive:hover {
+  background-color: #475569;
+  color: #ffffff;
+}

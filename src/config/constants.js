@@ -128,3 +128,12 @@ export const DOCS_URLS = {
 };
 
 export const UNINSTALL_URL = 'https://forms.gle/xWmVdhKJhpcuvmhP9';
+
+export const REVIEW_PROMPT_CONFIG = {
+  EXTENSION_ID: 'cjaoogecpnhdklnododipehcnipapccn',
+  REVIEW_URL: 'https://chromewebstore.google.com/detail/cjaoogecpnhdklnododipehcnipapccn/reviews',
+  THRESHOLD_SUCCESS_COUNT: 3,
+  POSTPONE_DURATION_MS: 7 * 24 * 60 * 60 * 1000, // 7日間 (604,800,000 ms)
+  MAX_POSTPONE_COUNT: 2 // 「あとで」の上限回数（2回目押下時は dismissed へ移行）
+};
+

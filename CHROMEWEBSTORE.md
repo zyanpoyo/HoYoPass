@@ -42,7 +42,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.0 — 匿名利用統計（品質向上用）オプトイン/オプトアウト対応、安定性向上
+バージョン 1.3.1 — ストアレビュー促進機能（インラインバナー）の追加、安定性向上
 
 **Category** [REQUIRED]
 Productivity
@@ -96,7 +96,7 @@ HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed 
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.0 — Added anonymous usage metrics for quality improvement with full opt-in/opt-out control, privacy policy update, and stability enhancements.
+Version 1.3.1 — Added in-app store review prompt banner, stability enhancements.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -193,7 +193,8 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.3.0 | 2026-10-27 | サービス品質向上のための匿名利用統計（GA4 Measurement Protocol）の導入、明示的なオプトイン/オプトアウト設定UI、初回利用時および既存ユーザー向け同意フローの実装、アンインストール時の品質改善アンケートフォーム誘導対応、機密情報保護アーキテクチャの強化、プライバシーポリシー日英多言語対応および将来の改定管理（バージョン管理）機構の導入 | Ready |
+| 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Ready |
+| 1.3.0 | 2026-10-27 | サービス品質向上のための匿名利用統計（GA4 Measurement Protocol）の導入、明示的なオプトイン/オプトアウト設定UI、初回利用時および既存ユーザー向け同意フローの実装、アンインストール時の品質改善アンケートフォーム誘導対応、機密情報保護アーキテクチャの強化、プライバシーポリシー日英多言語対応および将来の改定管理（バージョン管理）機構の導入 | Released |
 | 1.2.2 | 2026-10-25 | 多言語対応（日本語 / 英語）、ブラウザ言語自動判定＆手動切替UI（Auto / 日本語 / English）、ロケーション連動APIリクエスト、現地時刻自動換算表示、CWS英語掲載情報および英語スクリーンショット生成対応 | Released |
 | 1.2.1 | 2026-10-24 | 初期設定完了時の即時自動受取対応、プレイ中タイトルに絞り込めるタブ表示カスタマイズ、UI/UX改善および安定性の向上 | Released |
 | 1.2.0 | 2026-10-24 | ポップアップ画面のUIシンプル化・操作性向上、交換コード適用実績（今月/通算）および有効コード消化状況の可視化、初回利用時の交換コード重複案内ドキュメント強化 | Released |

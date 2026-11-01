@@ -63,7 +63,7 @@ globalThis.chrome = {
   }
 };
 
-import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord } from '../src/services/storage-service.js';
+import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord, getReviewPromptState, updateReviewPromptState } from '../src/services/storage-service.js';
 import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
 const {
   setupUninstallUrl,
@@ -718,4 +718,188 @@ test('onInstalled / onStartup: 既存・新規ユーザーに対して ga_client
   mockStorage.local.set('ga_client_id', 'existing-legacy-client-id');
   await mockInstalledListeners[0]();
   assert.equal(mockStorage.local.get('ga_client_id'), 'existing-legacy-client-id', '既存の ga_client_id が上書きされず維持されること');
+});
+
+
+test('runAutoRedeemFlow / runDailySignFlow: レビュー促進成功カウントの適切な加算制御', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  // 初期 reviewPrompt をセット
+  await updateReviewPromptState({ successCount: 0, status: 'pending' });
+
+  // 1. runAutoRedeemFlow: 新規成功(retcode: 0)がある場合は1セッションで+1加算
+  let fetchCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const urlStr = url.toString();
+    if (urlStr.includes('getUserGameRolesByCookie')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          retcode: 0,
+          message: 'OK',
+          data: {
+            list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+          }
+        })
+      };
+    }
+    if (urlStr.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({
+          codes: [{ code: 'CODE1' }, { code: 'CODE2' }]
+        })
+      };
+    }
+    if (urlStr.includes('webExchangeCdkey')) {
+      fetchCount++;
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ retcode: 0, message: 'OK' })
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const res = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(res.success, true);
+    assert.equal(res.redeemedCount, 2, '2件成功');
+    let state = await getReviewPromptState();
+    assert.equal(state.successCount, 1, '複数件成功してもセッション単位で+1加算されること');
+
+    // 2. runAutoRedeemFlow: 引き換え済み(-2017)や期限切れ(-2001)のみで新規成功0件の時は加算されないこと
+    globalThis.fetch = async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('getUserGameRolesByCookie')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      if (urlStr.includes('hoyo-codes.seria.moe')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({
+            codes: [{ code: 'ALREADY_CLAIMED_CODE' }]
+          })
+        };
+      }
+      if (urlStr.includes('webExchangeCdkey')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ retcode: -2017, message: 'Already claimed' })
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const resAlready = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(resAlready.success, true);
+    assert.equal(resAlready.redeemedCount, 0);
+    state = await getReviewPromptState();
+    assert.equal(state.successCount, 1, '引き換え済みのみの場合はカウントが増えないこと');
+
+    // 3. runDailySignFlow: 新規受取成功で+1加算
+    globalThis.fetch = async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('getUserGameRolesByCookie')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      if (urlStr.includes('/event/sol/info')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { is_sign: false, total_sign_day: 5, today: '2026-11-01' }
+          })
+        };
+      }
+      if (urlStr.includes('/event/sol/sign')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { code: 'ok' }
+          })
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const resSign = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(resSign.success, true);
+    assert.equal(resSign.signedCount, 1);
+    state = await getReviewPromptState();
+    assert.equal(state.successCount, 2, '新規ログボ受取成功で+1加算されること');
+
+    // 4. runDailySignFlow: すでに受取済みの場合は加算されないこと
+    globalThis.fetch = async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('getUserGameRolesByCookie')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      if (urlStr.includes('/event/sol/info')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { is_sign: true, total_sign_day: 6, today: '2026-11-01' }
+          })
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    // キャッシュをクリアしてforceCheck
+    const resSignAlready = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(resSignAlready.success, true);
+    assert.equal(resSignAlready.signedCount, 0);
+    state = await getReviewPromptState();
+    assert.equal(state.successCount, 2, '受取済みスキップ時はカウントが増えないこと');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

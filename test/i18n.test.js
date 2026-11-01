@@ -105,3 +105,29 @@ test('t: プレースホルダー置換と多言語メッセージ取得', () =>
   assert.ok(enDesc.includes('2026-10-26'));
   assert.ok(enDesc.includes('<link>'));
 });
+
+test('t: レビュー促進バナー関連メッセージの日英一貫性', () => {
+  const keys = [
+    'reviewPromptTitle',
+    'reviewPromptBody',
+    'reviewPromptBtnWrite',
+    'reviewPromptBtnLater',
+    'reviewPromptBtnDismiss'
+  ];
+
+  keys.forEach(key => {
+    const jaText = t(key, [], 'ja');
+    const enText = t(key, [], 'en');
+
+    assert.ok(jaText && jaText !== key, `ja に ${key} の翻訳が存在すること`);
+    assert.ok(enText && enText !== key, `en に ${key} の翻訳が存在すること`);
+    assert.notEqual(jaText, enText, `${key} の日英でテキストが異なること`);
+  });
+
+  assert.equal(t('reviewPromptBtnWrite', [], 'ja'), 'レビューを書く');
+  assert.equal(t('reviewPromptBtnWrite', [], 'en'), 'Rate on Web Store');
+  assert.equal(t('reviewPromptBtnLater', [], 'ja'), 'あとで');
+  assert.equal(t('reviewPromptBtnLater', [], 'en'), 'Later');
+  assert.equal(t('reviewPromptBtnDismiss', [], 'ja'), '今後は表示しない');
+  assert.equal(t('reviewPromptBtnDismiss', [], 'en'), "Don't show again");
+});
