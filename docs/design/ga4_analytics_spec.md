@@ -64,8 +64,13 @@ GA4 管理画面（「カスタム定義」>「カスタムディメンション
 | `status` | **結果ステータス** | イベント | 処理の成否結果 | `success`, `already_claimed`, `expired`, `cooldown`, `failed`, `already_signed` |
 | `error_reason` | **エラー要因** | イベント | 失敗時の詳細エラー分類 | `not_logged_in`, `cooldown`, `captcha_required`, `api_error`, `unknown`, `none` |
 | `trigger` | **実行契機** | イベント | 自動アラーム、手動実行、初回起動時 | `auto`, `manual`, `initial` |
-| `action_type` | **UI操作種別** | イベント | ユーザーが実行したUIアクション | `uid_copy`, `open_log`, `change_settings`, `open_official_site`, `notification_click` |
-| `app_version` | **拡張機能バージョン** | イベント | 実行中のHoYoPassのバージョン | `1.3.0` |
+| `action_type` | **UI操作種別** | イベント | ユーザーが実行したUIアクション | `uid_copy`, `open_log`, `change_settings`, `open_official_site`, `notification_click`, `review_prompt_write`, `review_prompt_later`, `review_prompt_dismiss` |
+| `http_status` | **HTTPステータス** | イベント | コード一覧取得失敗時のHTTPステータスコード | `503`, `404`, `0` |
+| `error_type` | **通信エラー種別** | イベント | コード一覧取得失敗時のエラー分類 | `timeout`, `http_error`, `parse_error`, `network_error` |
+| `genshin_enabled` | **原神有効フラグ** | イベント | 初回オンボーディング時の原神選択有無 | `true`, `false` |
+| `hsr_enabled` | **スタレ有効フラグ** | イベント | 初回オンボーディング時のスタレ選択有無 | `true`, `false` |
+| `zzz_enabled` | **ZZZ有効フラグ** | イベント | 初回オンボーディング時のZZZ選択有無 | `true`, `false` |
+| `app_version` | **拡張機能バージョン** | イベント | 実行中のHoYoPassのバージョン | `1.3.1` |
 | `lang` | **UI言語** | イベント | ユーザーの表示言語設定 | `ja`, `en` |
 | `client_id` | **クライアントID** | イベント | ローカル生成される匿名のクライアント識別子（UUIDv4） | `3fa85f64-5717-4562-b3fc-2c963f66afa6` |
 | `custom_client_id` | **カスタムクライアントID** | イベント | `client_id` と同一の匿名クライアント識別子（GA4予約語回避・カスタムディメンション集計用） | `3fa85f64-5717-4562-b3fc-2c963f66afa6` |

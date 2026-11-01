@@ -38,7 +38,7 @@ flowchart TD
         CI["GitHub Actions: ci.yml<br>(Node 26 / concurrency制御)"]
         Audit["npm audit --audit-level=high"]
         Secrets["npm run check-secrets"]
-        Test["npm test (Node標準ランナー 59 tests)"]
+        Test["npm test (Node標準ランナー 106 tests)"]
         Build["npm run build:prod & 成果物検証"]
 
         Dependabot --> PR
@@ -170,7 +170,7 @@ jobs:
       - name: Check secrets
         run: npm run check-secrets
 
-      # ユニットテスト（Node.js標準テストランナー 59テスト）
+      # ユニットテスト（Node.js標準テストランナー 106テスト）
       - name: Run unit tests
         run: npm test
 
