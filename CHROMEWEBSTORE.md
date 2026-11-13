@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — HoYoPass
 
-> Last Updated: 2026-11-01
+> Last Updated: 2026-11-13
 
 ## Store Listing (Japanese / 日本語)
 
@@ -8,20 +8,26 @@
 HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ
 
 **Short Description** [REQUIRED]
-原神・崩壊スターレイル・ゼンゼロのHoYoLABデイリーログインボーナスと最新交換コードを全自動で取得。ブラウザを開くだけで原石などのゲーム内報酬の取り逃がしをゼロにする非公式ツールです。
+原神・崩壊スターレイル・ゼンゼロのHoYoLABデイリーログインボーナス（ログボ）と最新シリアルコード（交換コード）の自動入力・自動受取ツール。ブラウザを開くだけで原石・星玉・ポリクローム等のゲーム内報酬の取り逃がしをゼロにするChrome拡張機能です。
 
 **Detailed Description** [REQUIRED]
 HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のHoYoLABデイリーログインボーナスと最新ギフト交換コード（シリアルコード）を自動で受け取り、原石・星玉・ポリクロームなどの報酬獲得をサポートする非公式ファンメイドツールです。
 毎日各サイトを開く手間を省き、コードの入力忘れ・期限切れによる報酬の取り逃がしを防ぎます。
 
+【こんな方におすすめ】
+• 原神、崩壊：スターレイル（スタレ）、ゼンレスゾーンゼロ（ゼンゼロ / ZZZ）を掛け持ちしていて、毎日の日課を効率化したい方
+• ホヨラボ（HoYoLAB）のログボ（デイリーチェックイン）をつい受け取り忘れてしまう方
+• 公式の予告番組・生放送のシリアルコード（プロモコード / ギフトコード）を期限切れ前に自動入力で確実に回収したい方
+• 毎回ブラウザで複数の交換サイトを開いてコードをコピペする手間をなくしたい方
+
 【主な機能】
 • 多言語対応（日本語 / 英語）— ブラウザの表示言語に合わせた自動表示に加え、設定（⚙）から手動切り替え可能
 • 初回利用時の即時自動受取 — 初期設定（同意）完了直後から未受取のログインボーナスおよび有効な交換コードを即座に自動取得
-• デイリーログインボーナス自動受取 — 毎日 00:05 UTC+8（お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動取得
+• デイリーログインボーナス自動受取 — 毎日 01:05 JST（00:05 UTC+8 / お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動実行。PC起動時やスリープ復帰時にも未受取のログボ・最新コードを自動でキャッチアップするため、深夜にPCを起動しておく必要はありません
 • 交換コードの3時間ごと自動引き換え — バックグラウンドで最新コードを自動検知して順次引き換え
 • プレイ中タイトルのみ表示するタブカスタマイズ — プレイしていないゲームはタブ非表示＆バックグラウンド巡回から安全に除外可能
 • ワンクリック手動実行 — ポップアップ画面から現在選択中のタイトルを即時実行
-• コード適用実績＆有効コード消化状況の可視化 — ポップアップ上で今月の交換した交換コード数、累計で交換した交換コード数を確認可能
+• コード適用実績＆有効コード消化状況の可視化 — ポップアップ上で現在有効なコードの消化状況と、今月・累計の引き換え実績を確認可能
 
 【使い方】
 1. ブラウザでHoYoLABの公式ログインボーナスページ、または各ゲームの公式ギフト交換ページにログインします。
@@ -42,7 +48,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.1 — ストアレビュー促進機能（インラインバナー）の追加、安定性向上
+バージョン 1.3.2 — バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上、UI表示および操作性の改善
 
 **Category** [REQUIRED]
 Productivity
@@ -65,22 +71,22 @@ HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ
 Auto-claims daily check-in rewards & gift codes for Genshin Impact, Honkai: Star Rail and ZZZ in the background. Never miss rewards!
 
 **Detailed Description** [REQUIRED]
-HoYoPass is an unofficial, fan-made productivity tool designed to help travelers, trailblazers, and proxies never miss a single reward. It quietly and automatically claims HoYoLAB daily check-in bonuses and redeems newly released gift codes for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero directly in the background.
-Say goodbye to opening multiple tabs every single day or missing out on limited-time redemption codes (Primogems, Stellar Jades, Polychromes).
+HoYoPass is an unofficial, fan-made Chrome extension designed to help Travelers, Trailblazers, and Proxies never miss a single reward. It quietly claims HoYoLAB daily check-in bonuses and works to auto-redeem newly released promo codes and gift codes for Genshin Impact, Honkai: Star Rail (HSR), and Zenless Zone Zero (ZZZ) directly in the background.
+Say goodbye to opening multiple tabs every single day or missing out on limited-time livestream codes and redemption codes (Primogems, Stellar Jades, Polychromes).
 
 [Key Features]
 • Multi-Language Support (English / Japanese) — Automatically matches your browser language or can be toggled manually from settings (⚙).
 • Immediate Auto-Claim on Setup — Right after agreeing to terms, it instantly collects all pending check-in rewards and available active codes.
-• Background Daily Check-In — Automatically cycles through all enabled games daily at 00:05 UTC+8 (smartly calculated in your local timezone).
-• 3-Hour Periodic Code Redemption — Checks and redeems newly discovered gift codes every 3 hours without opening browser tabs.
-• Tab Filter & Game Customization — Hide unplayed games from the interface and exclude them safely from background checks.
+• Background Daily Check-In — Automatically cycles through all enabled games daily at 00:05 UTC+8 (01:05 JST, smartly calculated in your local timezone). It also automatically catches up on any unclaimed daily check-in bonuses and latest promo codes when you start your PC or wake it from sleep, so there is no need to leave your PC running overnight.
+• 3-Hour Periodic Code Redemption — Checks and auto-redeems newly discovered gift codes and special program livestream codes every 3 hours without opening browser tabs.
+• Tab Filter & Game Customization — Playing only Genshin, HSR, or ZZZ? Hide unplayed games from the interface and exclude them safely from background checks.
 • One-Click Instant Manual Trigger — Instantly redeem codes or claim check-in for the currently selected game from the popup.
 • Transparent Stats & Active Code Tracker — Easily check how many active codes are available, your monthly count, and total redeemed codes.
 
 [How to Use]
 1. Log in to the official HoYoLAB check-in page or game redemption website in your browser.
 2. Click the HoYoPass icon on your toolbar and accept the disclaimer to start.
-3. Keep the toggles ON. HoYoPass will automatically collect check-in rewards and redeem codes in the background.
+3. Keep the toggles ON. This Chrome extension will automatically collect check-in rewards and auto-redeem codes in the background.
 * Note: On your first run, you may receive in-game mail stating "Code has already been used" for codes you previously claimed manually. This is normal behavior from the official API. These codes are safely remembered and will not be re-submitted.
 
 [Privacy & Security]
@@ -96,7 +102,7 @@ HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed 
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.1 — Added in-app store review prompt banner, stability enhancements.
+Version 1.3.2 — Improved background auto-claim and sleep/startup catch-up reliability, UI refinements, and overall stability enhancements.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -193,7 +199,8 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Ready |
+| 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Ready |
+| 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Released |
 | 1.3.0 | 2026-10-27 | サービス品質向上のための匿名利用統計（GA4 Measurement Protocol）の導入、明示的なオプトイン/オプトアウト設定UI、初回利用時および既存ユーザー向け同意フローの実装、アンインストール時の品質改善アンケートフォーム誘導対応、機密情報保護アーキテクチャの強化、プライバシーポリシー日英多言語対応および将来の改定管理（バージョン管理）機構の導入 | Released |
 | 1.2.2 | 2026-10-25 | 多言語対応（日本語 / 英語）、ブラウザ言語自動判定＆手動切替UI（Auto / 日本語 / English）、ロケーション連動APIリクエスト、現地時刻自動換算表示、CWS英語掲載情報および英語スクリーンショット生成対応 | Released |
 | 1.2.1 | 2026-10-24 | 初期設定完了時の即時自動受取対応、プレイ中タイトルに絞り込めるタブ表示カスタマイズ、UI/UX改善および安定性の向上 | Released |
