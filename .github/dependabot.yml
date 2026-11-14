@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # 1. npmパッケージの依存関係監視（今後ライブラリを導入した際に機能）
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    # マイナー/パッチ更新を1つのPRにまとめて通知爆発を防ぐ（無料運用の負荷軽減）
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # 2. GitHub Actions自身のセキュリティ・バージョン監視（actions/checkout等）
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci(actions)"

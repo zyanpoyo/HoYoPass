@@ -10,18 +10,134 @@
   <!-- 初回オプトイン同意モーダル -->
   <div id="optin-modal" class="modal-overlay hidden">
     <div class="modal-card">
-      <h2>利用開始のご確認</h2>
-      <p class="modal-desc">
+      <h2 data-i18n="optinTitle">利用開始のご確認</h2>
+      <p class="modal-desc" data-i18n="optinDesc">
         本拡張機能（HoYoPass）をご利用いただく前に、以下の内容をご確認・同意してください。
       </p>
       <div class="disclaimer-box">
-        <strong>【免責事項】</strong><br>
-        本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE / HoYoverseとは関係ありません。本ツール内で使用されているゲーム画像・商標の権利は、各権利者に帰属します。
+        <strong data-i18n="optinDisclaimerTitle">【免責事項】</strong><br>
+        <span data-i18n="optinDisclaimerBody">本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE / HoYoverseとは関係ありません。本ツール内で使用されているゲーム画像・商標の権利は、各権利者に帰属します。</span>
       </div>
-      <p class="security-note">
-        ※ 本拡張機能はお使いのブラウザに保存された公式ログインCookieをローカルでのみ利用し、外部サーバーへのCookie送信・収集は一切行いません。詳細は<a href="https://github.com/zyanpoyo/HoYoPass/blob/master/docs/legal/privacy_policy.md" target="_blank" rel="noopener noreferrer" class="link-inline" id="optin-privacy-link">プライバシーポリシー</a>をご確認ください。
+
+      <div class="game-select-group" id="optin-game-group">
+        <div class="game-select-title" data-i18n="optinGameTitle">利用するゲーム</div>
+        <div class="game-select-list">
+          <label class="game-select-item">
+            <input type="checkbox" class="optin-game-cb" value="GENSHIN" checked>
+            <span class="game-cb-custom"></span>
+            <span class="game-cb-label" data-game-label="GENSHIN">原神</span>
+          </label>
+          <label class="game-select-item">
+            <input type="checkbox" class="optin-game-cb" value="STAR_RAIL" checked>
+            <span class="game-cb-custom"></span>
+            <span class="game-cb-label" data-game-label="STAR_RAIL">崩壊：スターレイル</span>
+          </label>
+          <label class="game-select-item">
+            <input type="checkbox" class="optin-game-cb" value="ZZZ" checked>
+            <span class="game-cb-custom"></span>
+            <span class="game-cb-label" data-game-label="ZZZ">ゼンレスゾーンゼロ</span>
+          </label>
+        </div>
+        <p class="game-select-hint" data-i18n="optinGameHint">※表示するゲームは、開始後もタブ横の設定（⚙）からいつでも変更できます。</p>
+      </div>
+
+      <p class="security-note" id="optin-security-note">
+        ※ 本拡張機能はお使いのブラウザに保存された公式ログインCookieをローカルでのみ利用し、外部サーバーへのCookie送信・収集は一切行いません。詳細は<a href="https://hoyopass.pages.dev/privacy" target="_blank" rel="noopener noreferrer" class="link-inline" id="optin-privacy-link">プライバシーポリシー</a>をご確認ください。
       </p>
-      <button id="optin-accept-btn" class="btn btn-primary btn-block">同意して利用を開始する</button>
+
+      <div class="optin-analytics-row">
+        <label class="game-select-item">
+          <input type="checkbox" id="optin-analytics-cb" checked>
+          <span class="game-cb-label" data-i18n="optinAnalyticsLabel">匿名の利用統計データを送信する（品質向上用）</span>
+        </label>
+      </div>
+
+      <button id="optin-accept-btn" class="btn btn-primary btn-block" data-i18n="optinAcceptBtn">同意して利用を開始する</button>
+    </div>
+  </div>
+
+  <!-- 既存ユーザー向け利用統計同意モーダル -->
+  <div id="analytics-consent-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="analytics-consent-title">
+    <div class="modal-card">
+      <h2 id="analytics-consent-title" data-i18n="analyticsConsentTitle">品質向上のための統計情報収集について</h2>
+      <p class="modal-desc" data-i18n="analyticsConsentDesc">
+        HoYoPassでは機能改善のため、個人情報を含まない匿名の利用統計情報（引き換え成否やエラー発生状況など）を収集しています。UIDやアカウント情報、Cookieは一切収集されません。後からいつでも設定で変更できます。
+      </p>
+      <div class="modal-actions">
+        <button id="analytics-consent-decline-btn" class="btn btn-secondary" type="button" data-i18n="analyticsConsentDeclineBtn">協力しない</button>
+        <button id="analytics-consent-accept-btn" class="btn btn-primary" type="button" data-i18n="analyticsConsentAcceptBtn">協力する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プライバシーポリシー改定確認モーダル -->
+  <div id="policy-update-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="policy-update-title">
+    <div class="modal-card">
+      <h2 id="policy-update-title" data-i18n="policyUpdateTitle">プライバシーポリシー改定のお知らせ</h2>
+      <p class="modal-desc" id="policy-update-desc"></p>
+      <button id="policy-update-accept-btn" class="btn btn-primary btn-block" type="button" data-i18n="policyUpdateAcceptBtn">確認して同意する</button>
+    </div>
+  </div>
+
+  <!-- 設定モーダル（言語設定 ＋ 表示ゲーム設定 ＋ 利用統計） -->
+  <div id="game-filter-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="game-filter-title">
+    <div class="modal-card">
+      <h2 id="game-filter-title" data-i18n="settingsTitle">設定</h2>
+
+      <!-- 表示言語セクション -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="settingsLanguageLabel">表示言語</div>
+        <div class="lang-segment-control" role="radiogroup" aria-label="Language selection">
+          <label class="lang-segment-item">
+            <input type="radio" name="app-lang" value="auto" checked>
+            <span class="lang-segment-label" data-i18n="langAuto">自動</span>
+          </label>
+          <label class="lang-segment-item">
+            <input type="radio" name="app-lang" value="ja">
+            <span class="lang-segment-label">日本語</span>
+          </label>
+          <label class="lang-segment-item">
+            <input type="radio" name="app-lang" value="en">
+            <span class="lang-segment-label">English</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 表示ゲームセクション -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="settingsGamesLabel">表示するゲーム</div>
+        <div class="game-select-list" id="filter-game-list">
+          <label class="game-select-item">
+            <input type="checkbox" class="filter-game-cb" value="GENSHIN">
+            <span class="game-cb-custom"></span>
+            <span class="game-cb-label" data-game-label="GENSHIN">原神</span>
+          </label>
+          <label class="game-select-item">
+            <input type="checkbox" class="filter-game-cb" value="STAR_RAIL">
+            <span class="game-cb-custom"></span>
+            <span class="game-cb-label" data-game-label="STAR_RAIL">崩壊：スターレイル</span>
+          </label>
+          <label class="game-select-item">
+            <input type="checkbox" class="filter-game-cb" value="ZZZ">
+            <span class="game-cb-custom"></span>
+            <span class="game-cb-label" data-game-label="ZZZ">ゼンレスゾーンゼロ</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 匿名の利用統計セクション -->
+      <div class="settings-section">
+        <div class="settings-section-title" data-i18n="settingsAnalyticsLabel">匿名の利用統計</div>
+        <label class="game-select-item">
+          <input type="checkbox" id="settings-analytics-cb">
+          <span class="game-cb-label" data-i18n="settingsAnalyticsDesc">品質向上のため匿名の利用統計データを送信する</span>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button id="filter-modal-cancel-btn" class="btn btn-secondary" type="button" data-i18n="btnCancel">キャンセル</button>
+        <button id="filter-modal-save-btn" class="btn btn-primary" type="button" data-i18n="btnSave">保存</button>
+      </div>
     </div>
   </div>
 
@@ -33,34 +149,52 @@
       
       <!-- 詳細情報アコーディオン（エラー時・詳細がある場合のみ表示） -->
       <details id="alert-modal-details" class="dialog-details hidden">
-        <summary class="details-summary">詳細情報</summary>
+        <summary class="details-summary" data-i18n="dialogDetails">詳細情報</summary>
         <div id="alert-modal-detail-text" class="details-content"></div>
       </details>
       
-      <button id="alert-modal-ok-btn" class="btn btn-primary btn-block">OK</button>
+      <button id="alert-modal-ok-btn" class="btn btn-primary btn-block" data-i18n="btnOk">OK</button>
     </div>
   </div>
 
   <!-- メインUI -->
   <div class="app-container">
-    <!-- ゲーム選択タブ [R2-1] -->
-    <nav class="game-tabs" id="game-tabs">
-      <button class="tab-btn active" data-game="GENSHIN">原神</button>
-      <button class="tab-btn" data-game="STAR_RAIL">スタレ</button>
-      <button class="tab-btn" data-game="ZZZ">ZZZ</button>
-    </nav>
+    <!-- ゲーム選択タブ -->
+    <div class="tabs-header-row">
+      <nav class="game-tabs" id="game-tabs" aria-label="ゲーム選択" data-i18n-aria-label="gameTabsAria">
+        <button class="tab-btn active" data-game="GENSHIN">原神</button>
+        <button class="tab-btn" data-game="STAR_RAIL">スタレ</button>
+        <button class="tab-btn" data-game="ZZZ">ZZZ</button>
+      </nav>
+      <button id="tab-settings-btn" class="btn-icon tab-settings-btn" type="button" title="設定" aria-label="設定" data-i18n-title="tabSettingsTitle" data-i18n-aria-label="tabSettingsTitle">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
 
     <header class="app-header">
       <div class="header-title">
-        <!-- 画像とフォールバック文字バッジ [R2-2] -->
-        <div class="icon-wrapper" id="game-icon-wrapper" role="button" tabindex="0" title="コード交換サイトを開く" aria-label="コード交換サイトを開く">
-          <img id="game-icon" src="/assets/icons/genshin.png" alt="Icon" class="game-badge-icon" onerror="this.style.display='none'; document.getElementById('icon-fallback').style.display='flex';">
+        <div class="icon-wrapper" id="game-icon-wrapper" role="button" tabindex="0">
+          <img id="game-icon" src="" alt="Icon" class="game-badge-icon" style="display: none;">
           <div id="icon-fallback" class="fallback-badge" style="display: none;">原</div>
         </div>
         <h1 id="game-title">原神</h1>
         <span id="flavor-badge" class="flavor-badge" style="display: none;">DEV</span>
       </div>
-      <span id="login-status-badge" class="badge">確認中...</span>
+      <div class="header-user-status">
+        <span id="login-status-badge" class="badge">確認中...</span>
+        <button id="uid-copy-chip" class="uid-chip hidden" type="button" title="クリックしてUIDをコピー" aria-label="クリックしてUIDをコピー" data-i18n-title="uidCopyTitle">
+          <span class="uid-prefix">UID:</span>
+          <span id="uid-value" class="uid-text">--------</span>
+          <svg class="uid-copy-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="uid-copied-tooltip" class="uid-tooltip" data-i18n="uidCopied">コピー完了!</span>
+        </button>
+      </div>
     </header>
 
     <main class="main-content">
@@ -69,26 +203,26 @@
         <div class="card-header">
           <h2 id="sign-card-heading" class="card-title">
             <span class="card-icon" aria-hidden="true">🎁</span>
-            <span>デイリーログインボーナス</span>
+            <span data-i18n="signCardTitle">デイリーログインボーナス</span>
           </h2>
-          <button id="open-checkin-site-btn" class="btn-site-link" type="button" title="公式ログインボーナスページを開く">
+          <button id="open-checkin-site-btn" class="btn-site-link" type="button" data-i18n="btnOfficial">
             公式 ↗
           </button>
         </div>
 
         <div class="status-row">
-          <span class="status-label">本日の受取状況</span>
+          <span class="status-label" data-i18n="signStatusLabel">本日の受取状況</span>
           <span id="sign-status-badge" class="status-pill">確認中...</span>
         </div>
 
         <div class="control-row">
           <span id="auto-sign-label" class="control-label">自動受け取り (毎日 01:05)</span>
           <div class="control-actions">
-            <label class="switch" title="自動受け取りのON/OFF">
+            <label class="switch">
               <input type="checkbox" id="auto-sign-toggle">
               <span class="slider"></span>
             </label>
-            <button id="manual-sign-btn" class="btn-icon" type="button" title="今すぐボーナス受取 (手動実行)" aria-label="今すぐボーナス受取 (手動実行)">
+            <button id="manual-sign-btn" class="btn-icon" type="button">
               <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                 <path d="M3 3v5h5"/>
@@ -105,26 +239,26 @@
         <div class="card-header">
           <h2 id="redeem-card-heading" class="card-title">
             <span class="card-icon" aria-hidden="true">🎟️</span>
-            <span>交換コード自動引き換え</span>
+            <span data-i18n="redeemCardTitle">交換コード自動引き換え</span>
           </h2>
-          <button id="open-gift-site-btn" class="btn-site-link" type="button" title="公式コード交換サイトを開く">
+          <button id="open-gift-site-btn" class="btn-site-link" type="button" data-i18n="btnOfficial">
             公式 ↗
           </button>
         </div>
 
         <div class="status-row">
-          <span class="status-label">次回の実行予定</span>
+          <span id="redeem-status-label" class="status-label" data-i18n="redeemStatusLabelDefault">コード適用状況</span>
           <span id="redeem-status-badge" class="status-pill">確認中...</span>
         </div>
 
         <div class="control-row">
           <span id="auto-redeem-label" class="control-label">定期自動引き換え (3時間毎)</span>
           <div class="control-actions">
-            <label class="switch" title="定期自動引き換えのON/OFF">
+            <label class="switch">
               <input type="checkbox" id="auto-redeem-toggle">
               <span class="slider"></span>
             </label>
-            <button id="manual-trigger-btn" class="btn-icon" type="button" title="今すぐ引き換え実行 (手動実行)" aria-label="今すぐ引き換え実行 (手動実行)">
+            <button id="manual-trigger-btn" class="btn-icon" type="button">
               <svg class="icon-refresh" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                 <path d="M3 3v5h5"/>
@@ -136,7 +270,7 @@
         </div>
       </section>
 
-      <!-- 実行ログ（1行サマリー＋展開式アコーディオン） -->
+      <!-- 実行ログ -->
       <details id="logs-accordion" class="logs-accordion">
         <summary class="logs-summary">
           <span class="logs-chevron" aria-hidden="true">›</span>
@@ -144,16 +278,34 @@
         </summary>
         <div id="logs-container" class="logs-list"></div>
       </details>
+
+      <!-- ストアレビュー促進バナー -->
+      <aside id="review-prompt-banner" class="review-banner" hidden aria-labelledby="review-prompt-title">
+        <div class="review-banner-header">
+          <div class="review-banner-heading">
+            <span class="review-star-icon" aria-hidden="true">★</span>
+            <h2 id="review-prompt-title" class="review-banner-title" data-i18n="reviewPromptTitle">いつもご利用ありがとうございます！</h2>
+          </div>
+          <button id="review-prompt-dismiss-btn" class="review-close-btn" type="button" title="今後は表示しない" aria-label="今後は表示しない" data-i18n-title="reviewPromptBtnDismiss" data-i18n-aria-label="reviewPromptBtnDismiss">✕</button>
+        </div>
+        <p class="review-banner-body" data-i18n="reviewPromptBody">
+          HoYoPassはお役に立っていますか？よろしければストアで星評価やレビューをいただけると、開発の大きな励みになります！
+        </p>
+        <div class="review-banner-actions">
+          <button id="review-prompt-write-btn" class="btn btn-primary review-btn-primary" type="button" data-i18n="reviewPromptBtnWrite">レビューを書く</button>
+          <button id="review-prompt-later-btn" class="btn btn-secondary review-btn-secondary" type="button" data-i18n="reviewPromptBtnLater">あとで</button>
+        </div>
+      </aside>
     </main>
 
     <footer class="app-footer">
       <div class="footer-links">
-        <a href="https://github.com/zyanpoyo/HoYoPass#readme" id="footer-link-readme" class="footer-link" target="_blank" rel="noopener noreferrer">使い方・README</a>
+        <a href="https://hoyopass.pages.dev/" id="footer-link-readme" class="footer-link" target="_blank" rel="noopener noreferrer" data-i18n="footerGuide">使い方ガイド</a>
         <span class="footer-separator">•</span>
-        <a href="https://github.com/zyanpoyo/HoYoPass/blob/master/docs/legal/privacy_policy.md" id="footer-link-privacy" class="footer-link" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
+        <a href="https://hoyopass.pages.dev/privacy" id="footer-link-privacy" class="footer-link" target="_blank" rel="noopener noreferrer" data-i18n="privacyPolicy">プライバシーポリシー</a>
       </div>
-      <p class="footer-disclaimer">
-        非公式ファンメイドツール（COGNOSPHERE / HoYoverseとは関係ありません）
+      <p class="footer-disclaimer" id="footer-disclaimer-text">
+        非公式ファンメイドツール<br>（COGNOSPHERE / HoYoverseとは関係ありません）
       </p>
     </footer>
   </div>

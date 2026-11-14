@@ -10,7 +10,7 @@ test('FLAVORS: 定義整合性チェック', () => {
   assert.ok(FLAVORS.prod, 'prod フレーバーが存在すること');
 
   // dev
-  assert.equal(FLAVORS.dev.config.REDEEM_INTERVAL_MINUTES, 3, 'devは3分周期');
+  assert.equal(FLAVORS.dev.config.REDEEM_INTERVAL_MINUTES, 180, 'devは180分(3時間)周期');
   assert.equal(FLAVORS.dev.config.CATCH_UP_DELAY_MS, 15_000, 'devはディレイ15秒');
   assert.equal(FLAVORS.dev.config.IS_DEV, true, 'devはIS_DEV: true');
   assert.equal(FLAVORS.dev.manifest.nameSuffix, ' [DEV]');
@@ -30,14 +30,20 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
 
   // manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(devDir, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール [DEV]');
+  assert.equal(manifest.name, '__MSG_extName__', 'i18nプレースホルダーを維持');
   assert.equal(manifest.short_name, 'HoYoPass-Dev');
-  assert.equal(manifest.version_name, '1.2.0-dev');
+  assert.equal(manifest.version_name, '1.3.2-dev');
+
+  // _locales/ devサフィックス検証
+  const jaMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/ja/messages.json'), 'utf8'));
+  assert.equal(jaMsgDev.extName.message, 'HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ [DEV]');
+  const enMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/en/messages.json'), 'utf8'));
+  assert.equal(enMsgDev.extName.message, 'HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ [DEV]');
 
   // env.js
   const envContent = fs.readFileSync(path.join(devDir, 'src/config/env.js'), 'utf8');
   assert.match(envContent, /CURRENT_FLAVOR = "dev"/);
-  assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 3/);
+  assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 180/);
   assert.match(envContent, /"CATCH_UP_DELAY_MS": 15000/);
   assert.match(envContent, /"IS_DEV": true/);
 
@@ -55,9 +61,15 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
 
   // manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(prodDir, 'manifest.json'), 'utf8'));
-  assert.equal(manifest.name, 'HoYoPass - ログボ＆交換コード自動受取ツール');
+  assert.equal(manifest.name, '__MSG_extName__', 'i18nプレースホルダーを維持');
   assert.equal(manifest.short_name, 'HoYoPass');
   assert.equal(manifest.version_name, undefined, 'prodはversion_nameサフィックスなし');
+
+  // _locales/ prod検証
+  const jaMsgProd = JSON.parse(fs.readFileSync(path.join(prodDir, '_locales/ja/messages.json'), 'utf8'));
+  assert.equal(jaMsgProd.extName.message, 'HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ');
+  const enMsgProd = JSON.parse(fs.readFileSync(path.join(prodDir, '_locales/en/messages.json'), 'utf8'));
+  assert.equal(enMsgProd.extName.message, 'HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ');
 
   // env.js
   const envContent = fs.readFileSync(path.join(prodDir, 'src/config/env.js'), 'utf8');
@@ -65,4 +77,16 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
   assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 180/);
   assert.match(envContent, /"CATCH_UP_DELAY_MS": 15000/);
   assert.match(envContent, /"IS_DEV": false/);
+});
+
+test('messages.json: name が 75 文字以内、description が 132 文字以内であること (Chrome Web Store 制限)', () => {
+  const locales = ['ja', 'en'];
+  for (const loc of locales) {
+    const raw = fs.readFileSync(path.resolve('_locales', loc, 'messages.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    const name = parsed.extName.message;
+    const desc = parsed.extDescription.message;
+    assert.ok(name.length <= 75, `${loc} name is too long: ${name.length} (max 75)`);
+    assert.ok(desc.length <= 132, `${loc} description is too long: ${desc.length} (max 132)`);
+  }
 });

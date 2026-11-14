@@ -187,6 +187,7 @@ async function runPackaging() {
   ];
 
   const targetDirs = [
+    '_locales',
     'src',
     'icons',
     'assets'

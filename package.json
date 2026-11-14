@@ -1,9 +1,10 @@
 {
   "name": "hoyopass",
-  "version": "1.2.0",
-  "description": "HoYoPass - ログボ＆交換コード自動受取ツール",
+  "version": "1.3.2",
+  "description": "HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ",
   "type": "module",
   "scripts": {
+    "build": "npm run build:dev && npm run build:prod",
     "test": "node --test test/*.test.js",
     "build:dev": "node scripts/build.js dev",
     "build:prod": "node scripts/build.js prod",

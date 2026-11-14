@@ -1,47 +1,54 @@
 # Chrome Web Store Listing — HoYoPass
 
-> Last Updated: 2026-10-21
+> Last Updated: 2026-11-13
 
-## Store Listing
+## Store Listing (Japanese / 日本語)
 
 **Extension Name** [REQUIRED]
-HoYoPass - ログボ＆交換コード自動受取ツール
+HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ
 
 **Short Description** [REQUIRED]
-HoYoverseゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のデイリーログインボーナスと交換コードを自動受取する非公式ツールです。
+原神・崩壊スターレイル・ゼンゼロのHoYoLABデイリーログインボーナス（ログボ）と最新シリアルコード（交換コード）の自動入力・自動受取ツール。ブラウザを開くだけで原石・星玉・ポリクローム等のゲーム内報酬の取り逃がしをゼロにするChrome拡張機能です。
 
 **Detailed Description** [REQUIRED]
-HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のHoYoLABデイリーログインボーナスと最新ギフト交換コードを自動で受け取り、毎日の報酬獲得をサポートする非公式ファンメイドツールです。
+HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のHoYoLABデイリーログインボーナスと最新ギフト交換コード（シリアルコード）を自動で受け取り、原石・星玉・ポリクロームなどの報酬獲得をサポートする非公式ファンメイドツールです。
+毎日各サイトを開く手間を省き、コードの入力忘れ・期限切れによる報酬の取り逃がしを防ぎます。
+
+【こんな方におすすめ】
+• 原神、崩壊：スターレイル（スタレ）、ゼンレスゾーンゼロ（ゼンゼロ / ZZZ）を掛け持ちしていて、毎日の日課を効率化したい方
+• ホヨラボ（HoYoLAB）のログボ（デイリーチェックイン）をつい受け取り忘れてしまう方
+• 公式の予告番組・生放送のシリアルコード（プロモコード / ギフトコード）を期限切れ前に自動入力で確実に回収したい方
+• 毎回ブラウザで複数の交換サイトを開いてコードをコピペする手間をなくしたい方
 
 【主な機能】
-• デイリーログインボーナス自動受取 — 毎日01:05 JST（HoYoLAB日付更新直後）およびブラウザ起動・スリープ復帰時に全3タイトルのログインボーナスを自動取得
+• 多言語対応（日本語 / 英語）— ブラウザの表示言語に合わせた自動表示に加え、設定（⚙）から手動切り替え可能
+• 初回利用時の即時自動受取 — 初期設定（同意）完了直後から未受取のログインボーナスおよび有効な交換コードを即座に自動取得
+• デイリーログインボーナス自動受取 — 毎日 01:05 JST（00:05 UTC+8 / お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動実行。PC起動時やスリープ復帰時にも未受取のログボ・最新コードを自動でキャッチアップするため、深夜にPCを起動しておく必要はありません
 • 交換コードの3時間ごと自動引き換え — バックグラウンドで最新コードを自動検知して順次引き換え
-• 機能別の個別ON/OFFトグル — 「ログボ自動受取」と「交換コード自動引き換え」をそれぞれ独立してON/OFF設定可能
-• ワンクリック手動実行 & 公式ページショートカット — ポップアップ画面から現在選択中のタイトルを即時実行、または公式チェックイン・交換ページへワンクリック移動
-• マルチタイトル対応 — 原神、崩壊：スターレイル、ゼンレスゾーンゼロの3タイトルをタブで一元管理（未プレイタイトルは自動スキップ）
-• ゲーム別の実行ログ表示 — 直近の実行状況を1行でスッキリ確認でき、クリックで選択中タイトルのログ履歴を展開表示
-• デスクトップ通知 — 報酬の受取完了、CAPTCHA認証が必要な場合、再ログインが必要なタイミングをお知らせ
+• プレイ中タイトルのみ表示するタブカスタマイズ — プレイしていないゲームはタブ非表示＆バックグラウンド巡回から安全に除外可能
+• ワンクリック手動実行 — ポップアップ画面から現在選択中のタイトルを即時実行
+• コード適用実績＆有効コード消化状況の可視化 — ポップアップ上で現在有効なコードの消化状況と、今月・累計の引き換え実績を確認可能
 
 【使い方】
 1. ブラウザでHoYoLABの公式ログインボーナスページ、または各ゲームの公式ギフト交換ページにログインします。
 2. 拡張機能のアイコンをクリックし、利用規約・免責事項を確認して利用を開始します。
 3. 自動受取トグルをONにしておくだけで、毎日のログインボーナスと新着交換コードをバックグラウンドで自動取得します。
-※初回利用時、過去に手動交換済みのコードがある場合はゲーム内に「使用済み（重複）」の通知メールが届くことがありますが、API仕様による正常な挙動です（実害はなく、一度処理されたコードは拡張機能内に記録され次回以降再送されません）。
+※ 初回利用時、過去に手動交換済みのコードがある場合はゲーム内に「使用済み（重複）」の通知メールが届くことがありますが、API仕様による正常な挙動です（実害はなく、一度処理されたコードは拡張機能内に記録され次回以降再送されません）。
 
 【プライバシーとセキュリティ】
-本拡張機能は「個人情報を一切収集・送信しない」ゼロトラスト設計です。
-• アカウントのログインCookieやパスワードを拡張機能が読み取ったり外部へ送信することはありません（`cookies` 権限不使用）。
-• お使いのブラウザに保存された公式セッションを通じて直接公式API（HoYoLAB / HoYoverse）とのみ通信します。
-• 設定情報や受取履歴はすべてお使いのPC内にのみ安全に保存されます。
+本拡張機能は「アカウント安全第一」のゼロトラスト設計です。
+• ログイン情報、Cookie、パスワードを拡張機能が読み取ったり外部サーバーへ送信することはありません。
+• お使いのブラウザに保存された既存セッションを通じ、公式API（HoYoLAB / HoYoverse）とのみ直接通信します。
+• 設定や受取履歴はすべてお使いのPCローカル内に安全に保存されます。
+• ※品質改善用の匿名利用統計（個人を特定しない操作ログ）は、設定画面からいつでも完全無効化（オプトアウト）可能です。
 
 【免責事項】
 本拡張機能はファンメイドの非公式ツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。
 
 【サポート & お問い合わせ】
-不具合報告や機能要望は、GitHubリポジトリのIssueよりお気軽にご連絡ください。
-https://github.com/zyanpoyo/HoYoPass/issues
+不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.2.0 — ポップアップUI改善・操作性向上 & ドキュメント強化
+バージョン 1.3.2 — バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上、UI表示および操作性の改善
 
 **Category** [REQUIRED]
 Productivity
@@ -50,34 +57,85 @@ Productivity
 HoYoverse各ゲームのデイリーログインボーナスおよび公開ギフト交換コードを自動的に受け取り、ゲーム内報酬の獲得を支援する。
 
 **Primary Language** [REQUIRED]
-Japanese
+English (Default) / Japanese
 
+
+---
+
+## Store Listing (English / 英語)
+
+**Extension Name** [REQUIRED]
+HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ
+
+**Short Description** [REQUIRED]
+Auto-claims daily check-in rewards & gift codes for Genshin Impact, Honkai: Star Rail and ZZZ in the background. Never miss rewards!
+
+**Detailed Description** [REQUIRED]
+HoYoPass is an unofficial, fan-made Chrome extension designed to help Travelers, Trailblazers, and Proxies never miss a single reward. It quietly claims HoYoLAB daily check-in bonuses and works to auto-redeem newly released promo codes and gift codes for Genshin Impact, Honkai: Star Rail (HSR), and Zenless Zone Zero (ZZZ) directly in the background.
+Say goodbye to opening multiple tabs every single day or missing out on limited-time livestream codes and redemption codes (Primogems, Stellar Jades, Polychromes).
+
+[Key Features]
+• Multi-Language Support (English / Japanese) — Automatically matches your browser language or can be toggled manually from settings (⚙).
+• Immediate Auto-Claim on Setup — Right after agreeing to terms, it instantly collects all pending check-in rewards and available active codes.
+• Background Daily Check-In — Automatically cycles through all enabled games daily at 00:05 UTC+8 (01:05 JST, smartly calculated in your local timezone). It also automatically catches up on any unclaimed daily check-in bonuses and latest promo codes when you start your PC or wake it from sleep, so there is no need to leave your PC running overnight.
+• 3-Hour Periodic Code Redemption — Checks and auto-redeems newly discovered gift codes and special program livestream codes every 3 hours without opening browser tabs.
+• Tab Filter & Game Customization — Playing only Genshin, HSR, or ZZZ? Hide unplayed games from the interface and exclude them safely from background checks.
+• One-Click Instant Manual Trigger — Instantly redeem codes or claim check-in for the currently selected game from the popup.
+• Transparent Stats & Active Code Tracker — Easily check how many active codes are available, your monthly count, and total redeemed codes.
+
+[How to Use]
+1. Log in to the official HoYoLAB check-in page or game redemption website in your browser.
+2. Click the HoYoPass icon on your toolbar and accept the disclaimer to start.
+3. Keep the toggles ON. This Chrome extension will automatically collect check-in rewards and auto-redeem codes in the background.
+* Note: On your first run, you may receive in-game mail stating "Code has already been used" for codes you previously claimed manually. This is normal behavior from the official API. These codes are safely remembered and will not be re-submitted.
+
+[Privacy & Security]
+HoYoPass is built from the ground up with a security-first, zero-credential-collection philosophy:
+• No passwords, session tokens, or account credentials are ever read, stored, or sent to external servers.
+• Communicates directly and exclusively with official HoYoLAB / HoYoverse APIs using your local browser session.
+• All preferences and redemption histories are stored 100% locally on your computer.
+• Fully transparent: Anonymous usage metrics for quality improvements can be toggled off at any time via Settings (⚙).
+
+[Disclaimer]
+HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).
+
+[Support]
+Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
+
+Version 1.3.2 — Improved background auto-claim and sleep/startup catch-up reliability, UI refinements, and overall stability enhancements.
+
+**Single Purpose** [REQUIRED]
+Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
+
+
+---
 
 ## Graphics & Assets
 
+### Japanese Store Assets
 | Asset | Dimensions | Status | Filename |
 |---|---|---|---|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `icons/icon128.png` |
-| Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot1_main_1280x800.png` (メイン画面・統合2カードUI) |
-| Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot2_dialog_1280x800.png` (受取・交換成功ダイアログ画面) |
-| Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot3_browser_1280x800.png` (Chromeブラウザ操作モックアップ) |
-| Popup Preview [REFERENCE] | 340×455 | ✅ Ready | `docs/screenshots/popup_3items_success.png` (ポップアップ実寸) |
-| Small Promo Tile [RECOMMENDED] | 440×280 | ⬜ Not created | |
-| Marquee Promo Tile | 1400×560 | ⬜ Not created | |
+| Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot1_main_1280x800.png` (メイン画面・日本語) |
+| Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot2_dialog_1280x800.png` (受取完了ダイアログ・日本語) |
+| Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot3_browser_1280x800.png` (ブラウザ操作モック・日本語) |
+| Popup Preview [REFERENCE] | 340×480 | ✅ Ready | `docs/screenshots/popup_3items_success.png` (ポップアップ実寸・日本語) |
 
-### Screenshot Notes
-- スクリーンショット1: ポップアップのメイン操作画面（原神タブ、デイリーログボ＆交換コードの2カードUI、ログ一覧）。
-- スクリーンショット2: 手動実行後の完了ダイアログ表示画面。
-- スクリーンショット3: Chromeブラウザ上でHoYoPassを開いた実際の利用体験モックアップ。
-- ポップアップ単体プレビュー: READMEやドキュメント掲載用の実寸切り抜きキャプチャ。
+### English Store Assets
+| Asset | Dimensions | Status | Filename |
+|---|---|---|---|
+| Screenshot 1 (EN) [REQUIRED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot1_main_1280x800_en.png` (Main Popup UI in English) |
+| Screenshot 2 (EN) [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot2_dialog_1280x800_en.png` (Instant Dialog UI in English) |
+| Screenshot 3 (EN) [RECOMMENDED] | 1280×800 | ✅ Ready | `docs/screenshots/screenshot3_browser_1280x800_en.png` (Browser Mockup in English) |
+| Popup Preview (EN) [REFERENCE] | 340×480 | ✅ Ready | `docs/screenshots/popup_3items_success_en.png` (Standalone Popup in English) |
 
 
 ## Permissions Justification
 
 | Permission | Type | Justification |
 |---|---|---|
-| `storage` | permissions | ユーザー設定（ログボ・交換コード各自動実行の有効/無効、選択ゲーム）、本日のログボ受取記録、引き換え済みコード履歴、直近50件の実行ログをブラウザ内にローカル保存するために使用します。 |
-| `alarms` | permissions | 毎日01:05 JSTのログインボーナス自動受取アラーム、3時間周期の交換コード自動引き換えアラーム、および通信失敗時の短期自動再試行スケジュールを行うために使用します。 |
+| `storage` | permissions | ユーザー設定（ログボ・交換コード各自動実行の有効/無効、選択ゲーム、表示言語）、本日のログボ受取記録、引き換え済みコード履歴、直近50件の実行ログをブラウザ内にローカル保存するために使用します。 |
+| `alarms` | permissions | 毎日01:05 JST（現地時刻換算）のログインボーナス自動受取アラーム、3時間周期の交換コード自動引き換えアラーム、および通信失敗時の短期自動再試行スケジュールを行うために使用します。 |
 | `notifications` | permissions | ログボ受取やコード引き換えの完了通知、CAPTCHA認証要求の案内、および公式セッション期限切れに伴う再ログイン誘導をユーザーへ通知するために使用します。 |
 | `idle` | permissions | PCのスリープ解除やユーザーのアイドル復帰を検知し、回線安定後に当日未受取のログインボーナスおよび最新交換コードの自動キャッチアップを行うために使用します。 |
 | `https://api-os-takumi.hoyoverse.com/*` | host_permissions | HoYoverse公式Takumi APIと通信し、ログイン中セッションに紐づくゲーム内キャラクター情報（UID・サーバー）を取得するために使用します。 |
@@ -97,10 +155,12 @@ Japanese
 
 ### Data Collection
 
-**Does the extension collect user data?** No
+**Does the extension collect user data?** Yes
 
-本拡張機能はいかなる個人情報・行動データ・認証情報も収集・送信しません。
-公式APIとの通信はすべてブラウザ標準のCookie透過通信（`credentials: 'include'`）によりクライアント完結で行われ、外部サーバーへのCookie収集は一切行いません。
+本拡張機能は、機能の改善および不具合検知を目的として、Google Analytics 4 Measurement Protocol 経由で匿名の利用統計データを収集します。
+- **収集するデータ項目**: ユーザーの操作種別（UIボタン押下など）、コード引き換え成否ステータス、エラー分類コード、拡張機能バージョン、表示言語設定、およびランダム生成された識別子（UUID）。
+- **収集しない情報**: 氏名、メールアドレス、パスワード、ゲームアカウントUID、Cookie、IPアドレス、その他一切の個人を特定可能な情報。
+- **オプトアウト（無効化）**: 初回利用開始時の確認画面、またはポップアップ設定画面（⚙）の「匿名の利用統計」トグルから、いつでも無効化できます。
 
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
@@ -111,7 +171,7 @@ Japanese
 ## Privacy Policy
 
 **Privacy Policy URL** [REQUIRED]
-https://github.com/zyanpoyo/HoYoPass/blob/master/docs/legal/privacy_policy.md
+https://hoyopass.pages.dev/privacy (English: https://hoyopass.pages.dev/privacy_en)
 
 
 ## Distribution
@@ -129,17 +189,22 @@ zyanpoyo
 (※ Chrome Web Store デベロッパーダッシュボードに登録したメールアドレスを入力)
 
 **Support URL / Email** [RECOMMENDED]
-https://github.com/zyanpoyo/HoYoPass/issues
+https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 **Homepage URL** [RECOMMENDED]
-https://github.com/zyanpoyo/HoYoPass
+https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 
 ## Version History
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.2.0 | 2026-10-21 | ポップアップ画面のUIシンプル化・操作性向上、初回利用時の交換コード重複案内ドキュメント強化、マイナーバージョンアップ | Ready |
+| 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Ready |
+| 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Released |
+| 1.3.0 | 2026-10-27 | サービス品質向上のための匿名利用統計（GA4 Measurement Protocol）の導入、明示的なオプトイン/オプトアウト設定UI、初回利用時および既存ユーザー向け同意フローの実装、アンインストール時の品質改善アンケートフォーム誘導対応、機密情報保護アーキテクチャの強化、プライバシーポリシー日英多言語対応および将来の改定管理（バージョン管理）機構の導入 | Released |
+| 1.2.2 | 2026-10-25 | 多言語対応（日本語 / 英語）、ブラウザ言語自動判定＆手動切替UI（Auto / 日本語 / English）、ロケーション連動APIリクエスト、現地時刻自動換算表示、CWS英語掲載情報および英語スクリーンショット生成対応 | Released |
+| 1.2.1 | 2026-10-24 | 初期設定完了時の即時自動受取対応、プレイ中タイトルに絞り込めるタブ表示カスタマイズ、UI/UX改善および安定性の向上 | Released |
+| 1.2.0 | 2026-10-24 | ポップアップ画面のUIシンプル化・操作性向上、交換コード適用実績（今月/通算）および有効コード消化状況の可視化、初回利用時の交換コード重複案内ドキュメント強化 | Released |
 | 1.1.0 | 2026-10-17 | デイリーログインボーナス自動受取機能（原神・スタレ・ZZZ対応）、統合2カードUI、個別ON/OFFトグル、日次独立アラーム＆直列キャッチアップの追加、拡張機能名称の刷新 | Released |
 | 1.0.1 | 2026-10-13 | 実行周期を3時間に短縮、スリープ復帰/ブラウザ起動時キャッチアップ機能、通信エラー時2分後自動再試行機能、`idle` 権限の追加 | Released |
 | 1.0.0 | 2026-10-12 | 初回バージョンリリース（原神・スターレイル・ZZZ対応、定期自動引き換え、排他制御） | Released |
@@ -151,4 +216,4 @@ https://github.com/zyanpoyo/HoYoPass
 - 本拡張機能は公式Webサイト（HoYoLABおよび各ゲームのギフト交換ページ）でのログインセッションが有効である必要があります。未ログインまたはセッション期限切れ時はデスクトップ通知にて再ログインを促します。
 - ログインボーナス受取時にHoYoLAB側からCAPTCHA認証（人間確認）が要求された場合は、デスクトップ通知にて公式チェックインページでの手動認証を案内します。
 - 各ゲームでキャラクターが作成されていない場合（未プレイタイトル）は安全にスキップされます。
-- 初回利用時、現在公開されている有効コードを一括で引き換えるため、過去にゲーム内等で手動交換済みのコードについてゲーム内メールで「交換コードは既に使用されています（重複エラー）」という通知が届く場合があります。これはHoYoverse公式APIの仕様（Web判定とゲームサーバー判定の二段階処理）による正常な挙動であり、アカウントへの実害はありません。一度処理されたコードは拡張機能内に保存され再送されません。
+- 初回利用時、現在公開されている有効コードを一括で引き換えるため、過去にゲーム内等で手動交換済みのコードについてゲーム内メールで「交換コードは既に使用されています（重複エラー）」という通知が届く場合があります。これはHoYoverse公式APIの仕様による正常な挙動であり、アカウントへの実害はありません。

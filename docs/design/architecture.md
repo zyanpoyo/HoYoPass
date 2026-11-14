@@ -22,6 +22,7 @@ flowchart TD
         TakumiAPI["HoYoverse Takumi API<br>(ロール情報照会・UID取得)"]
         RedeemAPI["各ゲーム公式交換API<br>(原神 / スタレ / ZZZ)"]
         HoyoCodesAPI["hoyo-codes API<br>(公開交換コード一覧取得)"]
+        GA4API["Google Analytics 4<br>(Measurement Protocol 匿名メトリクス収集)"]
     end
 
     SW -->|日次アラーム / 3時間アラーム / キャッチアップ起動| Storage
@@ -32,6 +33,8 @@ flowchart TD
     SW -->|Cookie透過通信 credentials: include| SignAPI
     SW -->|Cookie透過通信 credentials: include| TakumiAPI
     SW -->|Cookie透過通信 credentials: include| RedeemAPI
+    SW -->|匿名利用統計 POST（オプトアウト可）| GA4API
+    Popup -->|UI操作イベント POST（オプトアウト可）| GA4API
     CookieJar -.->|ブラウザ自動付与| SignAPI
     CookieJar -.->|ブラウザ自動付与| TakumiAPI
     CookieJar -.->|ブラウザ自動付与| RedeemAPI
@@ -121,21 +124,30 @@ HoYoLABの公式デイリーチェックインページ（`act.hoyolab.com`）�
 ```
 src/
 ├── background/
-│   └── service-worker.js    # 2系統アラーム制御（日次ログボ / 3時間コード）、直列キャッチアップ、手動メッセージハンドラ
+│   ├── flow-runner.js          # アラーム制御、通知ルーティング、共通マルチゲーム巡回パイプライン
+│   └── service-worker.js       # 2系統アラーム発火・キャッチアップ起動、コード引換/ログボ個別処理、メッセージハンドラ
 ├── config/
-│   ├── constants.js         # API定数、ゲーム固有エンドポイント設定（ログボ・コード）、URL定義
-│   └── flavors.js           # dev / prod ビルドフレーバー別のアラーム周期・ラベル設定
+│   ├── constants.js            # API定数、ゲーム固有エンドポイント設定（ログボ・コード）、URL定義
+│   ├── env.js                  # ビルド時自動生成されるフレーバー・GA4環境変数定義
+│   └── flavors.js              # dev / prod ビルドフレーバー別のアラーム周期・ラベル設定
 ├── popup/
-│   ├── popup.html           # 統合2カード型ポップアップUIマークアップ
-│   ├── popup.css            # スタイリング（ダークモード基調、2カード構成、ログフィルタタブ）
-│   └── popup.js             # UIイベント処理、ログボ状況・ロール取得状態反映、カテゴリ別ログ描画
+│   ├── popup.html              # 統合2カード型ポップアップUIマークアップ
+│   ├── popup.css               # スタイリング（ダークモード基調、2カード構成、モーダル・バナー）
+│   ├── popup.js                # ポップアップ状態管理、タブ描画、イベントバインディングのエントリポイント
+│   ├── modals.js               # 初回同意・統計同意・ポリシー改定・設定・アラートモーダルおよびレビュー促進バナー制御
+│   ├── status-view.js          # DOM多言語反映、ゲームロール表示、ログボ・交換コード実績カードの描画更新
+│   └── log-view.js             # ゲーム別実行ログのフィルタリング・プレフィックス整形・リスト描画
 ├── services/
-│   ├── code-fetcher.js      # hoyo-codes APIからのコード一覧取得・ペイロード検証
-│   ├── hoyo-api.js          # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し
-│   ├── http-client.js       # ホワイトリスト検証付きセキュアHTTPクライアント（credentialedFetch / publicFetch）
-│   └── storage-service.js   # chrome.storageのCRUD操作、UTC+8日付管理、排他ロック（Mutex）管理
+│   ├── analytics-service.js    # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
+│   ├── code-fetcher.js         # hoyo-codes APIからのコード一覧取得・ペイロード検証
+│   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し
+│   ├── http-client.js          # ホワイトリスト検証付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
+│   ├── review-prompt-service.js# ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定
+│   ├── security.js             # UID・リージョン・交換コード形式の入力バリデーション
+│   └── storage-service.js      # chrome.storageのCRUD操作、UTC+8日付管理、排他ロック（Mutex）管理
 └── utils/
-    └── message-formatter.js # ログボおよび交換コードAPIレスポンスの日本語整形フォーマッタ
+    ├── i18n.js                 # 日英多言語辞書（MESSAGES）、言語解決、URL・時刻ローカライズヘルパー
+    └── message-formatter.js    # ログボおよび交換コード実行結果のユーザー向けダイアログ文言フォーマッタ
 ```
 
 ---
@@ -167,16 +179,20 @@ src/
 ブラウザの `chrome.storage.local`（最大10MB）を使用します。
 
 ### 6.1 キー構造
-| キー | 型 | 用途 |
-| :--- | :--- | :--- |
-| `settings` | Object | ユーザー設定（`autoSignEnabled`, `autoRedeemEnabled`, `selectedGame`, `hasAgreedToTerms`） |
-| `daily_sign_${gameBiz}` | Object | ゲーム別のログボ最終受取日（`lastSignedDate`: `YYYY-MM-DD` (UTC+8), `totalSignDay`, `updatedAt`） |
-| `last_daily_sign_check_date` | String | 全タイトル一括ログボ自動巡回が完了した最終日付（`YYYY-MM-DD` UTC+8、キャッチアップ判定用） |
-| `redeemed_codes` | Object | ゲーム別引き換え済みコード履歴（重複引き換えの防止） |
-| `exec_logs` | Array | 画面表示用の直近実行ログ（`timestamp`, `type`, `category` (`SIGN`/`CODE`/`SYSTEM`), `message`） |
-| `last_successful_run` | Number | コード自動引き換え巡回全体が正常完了した最終エポックミリ秒 |
-| `redeem_lock` | Object | 排他ロック用タイムスタンプと実行ID |
-| `backoff_until` | Number | バックオフ解除時刻のUNIXエポックミリ秒 |
+| ストレージ領域 | キー | 型 | 用途 |
+| :--- | :--- | :--- | :--- |
+| `local` | `app_settings` | Object | ユーザー設定（`optInAccepted`, `autoSignEnabled`, `autoRedeemEnabled`, `activeGameKey`, `enabledGames`, `language`, `analyticsConsentReviewed`, `analyticsEnabled`, `agreedPolicyVersion`） |
+| `local` | `daily_sign_${gameBiz}` | Object | ゲーム別のログボ受取記録（`date`: `YYYY-MM-DD` (UTC+8), `isSigned`, `totalSignDay`, `skippedNoChar`, `updatedAt`） |
+| `local` | `redeemed_${gameBiz}` | Object | ゲーム別引き換え済みコード履歴（重複引き換えの防止・月間/通算集計） |
+| `local` | `active_codes_${gameBiz}` | Array | 直近に取得した有効交換コード一覧（消化率表示用キャッシュ） |
+| `local` | `daily_counts_${gameBiz}` | Object | 1日あたりの新規コード引き換え試行カウント（上限20件の保護用） |
+| `local` | `exec_logs` | Array | 画面表示用の直近実行ログ（`timestamp`, `type`, `category` (`SIGN`/`CODE`), `gameKey`, `message`） |
+| `local` | `last_successful_run` | Number | コード自動引き換え巡回全体が正常完了した最終エポックミリ秒 |
+| `local` | `backoff_until` | Number | バックオフ解除時刻のUNIXエポックミリ秒 |
+| `local` | `ga_client_id` | String | GA4 用の匿名クライアント識別子（UUIDv4） |
+| `local` | `reviewPrompt` | Object | ストアレビュー促進機能の処理ステータス、成功回数（実行セッション単位）、延期回数、次回再表示可能時刻、初回インストール日時 |
+| `session` | `lock_state` | Object | 排他ロック用ステータス（`running`, `startedAt`, `trigger`） |
+| `session` | `ga_session_id` / `ga_last_active` | String / Number | GA4 の30分セッション管理用タイムスタンプ |
 
 ### 6.2 履歴の整理（ローテーション）
 - `redeemed_codes` に蓄積された記録が 3,000 件を超えた場合、古い確定記録から自動的に整理されます。
@@ -186,7 +202,7 @@ src/
 
 ## 7. テスト・検証環境
 
-プロジェクトはNode.js組み込みのテストランナー（`node:test` / `node:assert/strict`）を採用しており、外部の重量級フレームワークに依存せず高速にテストを実行可能です。
+プロジェクトはNode.js組み込みのテストランナー（`node:test` / `node:assert/strict`）を採用しており、外部の重量級フレームワークに依存せず高速にテストを実行可能です。CI/CDおよびライブラリ脆弱性の検知・自動更新パイプライン仕様については、[CI/CD & 脆弱性管理システム設計書](./ci_cd_security_architecture.md) を参照してください。
 
 ```bash
 # 全単体テストの実行

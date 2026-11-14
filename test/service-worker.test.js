@@ -11,6 +11,10 @@ const mockClearedNotifications = [];
 const mockCreatedNotifications = [];
 const mockAlarms = new Map();
 const mockIdleListeners = [];
+const mockMessageListeners = [];
+let mockUninstallUrl = null;
+const mockInstalledListeners = [];
+const mockStartupListeners = [];
 
 globalThis.chrome = {
   storage: {
@@ -50,15 +54,19 @@ globalThis.chrome = {
   runtime: {
     id: 'test-ext-id',
     getURL: (p) => `chrome-extension://test-ext-id/${p}`,
-    onInstalled: { addListener: () => {} },
-    onStartup: { addListener: () => {} },
-    onMessage: { addListener: () => {} }
+    onInstalled: { addListener: (fn) => { mockInstalledListeners.push(fn); } },
+    onStartup: { addListener: (fn) => { mockStartupListeners.push(fn); } },
+    setUninstallURL: async (url) => { mockUninstallUrl = url; },
+    onMessage: {
+      addListener: (fn) => { mockMessageListeners.push(fn); }
+    }
   }
 };
 
-import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord } from '../src/services/storage-service.js';
-import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG } from '../src/config/constants.js';
+import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord, getReviewPromptState, updateReviewPromptState } from '../src/services/storage-service.js';
+import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
 const {
+  setupUninstallUrl,
   handleNotificationClick,
   LOGIN_NOTIFICATION_PREFIX,
   SIGN_LOGIN_NOTIFICATION_PREFIX,
@@ -529,5 +537,369 @@ test('maybeRunAllCatchUp: 起動・復帰時にログインボーナスとコー
   }
 });
 
+test('runAutoRedeemFlow & runDailySignFlow: enabledGames で指定したタイトルのみ巡回されること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  // STAR_RAIL のみ有効化
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['STAR_RAIL'],
+      activeGameKey: 'STAR_RAIL'
+    }
+  });
+
+  const calledGames = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hkrpg_global')) calledGames.push('STAR_RAIL');
+      if (u.includes('hk4e_global')) calledGames.push('GENSHIN');
+      if (u.includes('nap_global')) calledGames.push('ZZZ');
+      return {
+        status: 200,
+        json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } })
+      };
+    }
+    return { status: 200, json: async () => ({}), text: async () => JSON.stringify({ retcode: 0, data: {} }) };
+  };
+
+  try {
+    // 1. コード自動引き換え
+    const redeemRes = await runAutoRedeemFlow('ALARM');
+    assert.equal(redeemRes.success, true);
+    assert.deepEqual(Object.keys(redeemRes.results), ['STAR_RAIL'], '巡回結果キーにSTAR_RAILのみが含まれること');
+    assert.ok(calledGames.includes('STAR_RAIL'));
+    assert.ok(!calledGames.includes('GENSHIN'), 'GENSHINのAPIは呼ばれないこと');
+    assert.ok(!calledGames.includes('ZZZ'), 'ZZZのAPIは呼ばれないこと');
+
+    // 2. ログボ自動受取
+    calledGames.length = 0;
+    const signRes = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(signRes.success, true);
+    assert.deepEqual(Object.keys(signRes.results), ['STAR_RAIL'], 'ログボ巡回結果キーにSTAR_RAILのみが含まれること');
+    assert.ok(calledGames.includes('STAR_RAIL'));
+    assert.ok(!calledGames.includes('GENSHIN'));
+    assert.ok(!calledGames.includes('ZZZ'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('maybeRunAllCatchUp: skipDelay=true 指定時に待機ディレイをスキップして即座にログボ・コード引き換えを実行すること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    }
+  });
+
+  const originalDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  // テスト検知用に大きなディレイを設定（スキップされない場合はタイムアウトまたは遅延する）
+  API_CONFIG.CATCH_UP_DELAY_MS = 10_000;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }),
+    text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { list: [] } })
+  });
+
+  const startTime = Date.now();
+  try {
+    const { signResult, redeemResult } = await maybeRunAllCatchUp('INITIAL_RUN', true);
+    const elapsed = Date.now() - startTime;
+    assert.ok(elapsed < 2000, `ディレイがスキップされ高速に完了すること (実績: ${elapsed}ms)`);
+    assert.equal(signResult.success, true);
+    assert.equal(redeemResult.success, true);
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('onMessage: TRIGGER_INITIAL_CATCH_UP 受信時に maybeRunAllCatchUp が実行され結果を返すこと', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    }
+  });
+
+  const originalDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  API_CONFIG.CATCH_UP_DELAY_MS = 0;
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }),
+    text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { list: [] } })
+  });
+
+  try {
+    let handled = false;
+    const responsePromise = new Promise((resolve) => {
+      for (const listener of mockMessageListeners) {
+        const res = listener({ type: 'TRIGGER_INITIAL_CATCH_UP' }, { id: chrome.runtime.id }, (data) => {
+          resolve(data);
+        });
+        if (res === true) {
+          handled = true;
+          break;
+        }
+      }
+    });
+
+    assert.ok(handled, 'TRIGGER_INITIAL_CATCH_UP メッセージが処理されること');
+
+    const responseData = await responsePromise;
+    assert.ok(responseData, 'レスポンスが返却されること');
+    assert.equal(responseData.signResult.success, true);
+    assert.equal(responseData.redeemResult.success, true);
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = originalDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
 
 
+
+
+test('setupUninstallUrl: 正しいアンインストールURLが設定されること', async () => {
+  mockUninstallUrl = null;
+  await setupUninstallUrl();
+  assert.equal(mockUninstallUrl, UNINSTALL_URL);
+  assert.equal(mockUninstallUrl, 'https://forms.gle/xWmVdhKJhpcuvmhP9');
+});
+
+test('setupUninstallUrl: API例外発生時に例外を外部へスローせず安全に処理されること', async () => {
+  const originalSetUninstallURL = chrome.runtime.setUninstallURL;
+  chrome.runtime.setUninstallURL = async () => {
+    throw new Error('API failure simulation');
+  };
+
+  try {
+    // 例外がスローされず正常終了することを確認
+    await assert.doesNotReject(async () => {
+      await setupUninstallUrl();
+    });
+  } finally {
+    chrome.runtime.setUninstallURL = originalSetUninstallURL;
+  }
+});
+
+test('onInstalled / onStartup: 既存・新規ユーザーに対して ga_client_id が確実に初期化・維持されること', async () => {
+  // 1. 未生成状態で onInstalled (アップデート/インストール) が呼ばれた場合、UUIDが生成・保存されること
+  mockStorage.local.delete('ga_client_id');
+  assert.equal(mockStorage.local.get('ga_client_id'), undefined);
+  assert.ok(mockInstalledListeners.length > 0);
+  await mockInstalledListeners[0]();
+  const generatedId = mockStorage.local.get('ga_client_id');
+  assert.ok(generatedId, 'onInstalled 実行時に ga_client_id が生成されること');
+  assert.match(generatedId, /^[0-9a-f-]{36}$/i);
+
+  // 2. 既存ユーザーが既に ga_client_id を持っている状態で onInstalled が呼ばれても同一IDが維持されること
+  mockStorage.local.set('ga_client_id', 'existing-legacy-client-id');
+  await mockInstalledListeners[0]();
+  assert.equal(mockStorage.local.get('ga_client_id'), 'existing-legacy-client-id', '既存の ga_client_id が上書きされず維持されること');
+});
+
+
+test('runAutoRedeemFlow / runDailySignFlow: レビュー促進成功カウントの適切な加算制御', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  // 初期 reviewPrompt をセット
+  await updateReviewPromptState({ successCount: 0, status: 'pending' });
+
+  // 1. runAutoRedeemFlow: 新規成功(retcode: 0)がある場合は1セッションで+1加算
+  let fetchCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const urlStr = url.toString();
+    if (urlStr.includes('getUserGameRolesByCookie')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          retcode: 0,
+          message: 'OK',
+          data: {
+            list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+          }
+        })
+      };
+    }
+    if (urlStr.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({
+          codes: [{ code: 'CODE1' }, { code: 'CODE2' }]
+        })
+      };
+    }
+    if (urlStr.includes('webExchangeCdkey')) {
+      fetchCount++;
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ retcode: 0, message: 'OK' })
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const res = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(res.success, true);
+    assert.equal(res.redeemedCount, 2, '2件成功');
+    let state = await getReviewPromptState();
+    assert.equal(state.successCount, 1, '複数件成功してもセッション単位で+1加算されること');
+
+    // 2. runAutoRedeemFlow: 引き換え済み(-2017)や期限切れ(-2001)のみで新規成功0件の時は加算されないこと
+    globalThis.fetch = async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('getUserGameRolesByCookie')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      if (urlStr.includes('hoyo-codes.seria.moe')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({
+            codes: [{ code: 'ALREADY_CLAIMED_CODE' }]
+          })
+        };
+      }
+      if (urlStr.includes('webExchangeCdkey')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ retcode: -2017, message: 'Already claimed' })
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const resAlready = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(resAlready.success, true);
+    assert.equal(resAlready.redeemedCount, 0);
+    state = await getReviewPromptState();
+    assert.equal(state.successCount, 1, '引き換え済みのみの場合はカウントが増えないこと');
+
+    // 3. runDailySignFlow: 新規受取成功で+1加算
+    globalThis.fetch = async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('getUserGameRolesByCookie')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      if (urlStr.includes('/event/sol/info')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { is_sign: false, total_sign_day: 5, today: '2026-11-01' }
+          })
+        };
+      }
+      if (urlStr.includes('/event/sol/sign')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { code: 'ok' }
+          })
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const resSign = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(resSign.success, true);
+    assert.equal(resSign.signedCount, 1);
+    state = await getReviewPromptState();
+    assert.equal(state.successCount, 2, '新規ログボ受取成功で+1加算されること');
+
+    // 4. runDailySignFlow: すでに受取済みの場合は加算されないこと
+    globalThis.fetch = async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('getUserGameRolesByCookie')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: {
+              list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }]
+            }
+          })
+        };
+      }
+      if (urlStr.includes('/event/sol/info')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { is_sign: true, total_sign_day: 6, today: '2026-11-01' }
+          })
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    // キャッシュをクリアしてforceCheck
+    const resSignAlready = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(resSignAlready.success, true);
+    assert.equal(resSignAlready.signedCount, 0);
+    state = await getReviewPromptState();
+    assert.equal(state.successCount, 2, '受取済みスキップ時はカウントが増えないこと');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
