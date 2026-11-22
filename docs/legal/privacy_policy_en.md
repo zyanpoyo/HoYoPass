@@ -91,12 +91,24 @@ Users may opt out at any time during onboarding or by unchecking "Anonymous Anal
 
 ---
 
-## 8. Disclaimer
-HoYoPass is an unofficial, fan-made tool and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse). The developer assumes no responsibility or liability for any consequences arising from the use of this Extension.
+## 8. Disclaimer & Relationship with Official Terms
+
+- **Unofficial Tool & Intellectual Property**: The Extension is an unofficial, fan-made tool developed by an individual and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse). "Genshin Impact", "Honkai: Star Rail", "Zenless Zone Zero", "HoYoverse", "HoYoLAB", and all related names, trademarks, and intellectual property rights belong to their respective owners.
+- **Risks Under Official Terms of Service & User Responsibility**: Automating daily check-in rewards and gift code redemption through the Extension may be deemed by the operator to violate the Terms of Service of HoYoverse titles (including prohibitions on third-party tools, bots, etc.). Automatic execution features are enabled only by the user's voluntary configuration, and users use the Extension at their own discretion and risk.
+- **Limitation of Liability**: The developer assumes no responsibility for any damages arising from the use of (or inability to use) the Extension, including but not limited to account warnings, restrictions, or suspensions; revocation or reclamation of in-game rewards; and malfunctions caused by changes to or discontinuation of official APIs.
+- **Suspension or Discontinuation**: Upon request from rights holders or platform operators (such as Google), or whenever the developer deems it necessary, the developer may suspend distribution of, discontinue, or remove some features of the Extension without prior notice.
 
 ---
 
-## 9. Changes to This Privacy Policy & Revision History
+## 9. Compliance with the Chrome Web Store User Data Policy
+
+The Extension's handling of information and transmission to external services comply with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/limited-use), including the Limited Use requirements.
+
+> The use and transfer of information received from Google APIs or browser storage to any other app will adhere to the Chrome Web Store User Data Policy, including the Limited Use requirements.
+
+---
+
+## 10. Changes to This Privacy Policy & Revision History
 This policy may be updated due to feature additions, legal requirements, or browser platform changes. When material changes occur (such as changes to user rights, collected data types, or new transmission destinations), users will be notified via this website or extension updates, and explicit re-consent will be requested where required.
 
 Minor modifications—such as wording clarifications, typographical corrections, or internal storage item additions—will be published directly without re-prompting user consent.
@@ -108,7 +120,7 @@ Minor modifications—such as wording clarifications, typographical corrections,
 
 ---
 
-## 10. Contact & Support
+## 11. Contact & Support
 If you have questions, feedback, or bug reports regarding this policy or data practices, please reach out via:
 - Support tab on the Extension's Chrome Web Store page
 - Web Privacy Policy: https://hoyopass.pages.dev/privacy (English: https://hoyopass.pages.dev/privacy_en )
