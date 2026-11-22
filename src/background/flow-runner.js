@@ -3,7 +3,13 @@ import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
 import {
   acquireExecutionLock,
   releaseExecutionLock,
-  isUnderBackoff,
+  getBackoffState,
+  resetBackoffLevel,
+  getOrCreateDailySignJitterMinutes,
+  consumeRetrySlot,
+  setLastAttemptTimestamp,
+  checkManualCooldown,
+  recordManualCooldown,
   getSettings,
   checkStorageCapacity,
   addExecutionLog
@@ -60,7 +66,7 @@ export function notifyLoginRequired(prefix, gameKey, msgKey, gameName, lang) {
   });
 }
 
-export function getNextDailySignTimestamp(nowMs = Date.now()) {
+export function getNextDailySignTimestamp(nowMs = Date.now(), jitterMinutes = 0) {
   const utc8OffsetMs = 8 * 60 * 60 * 1000;
   const utc8Date = new Date(nowMs + utc8OffsetMs);
   const targetUtc8 = Date.UTC(
@@ -68,7 +74,7 @@ export function getNextDailySignTimestamp(nowMs = Date.now()) {
     utc8Date.getUTCMonth(),
     utc8Date.getUTCDate(),
     0, 5, 0, 0
-  );
+  ) + jitterMinutes * 60 * 1000;
   let nextWhen = targetUtc8 - utc8OffsetMs;
   if (nextWhen <= nowMs) {
     nextWhen += 24 * 60 * 60 * 1000;
@@ -96,41 +102,84 @@ export async function setupAlarm() {
 }
 
 export async function setupDailySignAlarm() {
+  const { minutes, created } = await getOrCreateDailySignJitterMinutes();
   const existing = await chrome.alarms.get(ALARM_NAMES.DAILY_SIGN);
-  if (!existing || existing.periodInMinutes !== 1440) {
+  if (created || !existing || existing.periodInMinutes !== 1440) {
     await chrome.alarms.create(ALARM_NAMES.DAILY_SIGN, {
-      when: getNextDailySignTimestamp(),
+      when: getNextDailySignTimestamp(Date.now(), minutes),
       periodInMinutes: 1440
     });
   }
 }
 
-async function scheduleAlarmWithLog(alarmName, delayMinutes, category, logKey) {
+async function scheduleAlarmWithLimit(
+  alarmName,
+  kind,
+  category,
+  logKey,
+  exhaustedLogKey,
+  explicitDelayMinutes = null
+) {
   const existing = await chrome.alarms.get(alarmName);
-  if (!existing) {
-    await chrome.alarms.create(alarmName, {
-      delayInMinutes: delayMinutes
-    });
-    const settings = await getSettings();
-    const lang = resolveLanguage(settings.language);
-    await addExecutionLog({
-      type: 'INFO',
-      category,
-      message: t(logKey, [delayMinutes], lang)
-    });
+  if (existing) {
+    return { scheduled: false, exhausted: false, alreadyScheduled: true };
   }
+
+  const slot = await consumeRetrySlot(kind, { explicitDelayMinutes });
+  const settings = await getSettings();
+  const lang = resolveLanguage(settings.language);
+
+  if (!slot.allowed) {
+    if (slot.shouldLogExhausted) {
+      await addExecutionLog({
+        type: 'WARN',
+        category,
+        message: t(exhaustedLogKey, [slot.maxAttempts], lang)
+      });
+    }
+    return { scheduled: false, exhausted: true, attempt: slot.attempt };
+  }
+
+  await chrome.alarms.create(alarmName, {
+    delayInMinutes: slot.delayMinutes
+  });
+  await addExecutionLog({
+    type: 'INFO',
+    category,
+    message: t(logKey, [slot.baseMinutes, slot.attempt, slot.maxAttempts], lang)
+  });
+  return {
+    scheduled: true,
+    exhausted: false,
+    delayMinutes: slot.delayMinutes,
+    attempt: slot.attempt
+  };
 }
 
-export async function scheduleRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVAL_MINUTES) {
-  await scheduleAlarmWithLog(ALARM_NAMES.RETRY, delayMinutes, 'CODE', 'logRetryRedeem');
+export async function scheduleRetryAlarm(explicitDelayMinutes = null) {
+  return scheduleAlarmWithLimit(
+    ALARM_NAMES.RETRY,
+    'REDEEM',
+    'CODE',
+    'logRetryRedeem',
+    'logRetryExhaustedRedeem',
+    explicitDelayMinutes
+  );
 }
 
 export async function clearRetryAlarm() {
   await chrome.alarms.clear(ALARM_NAMES.RETRY);
 }
 
-export async function scheduleSignRetryAlarm(delayMinutes = API_CONFIG.RETRY_INTERVAL_MINUTES) {
-  await scheduleAlarmWithLog(ALARM_NAMES.SIGN_RETRY, delayMinutes, 'SIGN', 'logRetrySign');
+export async function scheduleSignRetryAlarm(explicitDelayMinutes = null) {
+  return scheduleAlarmWithLimit(
+    ALARM_NAMES.SIGN_RETRY,
+    'SIGN',
+    'SIGN',
+    'logRetrySign',
+    'logRetryExhaustedSign',
+    explicitDelayMinutes
+  );
 }
 
 export async function clearSignRetryAlarm() {
@@ -152,6 +201,8 @@ function isNetworkException(err) {
  */
 export async function executeMultiGameFlow({
   lockKey,
+  triggerSource = lockKey,
+  attemptKind = null,
   targetGameKey,
   category,
   countPropName,
@@ -164,6 +215,8 @@ export async function executeMultiGameFlow({
   extractCount,
   onFullRunSuccess,
   scheduleRetry,
+  clearRetry = null,
+  resetRetry = null,
   exceptionLogKey
 }) {
   const lockAcquired = await acquireExecutionLock(lockKey);
@@ -175,12 +228,29 @@ export async function executeMultiGameFlow({
   const lang = resolveLanguage(settings.language);
 
   try {
-    if (await isUnderBackoff()) {
-      return { success: false, reason: 'UNDER_BACKOFF' };
+    const backoff = await getBackoffState();
+    if (backoff.isActive) {
+      return {
+        success: false,
+        reason: 'UNDER_BACKOFF',
+        remainingMinutes: backoff.remainingMinutes
+      };
     }
 
     if (targetGameKey && !GAMES[targetGameKey]) {
       return { success: false, reason: `未知のゲームキー: ${targetGameKey}` };
+    }
+
+    if (triggerSource === 'MANUAL' && targetGameKey) {
+      const manualCooldown = await checkManualCooldown(category, targetGameKey);
+      if (!manualCooldown.allowed) {
+        return {
+          success: false,
+          reason: 'MANUAL_COOLDOWN',
+          remainingSec: manualCooldown.remainingSec,
+          gameKey: targetGameKey
+        };
+      }
     }
 
     if (checkStorage) {
@@ -207,13 +277,25 @@ export async function executeMultiGameFlow({
       };
     }
 
+    if (triggerSource === 'MANUAL' && targetGameKey) {
+      await recordManualCooldown(category, targetGameKey);
+      if (resetRetry) {
+        await resetRetry();
+      }
+    } else if (!targetGameKey && attemptKind) {
+      await setLastAttemptTimestamp(attemptKind);
+    }
+
     const gameKeys = targetGameKey ? [targetGameKey] : enabledGames;
     const results = {};
     let totalCount = 0;
+    let hadBackoff = false;
 
     for (let i = 0; i < gameKeys.length; i++) {
       const gKey = gameKeys[i];
-      if (await isUnderBackoff()) {
+      const currentBackoff = await getBackoffState();
+      if (currentBackoff.isActive) {
+        hadBackoff = true;
         if (logBackoffAbort) {
           const localized = getGameLocalized(gKey, lang);
           await addExecutionLog({
@@ -230,18 +312,42 @@ export async function executeMultiGameFlow({
       results[gKey] = res;
       totalCount += extractCount(res);
 
+      if (res?.backoffTriggered) {
+        hadBackoff = true;
+        break;
+      }
+
       if (i < gameKeys.length - 1) {
         const delayMs = res.skipped ? skippedDelayMs : getNormalDelayMs();
-        await new Promise(r => setTimeout(r, delayMs));
+        if (delayMs > 0) {
+          await new Promise(r => setTimeout(r, delayMs));
+        }
       }
-    }
-
-    if (!targetGameKey && onFullRunSuccess) {
-      await onFullRunSuccess();
     }
 
     if (totalCount > 0) {
       await incrementReviewSuccessCount();
+    }
+
+    if (hadBackoff) {
+      if (clearRetry) {
+        await clearRetry();
+      }
+      const latestBackoff = await getBackoffState();
+      return {
+        success: false,
+        reason: 'UNDER_BACKOFF',
+        remainingMinutes: latestBackoff.remainingMinutes,
+        [countPropName]: totalCount,
+        results,
+        targetGameKey: targetGameKey || null
+      };
+    }
+
+    await resetBackoffLevel();
+
+    if (!targetGameKey && onFullRunSuccess) {
+      await onFullRunSuccess();
     }
 
     return {
@@ -261,8 +367,10 @@ export async function executeMultiGameFlow({
     }
 
     const isNetErr = isNetworkException(err);
+    let retryExhausted = false;
     if (isNetErr) {
-      await scheduleRetry(API_CONFIG.RETRY_INTERVAL_MINUTES);
+      const retryRes = await scheduleRetry();
+      retryExhausted = Boolean(retryRes?.exhausted);
     } else {
       await addExecutionLog({
         type: 'ERROR',
@@ -273,7 +381,9 @@ export async function executeMultiGameFlow({
 
     return {
       success: false,
-      reason: isNetErr ? 'NETWORK_RETRY_SCHEDULED' : 'EXCEPTION',
+      reason: isNetErr
+        ? (retryExhausted ? 'NETWORK_RETRY_EXHAUSTED' : 'NETWORK_RETRY_SCHEDULED')
+        : 'EXCEPTION',
       error: err.message
     };
   } finally {

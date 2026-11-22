@@ -5,7 +5,8 @@ import {
   isCaptchaRisk,
   getDailySignInfo,
   claimDailyBonus,
-  getUserGameRoles
+  getUserGameRoles,
+  redeemCode
 } from '../src/services/hoyo-api.js';
 
 test('isCaptchaRisk: Geetest CAPTCHA / リスク制御の検知テスト', () => {
@@ -219,6 +220,72 @@ test('getUserGameRoles: hoyoverse.comが未ログイン(-100)の場合にhoyolab
     assert.equal(res.success, true);
     assert.equal(res.role.nickname, '蛍');
     assert.equal(calledUrls.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('HTTP 429 / 503 検知時はフォールバックせず即座に shouldBackoff: true を返すこと', async () => {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    // 1. getUserGameRoles で HTTP 429 + Retry-After: 90
+    const roleCalls = [];
+    globalThis.fetch = async (url) => {
+      roleCalls.push(String(url));
+      return {
+        status: 429,
+        headers: new Headers({ 'Retry-After': '90' }),
+        json: async () => ({})
+      };
+    };
+    const roleRes = await getUserGameRoles('hk4e_global');
+    assert.equal(roleRes.success, false);
+    assert.equal(roleRes.shouldBackoff, true);
+    assert.equal(roleRes.httpStatus, 429);
+    assert.equal(roleRes.isRateLimited, true);
+    assert.equal(roleRes.retryAfterMs, 90_000);
+    assert.equal(roleCalls.length, 1, '429時は2ホスト目へフォールバックしないこと');
+
+    // 2. getDailySignInfo で HTTP 503 (ヘッダなし)
+    const infoCalls = [];
+    globalThis.fetch = async (url) => {
+      infoCalls.push(String(url));
+      return { status: 503 };
+    };
+    const infoRes = await getDailySignInfo('GENSHIN');
+    assert.equal(infoRes.success, false);
+    assert.equal(infoRes.shouldBackoff, true);
+    assert.equal(infoRes.httpStatus, 503);
+    assert.equal(infoRes.isServerError, true);
+    assert.equal(infoRes.retryAfterMs, null);
+    assert.equal(infoCalls.length, 1, '503時も2ホスト目へフォールバックしないこと');
+
+    // 3. claimDailyBonus で HTTP 429
+    const signCalls = [];
+    globalThis.fetch = async (url) => {
+      signCalls.push(String(url));
+      return { status: 429 };
+    };
+    const signRes = await claimDailyBonus('STAR_RAIL');
+    assert.equal(signRes.success, false);
+    assert.equal(signRes.shouldBackoff, true);
+    assert.equal(signRes.httpStatus, 429);
+    assert.equal(signCalls.length, 1);
+
+    // 4. redeemCode で HTTP 502
+    globalThis.fetch = async () => ({ status: 502 });
+    const redeemRes = await redeemCode({
+      exchangeHost: GAMES.GENSHIN.exchangeHost,
+      exchangePath: GAMES.GENSHIN.exchangePath,
+      gameBiz: GAMES.GENSHIN.gameBiz,
+      uid: '800123456',
+      region: 'os_asia',
+      cdkey: 'TESTCODE'
+    });
+    assert.equal(redeemRes.shouldBackoff, true);
+    assert.equal(redeemRes.httpStatus, 502);
+    assert.equal(redeemRes.isServerError, true);
   } finally {
     globalThis.fetch = originalFetch;
   }

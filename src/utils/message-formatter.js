@@ -33,6 +33,25 @@ function extractRawDetail(resp, lang) {
     (resp.retcode !== undefined ? `retcode: ${resp.retcode}` : t('fmtNoDetails', [], lang));
 }
 
+function formatManualCooldownResult(resp, lang) {
+  const sec = Number(resp.remainingSec) > 0 ? Math.ceil(Number(resp.remainingSec)) : 60;
+  return {
+    title: t('fmtManualCooldownTitle', [], lang),
+    message: t('fmtManualCooldownMsg', [sec], lang),
+    detail: t('fmtManualCooldownDetail', [sec], lang)
+  };
+}
+
+function formatBackoffDetail(resp, rawDetail, lang) {
+  if (resp.reason !== 'UNDER_BACKOFF') {
+    return rawDetail;
+  }
+  const mins = Number(resp.remainingMinutes);
+  return mins > 0
+    ? t('fmtBackoffDetailWithMinutes', [mins], lang)
+    : t('fmtBackoffDetail', [], lang);
+}
+
 function formatSingleGameRedeem(gameKey, res, lang) {
   const name = resolveGameDisplayName(gameKey, res, lang);
 
@@ -164,6 +183,9 @@ export function formatRedeemResult(resp, lang = 'ja') {
       detail: rawDetail
     };
   }
+  if (reason === 'MANUAL_COOLDOWN') {
+    return formatManualCooldownResult(resp, lang);
+  }
   if (reason === 'ALREADY_RUNNING') {
     return {
       title: t('fmtProcessingTitle', [], lang),
@@ -175,10 +197,15 @@ export function formatRedeemResult(resp, lang = 'ja') {
     return {
       title: t('fmtRedeemTitlePaused', [], lang),
       message: t('fmtBackoffMsg', [], lang),
-      detail: reason === 'UNDER_BACKOFF' ? t('fmtBackoffDetail', [], lang) : rawDetail
+      detail: formatBackoffDetail(resp, rawDetail, lang)
     };
   }
-  if (reason === 'EXCEPTION' || resp.error) {
+  if (
+    reason === 'EXCEPTION' ||
+    reason === 'NETWORK_RETRY_SCHEDULED' ||
+    reason === 'NETWORK_RETRY_EXHAUSTED' ||
+    resp.error
+  ) {
     return {
       title: t('fmtRedeemTitleNetworkErr', [], lang),
       message: t('fmtRedeemNetworkErrMsg', [], lang),
@@ -326,6 +353,10 @@ export function formatSignResult(resp, lang = 'ja') {
   const rawDetail = extractRawDetail(resp, lang);
   const reason = resp.reason || '';
 
+  if (reason === 'MANUAL_COOLDOWN') {
+    return formatManualCooldownResult(resp, lang);
+  }
+
   if (reason === 'ALREADY_RUNNING') {
     return {
       title: t('fmtProcessingTitle', [], lang),
@@ -338,7 +369,20 @@ export function formatSignResult(resp, lang = 'ja') {
     return {
       title: t('fmtSignTitleWaiting', [], lang),
       message: t('fmtBackoffMsg', [], lang),
-      detail: t('fmtBackoffDetail', [], lang)
+      detail: formatBackoffDetail(resp, rawDetail, lang)
+    };
+  }
+
+  if (
+    reason === 'EXCEPTION' ||
+    reason === 'NETWORK_RETRY_SCHEDULED' ||
+    reason === 'NETWORK_RETRY_EXHAUSTED' ||
+    resp.error
+  ) {
+    return {
+      title: t('fmtRedeemTitleNetworkErr', [], lang),
+      message: t('fmtRedeemNetworkErrMsg', [], lang),
+      detail: resp.error || rawDetail
     };
   }
 

@@ -35,7 +35,9 @@ import {
   getDailySignRecord,
   setDailySignRecord,
   isDailySignedToday,
+  isDailySignAutoSkippedToday,
   shouldRunDailySign,
+  setLastAttemptTimestamp,
   getActiveCodes,
   setActiveCodes,
   getCodeRedeemStats,
@@ -160,6 +162,76 @@ test('getDailySignRecord / setDailySignRecord / isDailySignedToday / shouldRunDa
     skippedNoChar: true
   });
   assert.equal(await shouldRunDailySign(['hk4e_global', 'hkrpg_global'], testNowMs), false, '全タイトルが本日受取済または未プレイ確定のためfalse');
+});
+
+test('captchaBlocked の当日自動スキップ・同日上書き保護・受取時/翌日クリア', async () => {
+  mockStorage.local.clear();
+  const todayMs = Date.parse('2026-10-17T03:00:00Z'); // 2026-10-17 in UTC+8
+  const nextDayMs = Date.parse('2026-10-17T16:10:00Z'); // 2026-10-18 in UTC+8
+
+  await setDailySignRecord('hk4e_global', {
+    date: '2026-10-17',
+    isSigned: false,
+    skippedNoChar: false,
+    captchaBlocked: true
+  });
+
+  // 既存契約 isDailySignedToday は false を保ちつつ、自動スキップ判定は true
+  assert.equal(await isDailySignedToday('hk4e_global', todayMs), false);
+  assert.equal(await isDailySignAutoSkippedToday('hk4e_global', todayMs), true);
+  assert.equal(await shouldRunDailySign(['hk4e_global'], todayMs), false);
+
+  // ポップアップ状態更新（同日 isSigned: false, captchaBlocked 未指定）で消えないこと
+  await setDailySignRecord('hk4e_global', {
+    date: '2026-10-17',
+    isSigned: false,
+    totalSignDay: 10,
+    skippedNoChar: false
+  });
+  assert.equal((await getDailySignRecord('hk4e_global')).captchaBlocked, true);
+  assert.equal(await isDailySignAutoSkippedToday('hk4e_global', todayMs), true);
+
+  // 翌日（UTC+8 00:00以降）は自動解除されること
+  assert.equal(await isDailySignAutoSkippedToday('hk4e_global', nextDayMs), false);
+  assert.equal(await shouldRunDailySign(['hk4e_global'], nextDayMs), true);
+
+  // 翌日の未受取記録では captchaBlocked が引き継がれないこと
+  await setDailySignRecord('hk4e_global', {
+    date: '2026-10-18',
+    isSigned: false,
+    skippedNoChar: false
+  });
+  assert.equal((await getDailySignRecord('hk4e_global')).captchaBlocked, undefined);
+
+  // 手動受取成功 (isSigned: true) で captchaBlocked が明示クリアされること
+  await setDailySignRecord('hk4e_global', {
+    date: '2026-10-18',
+    isSigned: false,
+    captchaBlocked: true
+  });
+  await setDailySignRecord('hk4e_global', {
+    date: '2026-10-18',
+    isSigned: true,
+    totalSignDay: 11,
+    skippedNoChar: false
+  });
+  assert.equal((await getDailySignRecord('hk4e_global')).captchaBlocked, false);
+});
+
+test('shouldRunRedeem: last_successful_run と last_redeem_attempt の新しい方を基準に判定', async () => {
+  mockStorage.local.clear();
+  const baseNow = 1_750_000_000_000;
+
+  await setLastSuccessfulRun(baseNow - 4 * 60 * 60_000);
+  assert.equal(await shouldRunRedeem(180, baseNow), true);
+
+  // 1時間前に試行だけしていた場合は3時間クールダウンで false
+  await setLastAttemptTimestamp('REDEEM', baseNow - 60 * 60_000);
+  assert.equal(await shouldRunRedeem(180, baseNow), false);
+
+  // 3時間経過すれば再び true
+  await setLastAttemptTimestamp('REDEEM', baseNow - 180 * 60_000);
+  assert.equal(await shouldRunRedeem(180, baseNow), true);
 });
 
 test('getActiveCodes / setActiveCodes: 有効コード配列の保存と取得', async () => {

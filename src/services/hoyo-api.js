@@ -1,4 +1,4 @@
-import { hoyoFetch } from './http-client.js';
+import { hoyoFetch, inspectHttpBackoffStatus } from './http-client.js';
 import { isValidUid, isValidRegion } from './security.js';
 import { GAMES } from '../config/constants.js';
 import { getExchangeApiLang, getSignApiLang, t } from '../utils/i18n.js';
@@ -18,6 +18,16 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
   for (const host of TAKUMI_HOSTS) {
     const url = `${host}/binding/api/getUserGameRolesByCookie?game_biz=${gameBiz}`;
     const resp = await hoyoFetch(url);
+    const backoffInfo = inspectHttpBackoffStatus(resp);
+    if (backoffInfo) {
+      return {
+        success: false,
+        retcode: -backoffInfo.httpStatus,
+        ...backoffInfo,
+        message: `HTTP ${backoffInfo.httpStatus}`,
+        role: null
+      };
+    }
     const data = await resp.json();
     console.log(`[getUserGameRoles] ${gameBiz} (${host}) Response:`, data);
     lastData = data;
@@ -64,6 +74,15 @@ export async function redeemCode({ exchangeHost, exchangePath, gameBiz, uid, reg
   url.searchParams.set('game_biz', gameBiz);
 
   const resp = await hoyoFetch(url.toString());
+  const backoffInfo = inspectHttpBackoffStatus(resp);
+  if (backoffInfo) {
+    return {
+      retcode: -backoffInfo.httpStatus,
+      ...backoffInfo,
+      message: `HTTP ${backoffInfo.httpStatus}`,
+      cdkey
+    };
+  }
   const text = await resp.text();
   try {
     const resJson = JSON.parse(text);
@@ -104,6 +123,16 @@ async function callSignApiWithFallback(gameOrKey, lang, buildRequest, parseSucce
   for (const host of hosts) {
     const { url, fetchOptions } = buildRequest(gameConfig, host, lang);
     const resp = await hoyoFetch(url, fetchOptions);
+    const backoffInfo = inspectHttpBackoffStatus(resp);
+    if (backoffInfo) {
+      return {
+        ...defaultFallback,
+        success: false,
+        retcode: -backoffInfo.httpStatus,
+        ...backoffInfo,
+        message: `HTTP ${backoffInfo.httpStatus}`
+      };
+    }
     const text = await resp.text();
     let resJson;
     try {

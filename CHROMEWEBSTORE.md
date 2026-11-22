@@ -23,7 +23,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【主な機能】
 • 多言語対応（日本語 / 英語）— ブラウザの表示言語に合わせた自動表示に加え、設定（⚙）から手動切り替え可能
 • 初回利用時の即時自動受取 — 初期設定（同意）完了直後から未受取のログインボーナスおよび有効な交換コードを即座に自動取得
-• デイリーログインボーナス自動受取 — 毎日 01:05 JST（00:05 UTC+8 / お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動実行。PC起動時やスリープ復帰時にも未受取のログボ・最新コードを自動でキャッチアップするため、深夜にPCを起動しておく必要はありません
+• デイリーログインボーナス自動受取 — 毎日 01:05 JST頃（00:05 UTC+8基準・負荷分散のため30分幅で自動調整／お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動実行。PC起動時やスリープ復帰時にも未受取のログボ・最新コードを自動でキャッチアップするため、深夜にPCを起動しておく必要はありません
 • 交換コードの3時間ごと自動引き換え — バックグラウンドで最新コードを自動検知して順次引き換え
 • プレイ中タイトルのみ表示するタブカスタマイズ — プレイしていないゲームはタブ非表示＆バックグラウンド巡回から安全に除外可能
 • ワンクリック手動実行 — ポップアップ画面から現在選択中のタイトルを即時実行
@@ -77,7 +77,7 @@ Say goodbye to opening multiple tabs every single day or missing out on limited-
 [Key Features]
 • Multi-Language Support (English / Japanese) — Automatically matches your browser language or can be toggled manually from settings (⚙).
 • Immediate Auto-Claim on Setup — Right after agreeing to terms, it instantly collects all pending check-in rewards and available active codes.
-• Background Daily Check-In — Automatically cycles through all enabled games daily at 00:05 UTC+8 (01:05 JST, smartly calculated in your local timezone). It also automatically catches up on any unclaimed daily check-in bonuses and latest promo codes when you start your PC or wake it from sleep, so there is no need to leave your PC running overnight.
+• Background Daily Check-In — Automatically cycles through all enabled games daily around 00:05 UTC+8 (around 01:05 JST, distributed across a 30-minute window and calculated in your local timezone). It also automatically catches up on any unclaimed daily check-in bonuses and latest promo codes when you start your PC or wake it from sleep, so there is no need to leave your PC running overnight.
 • 3-Hour Periodic Code Redemption — Checks and auto-redeems newly discovered gift codes and special program livestream codes every 3 hours without opening browser tabs.
 • Tab Filter & Game Customization — Playing only Genshin, HSR, or ZZZ? Hide unplayed games from the interface and exclude them safely from background checks.
 • One-Click Instant Manual Trigger — Instantly redeem codes or claim check-in for the currently selected game from the popup.
@@ -135,7 +135,7 @@ Automatically claims HoYoverse daily check-in rewards and redeems public gift co
 | Permission | Type | Justification |
 |---|---|---|
 | `storage` | permissions | ユーザー設定（ログボ・交換コード各自動実行の有効/無効、選択ゲーム、表示言語）、本日のログボ受取記録、引き換え済みコード履歴、直近50件の実行ログをブラウザ内にローカル保存するために使用します。 |
-| `alarms` | permissions | 毎日01:05 JST（現地時刻換算）のログインボーナス自動受取アラーム、3時間周期の交換コード自動引き換えアラーム、および通信失敗時の短期自動再試行スケジュールを行うために使用します。 |
+| `alarms` | permissions | 毎日01:05 JST頃（現地時刻換算・負荷分散オフセット付き）のログインボーナス自動受取アラーム、3時間周期の交換コード自動引き換えアラーム、および通信失敗時の回数上限付き自動再試行スケジュールを行うために使用します。 |
 | `notifications` | permissions | ログボ受取やコード引き換えの完了通知、CAPTCHA認証要求の案内、および公式セッション期限切れに伴う再ログイン誘導をユーザーへ通知するために使用します。 |
 | `idle` | permissions | PCのスリープ解除やユーザーのアイドル復帰を検知し、回線安定後に当日未受取のログインボーナスおよび最新交換コードの自動キャッチアップを行うために使用します。 |
 | `https://api-os-takumi.hoyoverse.com/*` | host_permissions | HoYoverse公式Takumi APIと通信し、ログイン中セッションに紐づくゲーム内キャラクター情報（UID・サーバー）を取得するために使用します。 |

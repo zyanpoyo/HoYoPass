@@ -10,9 +10,19 @@ export const API_CONFIG = {
   REDEEM_INTERVAL_MINUTES: FLAVOR_CONFIG?.config?.REDEEM_INTERVAL_MINUTES ?? 180,
   RETRY_INTERVAL_MINUTES: 2, // 2分後短期リトライ
   CATCH_UP_DELAY_MS: FLAVOR_CONFIG?.config?.CATCH_UP_DELAY_MS ?? 15_000,
+  CATCH_UP_JITTER_MAX_MS: 30_000, // キャッチアップ待機ランダム揺らぎ (最大+30秒)
+  DAILY_SIGN_JITTER_MAX_MINUTES: 30, // ログボ定時アラーム分散幅 (0〜30分)
   INTER_REQUEST_DELAY_MS: 5_200, // 5.2秒ウェイト
+  INTER_REQUEST_JITTER_MAX_MS: 1_500, // コード交換間ランダム揺らぎ (最大+1.5秒)
+  SIGN_GAME_DELAY_MS: 1_500, // ログボゲーム間ウェイト
+  SIGN_GAME_JITTER_MAX_MS: 1_000, // ログボゲーム間ランダム揺らぎ (最大+1秒)
   MAX_CODE_RETRIES: 3,
+  RETRY_DELAY_STEPS_MINUTES: [2, 10, 30], // 短期リトライ段階間隔 (最大3回)
+  RETRY_JITTER_MAX_MINUTES: 0.5, // リトライ遅延ランダム揺らぎ (最大+30秒)
   BACKOFF_DURATION_MS: 30 * 60 * 1000, // 30分間バックオフ
+  BACKOFF_STEPS_MS: [30 * 60 * 1000, 60 * 60 * 1000, 120 * 60 * 1000], // 指数バックオフ段階 (30→60→120分)
+  AUTO_ATTEMPT_COOLDOWN_MINUTES: 180, // 自動キャッチアップ再試行クールダウン (3時間)
+  MANUAL_COOLDOWN_MS: 60_000, // 手動実行ボタン連打制限 (60秒)
   MAX_EXTERNAL_PAYLOAD_BYTES: 256 * 1024, // 256KB制限
   MAX_NEW_CODES_PER_FETCH: 50, // 1回あたりの最大取得コード数
   DAILY_NEW_CODE_LIMIT: 20, // 1日あたりの新規コード上限
@@ -23,7 +33,7 @@ export const API_CONFIG = {
   FLAVOR_UI: FLAVOR_CONFIG?.ui ?? {
     badgeText: '',
     intervalLabel: '定期自動引き換え (3時間毎)',
-    signIntervalLabel: '自動受け取り (毎日 01:05)'
+    signIntervalLabel: '自動受け取り (毎日 01:05頃)'
   }
 };
 

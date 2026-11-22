@@ -11,7 +11,7 @@ HoYoPassは、Google Chromeの拡張機能仕様（Manifest V3）に準拠した
 ```mermaid
 flowchart TD
     subgraph Browser["Google Chrome (Client)"]
-        SW["Background Service Worker<br>(ログボ日次アラーム 01:05 JST / コード3時間周期アラーム)"]
+        SW["Background Service Worker<br>(ログボ日次アラーム 01:05〜01:35 JST分散 / コード3時間周期アラーム)"]
         Popup["Popup UI<br>(統合2カード構成: ログボ受取・交換コード引き換え)"]
         Storage["chrome.storage.local<br>(設定・ログボ受取記録・引き換え済コード・実行ログ)"]
         CookieJar["Browser Cookie Jar<br>(.hoyolab.com / .hoyoverse.com 公式セッションCookie)"]
@@ -141,7 +141,8 @@ src/
 │   ├── analytics-service.js    # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
 │   ├── code-fetcher.js         # hoyo-codes APIからのコード一覧取得・ペイロード検証
 │   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し
-│   ├── http-client.js          # ホワイトリスト検証付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
+│   ├── http-client.js          # ホワイトリスト検証・429/5xx検知付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
+│   ├── rate-limit-service.js   # ジッター、指数バックオフ、短期リトライ上限、自動/手動クールダウン状態管理
 │   ├── review-prompt-service.js# ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定
 │   ├── security.js             # UID・リージョン・交換コード形式の入力バリデーション
 │   └── storage-service.js      # chrome.storageのCRUD操作、UTC+8日付管理、排他ロック（Mutex）管理
@@ -158,19 +159,21 @@ src/
 
 ### 5.1 ログインボーナス自動受取（日次リセット基準軸）
 - **UTC+8 日付境界の厳密判定**: HoYoLABのデイリーログインボーナスは毎日 `00:00 (UTC+8)` ＝ **日本時間 `01:00 (JST)`** に日付が切り替わります。`getHoyoTodayDateString()` により UTC+8 基準の `YYYY-MM-DD` 文字列を算出し、当日分の受取有無を管理します。
-- **日次定時アラーム (`hoyo_daily_sign_alarm`)**: 毎日 `01:05 JST`（`00:05 UTC+8`）に発火し、1440分（24時間）周期で全3タイトルを自動巡回します。
-- **事前 `info` チェックによる冪等性**: `sign` を叩く前にまず `getDailySignInfo` で `is_sign` を確認し、すでに公式ページ等で受取済みの場合は余分なPOST通信を行わずにローカル記録を同期して完了します。
+- **日次定時アラームとジッター分散 (`hoyo_daily_sign_alarm`)**: 一斉スパイクを回避するため、初回（および既存ユーザー更新初回）に `0〜30分` のユーザー固定ランダムオフセット（`daily_sign_jitter_minutes`）を決定して永続化し、毎日 `01:05〜01:35 JST`（`00:05〜00:35 UTC+8`）のいずれかに1440分（24時間）周期で発火します。また、ゲーム間の巡回待機にも `1.5〜2.5秒` の揺らぎを入れます。
+- **事前 `info` チェックによる冪等性とCAPTCHA当日抑止**: `sign` を叩く前にまず `getDailySignInfo` で `is_sign` を確認し、すでに受取済みの場合はPOST通信を行わずにローカル記録を同期します。`claimDailyBonus` でCAPTCHA（`isRisk`）が要求された場合は `captchaBlocked: true` を保存し、当日（UTC+8）中の自動再実行・通知連発をスキップします（ユーザーによる手動実行は許可）。
 
 ### 5.2 交換コード自動引き換え（3時間インターバル軸）
 - **定期アラーム (`hoyo_auto_redeem_alarm`)**: 3時間（180分）周期で全3タイトルを順次巡回し、最新コードを一括自動引き換えします。
-- **順次リクエスト遅延**: 1つのコードを引き換えるごとに **5.2秒以上** の非同期スリープを挿入し、レートリミットを回避します。
-- **指数バックオフ**: レートリミット（`retcode: -2016`）や連続エラー発生時は自動的に **30分間のクールダウン（バックオフ）** に遷移します。
+- **ジッター付き順次リクエスト遅延**: 1つのコードを引き換えるごと、およびゲーム切替ごとに **5.2〜6.7秒** のランダム揺らぎ付きスリープを挿入し、固定周期の機械的アクセスやレートリミットを回避します。
+- **HTTP 429 / 5xx・`-2016` による指数バックオフ**: HoYo API から HTTP `429`・`5xx` または `retcode: -2016` を検知した際は、予備ホストへのフォールバックも行わず即座に処理を中断し、連続発生に応じて **30分 → 60分 → 上限120分** へ段階延長する指数バックオフ（`Retry-After` ヘッダがある場合は上限120分の範囲で尊重）に遷移します。未ログイン（`-100`/`-1071`）・`429`・`5xx`・`-2016` 受信時は対象コードの失敗回数（上限3回）を消費しません。
 - **公式APIの二段階判定と重複メール仕様**: HoYoverseの交換コードAPIは、Web APIでの受付判定とゲームサーバーでのメール配送判定の二段階で動作します。事前照会APIが存在しないため、過去にゲーム内等で手動交換済みのコードに対して初回実行時に「交換済み重複メール」がゲーム内に届く場合がありますが、これはAPI仕様上の制約であり、一度処理されたコードはローカルに保存されて再送が防止されます。
 
-### 5.3 ブラウザ起動時・スリープ復帰時の直列キャッチアップ (`maybeRunAllCatchUp`)
-- Chrome起動時 (`chrome.runtime.onStartup`) やスリープ復帰時 (`chrome.idle.onStateChanged` -> `active`) には、15秒の回線安定待機の後に `maybeRunAllCatchUp()` を実行します。
+### 5.3 ブラウザ起動時・スリープ復帰時の直列キャッチアップ・リトライ・手動クールダウン
+- **ジッター付き待機と直列キャッチアップ (`maybeRunAllCatchUp`)**: Chrome起動時 (`chrome.runtime.onStartup`) やスリープ復帰時 (`chrome.idle.onStateChanged` -> `active`) には、**15〜45秒** のランダムな回線安定待機の後に `maybeRunAllCatchUp()` を実行し、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します。
 - 共通の排他ロック（Mutex）競合を防ぐため、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します。
-- ネットワーク未確立による `Failed to fetch` 等が発生した場合は、それぞれ独立した短期リトライアラーム（`hoyo_sign_retry_alarm` / `hoyo_retry_alarm`）により2分後に1回自動再試行します。
+- **自動試行3時間クールダウン**: 未ログイン（`-100` / `-1071`）や外部コード一覧APIエラー等で失敗した場合でも、起動やアイドル復帰のたびに再実行されないよう自動キャッチアップに **3時間クールダウン** を設けています（ログボ側は HoYo 日付跨ぎで即解除、ユーザーによる手動実行は随時許可）。
+- **短期リトライ上限（最大3回・段階的延長）**: ネットワーク未確立による `Failed to fetch` 等やオフライン検知時は、それぞれ独立した短期リトライアラーム（`hoyo_sign_retry_alarm` / `hoyo_retry_alarm`）で **2分 → 10分 → 30分**（各 `0〜30秒` 揺らぎ付き）の最大3回まで段階的に自動再試行し、上限到達後は次の通常定期実行または手動実行まで停止します。
+- **手動実行クールダウン**: ポップアップからの手動実行ボタンは、`chrome.storage.session` により **ゲーム × 操作種別（ログボ／コード交換）単位で60秒** のクールダウンを適用し、短時間の連打を防止します。
 
 ---
 
@@ -182,16 +185,20 @@ src/
 | ストレージ領域 | キー | 型 | 用途 |
 | :--- | :--- | :--- | :--- |
 | `local` | `app_settings` | Object | ユーザー設定（`optInAccepted`, `autoSignEnabled`, `autoRedeemEnabled`, `activeGameKey`, `enabledGames`, `language`, `analyticsConsentReviewed`, `analyticsEnabled`, `agreedPolicyVersion`） |
-| `local` | `daily_sign_${gameBiz}` | Object | ゲーム別のログボ受取記録（`date`: `YYYY-MM-DD` (UTC+8), `isSigned`, `totalSignDay`, `skippedNoChar`, `updatedAt`） |
+| `local` | `daily_sign_${gameBiz}` | Object | ゲーム別のログボ受取記録（`date`: `YYYY-MM-DD` (UTC+8), `isSigned`, `totalSignDay`, `skippedNoChar`, `captchaBlocked`, `updatedAt`） |
+| `local` | `daily_sign_jitter_minutes` | Number | ユーザー固定のログボ実行オフセット分（`0〜30`） |
 | `local` | `redeemed_${gameBiz}` | Object | ゲーム別引き換え済みコード履歴（重複引き換えの防止・月間/通算集計） |
 | `local` | `active_codes_${gameBiz}` | Array | 直近に取得した有効交換コード一覧（消化率表示用キャッシュ） |
 | `local` | `daily_counts_${gameBiz}` | Object | 1日あたりの新規コード引き換え試行カウント（上限20件の保護用） |
 | `local` | `exec_logs` | Array | 画面表示用の直近実行ログ（`timestamp`, `type`, `category` (`SIGN`/`CODE`), `gameKey`, `message`） |
 | `local` | `last_successful_run` | Number | コード自動引き換え巡回全体が正常完了した最終エポックミリ秒 |
-| `local` | `backoff_until` | Number | バックオフ解除時刻のUNIXエポックミリ秒 |
+| `local` | `last_redeem_attempt` / `last_sign_attempt` | Number | 自動キャッチアップクールダウン判定用の最終全体試行エポックミリ秒 |
+| `local` | `retry_state_redeem` / `retry_state_sign` | Object | 短期リトライ制御状態（`count`, `updatedAt`, `exhaustedLogged`） |
+| `local` | `backoff_until` / `backoff_level` | Number | 指数バックオフ解除時刻（ms）と連続バックオフ段階（`0〜3`） |
 | `local` | `ga_client_id` | String | GA4 用の匿名クライアント識別子（UUIDv4） |
 | `local` | `reviewPrompt` | Object | ストアレビュー促進機能の処理ステータス、成功回数（実行セッション単位）、延期回数、次回再表示可能時刻、初回インストール日時 |
 | `session` | `lock_state` | Object | 排他ロック用ステータス（`running`, `startedAt`, `trigger`） |
+| `session` | `manual_cooldowns` | Object | 手動実行ボタンのゲーム×種別ごとの最終実行タイムスタンプマップ（60秒制限） |
 | `session` | `ga_session_id` / `ga_last_active` | String / Number | GA4 の30分セッション管理用タイムスタンプ |
 
 ### 6.2 履歴の整理（ローテーション）
