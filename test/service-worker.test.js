@@ -10,6 +10,7 @@ const mockCreatedTabs = [];
 const mockClearedNotifications = [];
 const mockCreatedNotifications = [];
 const mockAlarms = new Map();
+const mockAlarmListeners = [];
 const mockIdleListeners = [];
 const mockMessageListeners = [];
 let mockUninstallUrl = null;
@@ -19,7 +20,14 @@ const mockStartupListeners = [];
 globalThis.chrome = {
   storage: {
     local: {
-      get: async (key) => ({ [key]: mockStorage.local.get(key) }),
+      get: async (keys) => {
+        if (Array.isArray(keys)) {
+          const res = {};
+          keys.forEach(k => { res[k] = mockStorage.local.get(k); });
+          return res;
+        }
+        return { [keys]: mockStorage.local.get(keys) };
+      },
       set: async (obj) => Object.entries(obj).forEach(([k, v]) => mockStorage.local.set(k, v)),
       getBytesInUse: async () => 1024
     },
@@ -33,7 +41,7 @@ globalThis.chrome = {
     get: async (name) => mockAlarms.get(name) || null,
     create: async (name, opts) => { mockAlarms.set(name, opts); },
     clear: async (name) => { mockAlarms.delete(name); },
-    onAlarm: { addListener: () => {} }
+    onAlarm: { addListener: (fn) => { mockAlarmListeners.push(fn); } }
   },
   idle: {
     onStateChanged: {
@@ -63,7 +71,7 @@ globalThis.chrome = {
   }
 };
 
-import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord, getReviewPromptState, updateReviewPromptState } from '../src/services/storage-service.js';
+import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord, getReviewPromptState, updateReviewPromptState, getBackoffState, getRetryState, getDailySignJitterMinutes } from '../src/services/storage-service.js';
 import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
 const {
   setupUninstallUrl,
@@ -71,6 +79,8 @@ const {
   LOGIN_NOTIFICATION_PREFIX,
   SIGN_LOGIN_NOTIFICATION_PREFIX,
   SIGN_CAPTCHA_NOTIFICATION_PREFIX,
+  classifyFetchError,
+  waitCatchUpDelay,
   redeemForGame,
   runAutoRedeemFlow,
   setupAlarm,
@@ -393,7 +403,7 @@ test('runAutoRedeemFlow: 通信エラー発生時に自動でリトライアラ�
     assert.equal(res.reason, 'NETWORK_RETRY_SCHEDULED');
     const retryAlarm = mockAlarms.get(ALARM_NAMES.RETRY);
     assert.ok(retryAlarm, '通信例外時にリトライアラームが登録されていること');
-    assert.equal(retryAlarm.delayInMinutes, API_CONFIG.RETRY_INTERVAL_MINUTES);
+    assert.ok(retryAlarm.delayInMinutes >= 2 && retryAlarm.delayInMinutes <= 2.5, '1回目リトライは2分+揺らぎであること');
 
     const logs = (await chrome.storage.local.get('exec_logs')).exec_logs || [];
     assert.ok(logs.some(l => l.message.includes('一時的な通信不通を検知')), 'リトライ予告ログが存在すること');
@@ -810,6 +820,7 @@ test('runAutoRedeemFlow / runDailySignFlow: レビュー促進成功カウント
       return { ok: true, status: 200, json: async () => ({}) };
     };
 
+    mockStorage.session.clear();
     const resAlready = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
     assert.equal(resAlready.success, true);
     assert.equal(resAlready.redeemedCount, 0);
@@ -894,6 +905,7 @@ test('runAutoRedeemFlow / runDailySignFlow: レビュー促進成功カウント
     };
 
     // キャッシュをクリアしてforceCheck
+    mockStorage.session.clear();
     const resSignAlready = await runDailySignFlow('MANUAL', 'GENSHIN');
     assert.equal(resSignAlready.success, true);
     assert.equal(resSignAlready.signedCount, 0);
@@ -901,5 +913,753 @@ test('runAutoRedeemFlow / runDailySignFlow: レビュー促進成功カウント
     assert.equal(state.successCount, 2, '受取済みスキップ時はカウントが増えないこと');
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('setupDailySignAlarm: 既存ユーザー（01:05固定アラーム登録済み）への初回オフセット移行と2回目以降の維持', async () => {
+  mockStorage.local.clear();
+  mockAlarms.clear();
+
+  // 既存ユーザーの旧アラーム（01:05固定、オフセット未保存）を再現
+  const legacyWhen = getNextDailySignTimestamp(Date.now(), 0);
+  mockAlarms.set(ALARM_NAMES.DAILY_SIGN, { when: legacyWhen, periodInMinutes: 1440 });
+
+  await setupDailySignAlarm();
+
+  const savedJitter = await getDailySignJitterMinutes();
+  assert.ok(savedJitter !== null && savedJitter >= 0 && savedJitter <= API_CONFIG.DAILY_SIGN_JITTER_MAX_MINUTES);
+  const migratedAlarm = mockAlarms.get(ALARM_NAMES.DAILY_SIGN);
+  assert.equal(migratedAlarm.periodInMinutes, 1440);
+  const expectedDiffMs = savedJitter * 60 * 1000;
+  const actualDiffMs = (migratedAlarm.when - legacyWhen + 24 * 60 * 60_000) % (24 * 60 * 60_000);
+  assert.ok(Math.abs(actualDiffMs - expectedDiffMs) < 5_000, '移行後アラーム時刻がオフセット分ずれていること');
+
+  // 2回目以降は既存アラームが上書きされないこと
+  const sentinelWhen = 1234567890;
+  mockAlarms.set(ALARM_NAMES.DAILY_SIGN, { when: sentinelWhen, periodInMinutes: 1440 });
+  await setupDailySignAlarm();
+  assert.equal(mockAlarms.get(ALARM_NAMES.DAILY_SIGN).when, sentinelWhen);
+  assert.equal(await getDailySignJitterMinutes(), savedJitter);
+});
+
+test('runAutoRedeemFlow: ネットワークエラー短期リトライは最大3回 (2→10→30分) で打ち止め、通常アラームでリセット', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+
+  try {
+    // 1回目: 2分台
+    const r1 = await runAutoRedeemFlow('ALARM');
+    assert.equal(r1.reason, 'NETWORK_RETRY_SCHEDULED');
+    const d1 = mockAlarms.get(ALARM_NAMES.RETRY).delayInMinutes;
+    assert.ok(d1 >= 2 && d1 <= 2.5, `1回目は2〜2.5分: ${d1}`);
+
+    // 2回目: 10分台
+    mockAlarms.delete(ALARM_NAMES.RETRY);
+    const r2 = await runAutoRedeemFlow('RETRY_ALARM');
+    assert.equal(r2.reason, 'NETWORK_RETRY_SCHEDULED');
+    const d2 = mockAlarms.get(ALARM_NAMES.RETRY).delayInMinutes;
+    assert.ok(d2 >= 10 && d2 <= 10.5, `2回目は10〜10.5分: ${d2}`);
+
+    // 3回目: 30分台
+    mockAlarms.delete(ALARM_NAMES.RETRY);
+    const r3 = await runAutoRedeemFlow('RETRY_ALARM');
+    assert.equal(r3.reason, 'NETWORK_RETRY_SCHEDULED');
+    const d3 = mockAlarms.get(ALARM_NAMES.RETRY).delayInMinutes;
+    assert.ok(d3 >= 30 && d3 <= 30.5, `3回目は30〜30.5分: ${d3}`);
+
+    // 4回目: 上限到達（アラーム未登録・打ち止めログ1回）
+    mockAlarms.delete(ALARM_NAMES.RETRY);
+    const r4 = await runAutoRedeemFlow('RETRY_ALARM');
+    assert.equal(r4.reason, 'NETWORK_RETRY_EXHAUSTED');
+    assert.equal(mockAlarms.get(ALARM_NAMES.RETRY), undefined, '4回目はリトライ予約されないこと');
+
+    // 5回目: 打ち止めログが増えないこと
+    const r5 = await runAutoRedeemFlow('RETRY_ALARM');
+    assert.equal(r5.reason, 'NETWORK_RETRY_EXHAUSTED');
+    const logs = mockStorage.local.get('exec_logs') || [];
+    const exhaustedLogs = logs.filter(l => l.message && l.message.includes('再試行上限'));
+    assert.equal(exhaustedLogs.length, 1, '打ち止めログは1回だけ出力されること');
+
+    // 通常定期アラーム発火でリトライ回数がリセットされること
+    await chrome.storage.local.set({ app_settings: { optInAccepted: true, autoRedeemEnabled: true } });
+    mockAlarms.delete(ALARM_NAMES.RETRY);
+    await mockAlarmListeners[0]({ name: ALARM_NAMES.AUTO_REDEEM });
+    const dReset = mockAlarms.get(ALARM_NAMES.RETRY).delayInMinutes;
+    assert.ok(dReset >= 2 && dReset <= 2.5, '通常アラーム後は再び1回目(2分台)から開始されること');
+    assert.equal((await getRetryState('REDEEM')).count, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('CAPTCHA当日ブロック: isRisk後はIDLE_ACTIVEで再実行・再通知されないが手動実行は許可される', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  const origCatchUpDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  const origSignDelay = API_CONFIG.SIGN_GAME_DELAY_MS;
+  API_CONFIG.CATCH_UP_DELAY_MS = 0;
+  API_CONFIG.SIGN_GAME_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: false,
+      enabledGames: ['GENSHIN']
+    }
+  });
+
+  let signApiCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      return {
+        status: 200,
+        json: async () => ({
+          retcode: 0,
+          message: 'OK',
+          data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+        })
+      };
+    }
+    if (u.includes('/event/sol/info')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { is_sign: false, total_sign_day: 3 }
+        })
+      };
+    }
+    if (u.includes('/event/sol/sign')) {
+      signApiCalls++;
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { is_risk: true }
+        })
+      };
+    }
+    return { status: 200, json: async () => ({ retcode: 0 }), text: async () => JSON.stringify({ retcode: 0 }) };
+  };
+
+  try {
+    // 1. 定期実行でCAPTCHA検知
+    const firstRun = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(firstRun.results.GENSHIN.isRisk, true);
+    assert.equal(signApiCalls, 1);
+    assert.equal(mockCreatedNotifications.length, 1);
+    assert.equal((await getDailySignRecord('hk4e_global')).captchaBlocked, true);
+
+    // 2. IDLE_ACTIVE 復帰でも再実行・通知連発しないこと
+    const catchUpRes = await maybeRunAllCatchUp('IDLE_ACTIVE');
+    assert.equal(catchUpRes.signResult, false);
+    assert.equal(signApiCalls, 1, '当日は自動サインインAPIを再度叩かないこと');
+    assert.equal(mockCreatedNotifications.length, 1, 'CAPTCHA通知が重複しないこと');
+
+    // 3. ユーザーが手動で実行した場合は許可されること
+    const manualRes = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(manualRes.results.GENSHIN.isRisk, true);
+    assert.equal(signApiCalls, 2, '手動実行時は実行が許可されること');
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = origCatchUpDelay;
+    API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('未ログイン時の自動3時間クールダウンとコード失敗回数(r)非消費', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  const origCatchUpDelay = API_CONFIG.CATCH_UP_DELAY_MS;
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+  API_CONFIG.CATCH_UP_DELAY_MS = 0;
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['GENSHIN']
+    }
+  });
+
+  let roleCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      roleCalls++;
+      return {
+        status: 200,
+        json: async () => ({ retcode: -100, message: 'Not logged in', data: null })
+      };
+    }
+    return { status: 200, json: async () => ({ retcode: -100 }), text: async () => JSON.stringify({ retcode: -100 }) };
+  };
+
+  try {
+    // 1. 起動時キャッチアップで未ログイン失敗
+    await maybeRunAllCatchUp('STARTUP');
+    const callsAfterStartup = roleCalls;
+    assert.ok(callsAfterStartup > 0);
+
+    // 2. 直後の IDLE_ACTIVE では両系統とも3時間クールダウンにより再実行されないこと
+    const idleRes = await maybeRunAllCatchUp('IDLE_ACTIVE');
+    assert.equal(idleRes.signResult, false);
+    assert.equal(idleRes.redeemResult, false);
+    assert.equal(roleCalls, callsAfterStartup, 'クールダウン中はAPIを叩かないこと');
+
+    // 3. ロール取得成功後にコード交換APIが -100 を返してもコードの失敗回数 r が増えないこと
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('getUserGameRolesByCookie')) {
+        return {
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+          })
+        };
+      }
+      if (u.includes('hoyo-codes.seria.moe')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({ codes: [{ code: 'VALIDCODE123' }] })
+        };
+      }
+      if (u.includes('webExchangeCdkey')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ retcode: -100, message: 'Not logged in' })
+        };
+      }
+      return { status: 200, json: async () => ({}), text: async () => '{}' };
+    };
+
+    await redeemForGame('GENSHIN', 'ja', 'MANUAL');
+    const redeemed = await getRedeemedCodes('hk4e_global');
+    assert.equal(redeemed.VALIDCODE123, undefined, '未ログイン(-100)時にコードの失敗回数が消費されないこと');
+  } finally {
+    API_CONFIG.CATCH_UP_DELAY_MS = origCatchUpDelay;
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('HTTP 429 検知時: sign を追い打ちせず指数バックオフ (30→60分) に遷移し、正常完了でリセット', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origSignDelay = API_CONFIG.SIGN_GAME_DELAY_MS;
+  API_CONFIG.SIGN_GAME_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      enabledGames: ['GENSHIN']
+    }
+  });
+
+  let signPostCalls = 0;
+  let return429 = true;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      return {
+        status: 200,
+        json: async () => ({
+          retcode: 0,
+          message: 'OK',
+          data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+        })
+      };
+    }
+    if (u.includes('/event/sol/info')) {
+      if (return429) {
+        return { status: 429 };
+      }
+      return {
+        status: 200,
+        text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { is_sign: true, total_sign_day: 5 } })
+      };
+    }
+    if (u.includes('/event/sol/sign')) {
+      signPostCalls++;
+      return { status: 200, text: async () => JSON.stringify({ retcode: 0 }) };
+    }
+    return { status: 200, json: async () => ({}), text: async () => '{}' };
+  };
+
+  try {
+    // 1回目 429 -> level 1 (30分)、sign POSTは呼ばれない
+    const res1 = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(res1.success, false);
+    assert.equal(res1.reason, 'UNDER_BACKOFF');
+    assert.equal(res1.remainingMinutes, 30);
+    assert.equal(signPostCalls, 0, 'infoで429を受けた場合はsignを追い打ちしないこと');
+    assert.equal((await getBackoffState()).level, 1);
+
+    // バックオフ解除後に再び 429 -> level 2 (60分)
+    mockStorage.local.set('backoff_until', Date.now() - 1000);
+    mockStorage.session.clear();
+    const res2 = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(res2.reason, 'UNDER_BACKOFF');
+    assert.equal(res2.remainingMinutes, 60);
+    assert.equal((await getBackoffState()).level, 2);
+
+    // バックオフ解除後に正常完了 -> level 0 にリセット
+    mockStorage.local.set('backoff_until', Date.now() - 1000);
+    mockStorage.session.clear();
+    return429 = false;
+    const res3 = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(res3.success, true);
+    assert.equal((await getBackoffState()).level, 0);
+  } finally {
+    API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('手動クールダウン: 60秒以内の同ゲーム同種別連打は拒否、別ゲーム・別種別は即実行可能', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  let fetchCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    fetchCount++;
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      return { status: 200, json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }) };
+    }
+    return { status: 200, json: async () => ({}), text: async () => '{}' };
+  };
+
+  try {
+    // 1. 原神 コード交換 (1回目): 成功
+    const r1 = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(r1.success, true);
+    const countAfterFirst = fetchCount;
+
+    // 2. 原神 コード交換 (2回目): クールダウン拒否、API呼出0回
+    const r2 = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(r2.success, false);
+    assert.equal(r2.reason, 'MANUAL_COOLDOWN');
+    assert.ok(r2.remainingSec > 0 && r2.remainingSec <= 60);
+    assert.equal(fetchCount, countAfterFirst, 'クールダウン拒否時はAPIが呼ばれないこと');
+
+    // 3. 原神 ログボ (別種別): 実行可能
+    const s1 = await runDailySignFlow('MANUAL', 'GENSHIN');
+    assert.equal(s1.success, true);
+
+    // 4. スタレ コード交換 (別ゲーム): 実行可能
+    const r3 = await runAutoRedeemFlow('MANUAL', 'STAR_RAIL');
+    assert.equal(r3.success, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+async function createRealTimeoutError() {
+  const signal = AbortSignal.timeout(1);
+  if (!signal.aborted) {
+    await new Promise(resolve => {
+      signal.addEventListener('abort', resolve, { once: true });
+    });
+  }
+  return signal.reason;
+}
+
+test('classifyFetchError: TimeoutError / AbortError / HTTP / SyntaxError / ネットワークエラーを正確に分類すること', async () => {
+  const realTimeoutErr = await createRealTimeoutError();
+  assert.deepEqual(classifyFetchError(realTimeoutErr), { httpStatus: 0, errorType: 'timeout' });
+  assert.deepEqual(classifyFetchError(new DOMException('aborted', 'AbortError')), { httpStatus: 0, errorType: 'timeout' });
+  assert.deepEqual(classifyFetchError(new Error('HTTP_ERROR_503')), { httpStatus: 503, errorType: 'http_error' });
+  assert.deepEqual(classifyFetchError(new SyntaxError('Unexpected token <')), { httpStatus: 0, errorType: 'parse_error' });
+  assert.deepEqual(classifyFetchError(new TypeError('Failed to fetch')), { httpStatus: 0, errorType: 'network_error' });
+});
+
+test('runAutoRedeemFlow: コード一覧取得の TimeoutError 時に GA4 error_type=timeout 送信と短期リトライ予約を行うこと', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origIsDev = API_CONFIG.IS_DEV;
+  const origMid = API_CONFIG.GA_MEASUREMENT_ID;
+  const origSec = API_CONFIG.GA_API_SECRET;
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+
+  API_CONFIG.IS_DEV = false;
+  API_CONFIG.GA_MEASUREMENT_ID = 'G-TEST';
+  API_CONFIG.GA_API_SECRET = 'SECRET';
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      enabledGames: ['GENSHIN'],
+      language: 'ja'
+    }
+  });
+
+  const timeoutErr = await createRealTimeoutError();
+  const gaPayloads = [];
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+        })
+      };
+    }
+    if (u.includes('hoyo-codes.seria.moe')) {
+      throw timeoutErr;
+    }
+    if (u.includes('google-analytics.com/mp/collect')) {
+      gaPayloads.push(JSON.parse(opts.body));
+      return { ok: true, status: 204 };
+    }
+    return { status: 200, text: async () => '{}' };
+  };
+
+  try {
+    const res = await runAutoRedeemFlow('ALARM');
+    assert.equal(res.success, false);
+    assert.equal(res.reason, 'NETWORK_RETRY_SCHEDULED');
+    assert.ok(mockAlarms.get(ALARM_NAMES.RETRY), 'TimeoutError 時に RETRY アラームが予約されること');
+
+    const fetchErrEvent = gaPayloads
+      .flatMap(p => p.events || [])
+      .find(e => e.name === 'code_list_fetch_error');
+    assert.ok(fetchErrEvent, 'code_list_fetch_error が GA4 へ送信されること');
+    assert.equal(fetchErrEvent.params.game, 'genshin');
+    assert.equal(fetchErrEvent.params.http_status, 0);
+    assert.equal(fetchErrEvent.params.error_type, 'timeout');
+  } finally {
+    API_CONFIG.IS_DEV = origIsDev;
+    API_CONFIG.GA_MEASUREMENT_ID = origMid;
+    API_CONFIG.GA_API_SECRET = origSec;
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runDailySignFlow: API TimeoutError 発生時に短期リトライアラームが予約されること', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origSignDelay = API_CONFIG.SIGN_GAME_DELAY_MS;
+  API_CONFIG.SIGN_GAME_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      enabledGames: ['GENSHIN']
+    }
+  });
+
+  const timeoutErr = await createRealTimeoutError();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw timeoutErr;
+  };
+
+  try {
+    const res = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(res.success, false);
+    assert.equal(res.reason, 'NETWORK_RETRY_SCHEDULED');
+    assert.ok(mockAlarms.get(ALARM_NAMES.SIGN_RETRY), 'TimeoutError 時に SIGN_RETRY アラームが予約されること');
+  } finally {
+    API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow: 1ゲーム目のロール取得が非JSON応答でも全体停止せず後続ゲームを完了すること', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+  const origInterJitter = API_CONFIG.INTER_REQUEST_JITTER_MAX_MS;
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+  API_CONFIG.INTER_REQUEST_JITTER_MAX_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['GENSHIN', 'STAR_RAIL', 'ZZZ']
+    }
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hk4e_global')) {
+        return { status: 200, text: async () => '<html>WAF Block</html>' };
+      }
+      if (u.includes('hkrpg_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hkrpg_global', region: 'prod_official_asia', game_uid: '800111222', nickname: '星', level: 70 }] }
+          })
+        };
+      }
+      if (u.includes('nap_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'nap_global', region: 'prod_gf_jp', game_uid: '1300111222', nickname: 'アキラ', level: 60 }] }
+          })
+        };
+      }
+    }
+    if (u.includes('hoyo-codes.seria.moe')) {
+      const code = u.includes('hkrpg') ? 'HSRCODE1' : 'ZZZCODE1';
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code }] })
+      };
+    }
+    if (u.includes('webExchangeCdkey')) {
+      return { status: 200, text: async () => JSON.stringify({ retcode: 0, message: 'OK' }) };
+    }
+    return { status: 200, text: async () => '{}' };
+  };
+
+  try {
+    const flowRes = await runAutoRedeemFlow('ALARM');
+    assert.equal(flowRes.success, true);
+    assert.equal(flowRes.redeemedCount, 2, 'スタレとZZZの2件が正常に引き換えられること');
+    assert.equal(flowRes.results.GENSHIN.success, false);
+    assert.equal(flowRes.results.GENSHIN.retcode, -9999);
+    assert.equal(flowRes.results.STAR_RAIL.success, true);
+    assert.equal(flowRes.results.STAR_RAIL.redeemedCount, 1);
+    assert.equal(flowRes.results.ZZZ.success, true);
+    assert.equal(flowRes.results.ZZZ.redeemedCount, 1);
+  } finally {
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
+    API_CONFIG.INTER_REQUEST_JITTER_MAX_MS = origInterJitter;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runDailySignFlow: 1ゲーム目のロール取得が非JSON応答でも全体停止せず後続ゲームを完了すること', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origSignDelay = API_CONFIG.SIGN_GAME_DELAY_MS;
+  const origSignJitter = API_CONFIG.SIGN_GAME_JITTER_MAX_MS;
+  API_CONFIG.SIGN_GAME_DELAY_MS = 0;
+  API_CONFIG.SIGN_GAME_JITTER_MAX_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      enabledGames: ['GENSHIN', 'STAR_RAIL', 'ZZZ']
+    }
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hk4e_global')) {
+        return { status: 200, text: async () => '<html>WAF Block</html>' };
+      }
+      if (u.includes('hkrpg_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hkrpg_global', region: 'prod_official_asia', game_uid: '800111222', nickname: '星', level: 70 }] }
+          })
+        };
+      }
+      if (u.includes('nap_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'nap_global', region: 'prod_gf_jp', game_uid: '1300111222', nickname: 'アキラ', level: 60 }] }
+          })
+        };
+      }
+    }
+    if (u.includes('/info')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { is_sign: false, total_sign_day: 4, today: '2026-11-23' }
+        })
+      };
+    }
+    if (u.includes('/sign')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { is_risk: false } })
+      };
+    }
+    return { status: 200, text: async () => '{}' };
+  };
+
+  try {
+    const flowRes = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(flowRes.success, true);
+    assert.equal(flowRes.signedCount, 2, 'スタレとZZZの2件が正常にサインインされること');
+    assert.equal(flowRes.results.GENSHIN.success, false);
+    assert.equal(flowRes.results.GENSHIN.retcode, -9999);
+    assert.equal(flowRes.results.STAR_RAIL.success, true);
+    assert.equal(flowRes.results.STAR_RAIL.signed, true);
+    assert.equal(flowRes.results.ZZZ.success, true);
+    assert.equal(flowRes.results.ZZZ.signed, true);
+  } finally {
+    API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
+    API_CONFIG.SIGN_GAME_JITTER_MAX_MS = origSignJitter;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('waitCatchUpDelay: 20秒単位の分割スリープとチャンク間キープアライブ呼び出しの境界値検証', async () => {
+  // 1. 0ms 以下は待機も ping も発生しないこと
+  let events = [];
+  let res = await waitCatchUpDelay({
+    totalDelayMs: 0,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 0, chunks: [], pingCount: 0 });
+  assert.deepEqual(events, []);
+
+  res = await waitCatchUpDelay({
+    totalDelayMs: -500,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 0, chunks: [], pingCount: 0 });
+
+  // 2. 20秒以下 (18,000ms / 20,000ms) は1チャンクのみで余分な ping を呼ばないこと
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 18_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 18_000, chunks: [18_000], pingCount: 0 });
+  assert.deepEqual(events, ['sleep:18000']);
+
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 20_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 20_000, chunks: [20_000], pingCount: 0 });
+  assert.deepEqual(events, ['sleep:20000']);
+
+  // 3. 40,000ms ちょうどは2チャンク・合間の ping 1回のみ（完了直前は呼ばない）
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 40_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 40_000, chunks: [20_000, 20_000], pingCount: 1 });
+  assert.deepEqual(events, ['sleep:20000', 'ping', 'sleep:20000']);
+
+  // 4. 最大 45,000ms は [20_000, 20_000, 5_000] の3チャンク・合間の ping 2回
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 45_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 45_000, chunks: [20_000, 20_000, 5_000], pingCount: 2 });
+  assert.deepEqual(events, ['sleep:20000', 'ping', 'sleep:20000', 'ping', 'sleep:5000']);
+});
+
+test('waitCatchUpDelay: デフォルト pingFn が chrome.storage.session.get を呼び出し例外時も完走すること', async () => {
+  const originalSessionGet = chrome.storage.session.get;
+  const sessionGetKeys = [];
+
+  try {
+    chrome.storage.session.get = async (key) => {
+      sessionGetKeys.push(key);
+      return originalSessionGet(key);
+    };
+
+    const res = await waitCatchUpDelay({
+      totalDelayMs: 35_000,
+      maxStepMs: 20_000,
+      sleepFn: async () => {}
+    });
+    assert.deepEqual(res, { totalWaitMs: 35_000, chunks: [20_000, 15_000], pingCount: 1 });
+    assert.deepEqual(sessionGetKeys, ['lock_state']);
+
+    // session.get が例外を投げても待機が中断されないこと
+    chrome.storage.session.get = async () => {
+      throw new Error('storage session error');
+    };
+    const resErr = await waitCatchUpDelay({
+      totalDelayMs: 45_000,
+      maxStepMs: 20_000,
+      sleepFn: async () => {}
+    });
+    assert.deepEqual(resErr, { totalWaitMs: 45_000, chunks: [20_000, 20_000, 5_000], pingCount: 2 });
+  } finally {
+    chrome.storage.session.get = originalSessionGet;
   }
 });

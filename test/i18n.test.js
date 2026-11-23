@@ -85,8 +85,13 @@ test('t: プレースホルダー置換と多言語メッセージ取得', () =>
   assert.equal(t('btnOk', [], 'ja'), 'OK');
   assert.equal(t('btnOk', [], 'en'), 'OK');
 
-  assert.equal(t('autoSignLabel', ['01:05'], 'ja'), '自動受け取り (毎日 01:05)');
-  assert.equal(t('autoSignLabel', ['01:05'], 'en'), 'Auto Claim (Daily 01:05)');
+  assert.equal(t('autoSignLabel', ['01:05'], 'ja'), '自動受け取り (毎日 01:05頃)');
+  assert.equal(t('autoSignLabel', ['01:05'], 'en'), 'Auto Claim (Daily ~01:05)');
+
+  assert.match(t('logRetryRedeem', [10, 2, 3], 'ja'), /約10分後に自動再試行します \(2\/3回目\)/);
+  assert.match(t('logRetryRedeem', [10, 2, 3], 'en'), /Retrying in about 10 min \(attempt 2\/3\)/);
+  assert.ok(t('fmtManualCooldownMsg', [45], 'ja').includes('45秒'));
+  assert.ok(t('fmtManualCooldownMsg', [45], 'en').includes('45 second(s)'));
 
   assert.equal(t('redeemStatsBadge', [5, 42], 'ja'), '今月 5件 / 通算 42件');
   assert.equal(t('redeemStatsBadge', [5, 42], 'en'), 'Month: 5 / Total: 42');

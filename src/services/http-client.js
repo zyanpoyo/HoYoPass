@@ -31,6 +31,39 @@ export async function hoyoFetch(url, options = {}) {
   });
 }
 
+export function parseRetryAfterMs(resp, nowMs = Date.now()) {
+  const raw = resp?.headers?.get?.('retry-after') ?? resp?.headers?.get?.('Retry-After');
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+
+  if (/^\d+$/.test(trimmed)) {
+    const ms = Number(trimmed) * 1000;
+    return Number.isFinite(ms) && ms > 0 ? ms : null;
+  }
+
+  const parsedDate = Date.parse(trimmed);
+  if (Number.isFinite(parsedDate)) {
+    const diff = parsedDate - nowMs;
+    return diff > 0 ? diff : null;
+  }
+  return null;
+}
+
+export function inspectHttpBackoffStatus(resp, nowMs = Date.now()) {
+  const status = Number(resp?.status || 0);
+  if (status === 429 || status >= 500) {
+    return {
+      shouldBackoff: true,
+      httpStatus: status,
+      isRateLimited: status === 429,
+      isServerError: status >= 500,
+      retryAfterMs: parseRetryAfterMs(resp, nowMs)
+    };
+  }
+  return null;
+}
+
 export async function publicFetch(url, options = {}) {
   const parsedUrl = new URL(url);
   if (!ALLOWED_PUBLIC_HOSTS.includes(parsedUrl.hostname)) {
@@ -44,4 +77,32 @@ export async function publicFetch(url, options = {}) {
     referrerPolicy: 'no-referrer',
     signal
   });
+}
+
+export function isTimeoutError(err) {
+  if (!err) return false;
+  if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+    return true;
+  }
+  const msg = typeof err.message === 'string' ? err.message : '';
+  return /timeout|timed\s*out/i.test(msg);
+}
+
+export function isNetworkException(err) {
+  if (!err) return false;
+  const msg = typeof err.message === 'string' ? err.message : '';
+  if (
+    msg.startsWith('SECURITY_ERROR') ||
+    msg.startsWith('STORAGE_WRITE_FAILURE') ||
+    /^HTTP_ERROR_\d+/.test(msg)
+  ) {
+    return false;
+  }
+  if (isTimeoutError(err)) {
+    return true;
+  }
+  if (/failed to fetch|fetch failed|networkerror|network request failed|err_internet_disconnected|err_network/i.test(msg)) {
+    return true;
+  }
+  return /\bfetch\b|\bnetwork\b/i.test(msg);
 }

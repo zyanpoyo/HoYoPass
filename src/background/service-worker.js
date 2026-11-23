@@ -1,7 +1,11 @@
 import { GAMES, API_CONFIG, STATUS_MAP, ALARM_NAMES } from '../config/constants.js';
 import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
 import {
-  setBackoff,
+  recordBackoffFailure,
+  isUnderBackoff,
+  computeJitteredDelayMs,
+  resetRetryState,
+  isUnderAutoAttemptCooldown,
   getSettings,
   canAcceptNewCode,
   getRedeemedCodes,
@@ -13,6 +17,7 @@ import {
   getHoyoTodayDateString,
   setDailySignRecord,
   isDailySignedToday,
+  isDailySignAutoSkippedToday,
   shouldRunDailySign,
   getActiveCodes,
   setActiveCodes,
@@ -20,6 +25,7 @@ import {
 } from '../services/storage-service.js';
 import { initReviewPromptState } from '../services/review-prompt-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
+import { isTimeoutError } from '../services/http-client.js';
 import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
 import {
   toGaGameKey,
@@ -60,21 +66,62 @@ export {
   clearSignRetryAlarm
 };
 
+async function pingServiceWorkerKeepAlive() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.session?.get) {
+      await chrome.storage.session.get('lock_state');
+    }
+  } catch {
+    // keepalive ping の失敗でキャッチアップ本体を止めない
+  }
+}
+
+export async function waitCatchUpDelay({
+  totalDelayMs = computeJitteredDelayMs(
+    API_CONFIG.CATCH_UP_DELAY_MS,
+    API_CONFIG.CATCH_UP_JITTER_MAX_MS
+  ),
+  maxStepMs = API_CONFIG.CATCH_UP_KEEPALIVE_INTERVAL_MS,
+  sleepFn = (ms) => new Promise(r => setTimeout(r, ms)),
+  pingFn = pingServiceWorkerKeepAlive
+} = {}) {
+  if (!Number.isFinite(totalDelayMs) || totalDelayMs <= 0) {
+    return { totalWaitMs: 0, chunks: [], pingCount: 0 };
+  }
+
+  const stepLimit = (Number.isFinite(maxStepMs) && maxStepMs > 0) ? maxStepMs : totalDelayMs;
+  let remainingMs = totalDelayMs;
+  const chunks = [];
+  let pingCount = 0;
+
+  while (remainingMs > 0) {
+    const chunkMs = Math.min(remainingMs, stepLimit);
+    await sleepFn(chunkMs);
+    chunks.push(chunkMs);
+    remainingMs -= chunkMs;
+    if (remainingMs > 0) {
+      await pingFn();
+      pingCount++;
+    }
+  }
+
+  return { totalWaitMs: totalDelayMs, chunks, pingCount };
+}
+
 export async function maybeRunCatchUp(triggerSource = 'STARTUP') {
   const settings = await getSettings();
   if (!settings.optInAccepted || !settings.autoRedeemEnabled) return false;
+  if (await isUnderBackoff()) return false;
 
   const shouldRun = await shouldRunRedeem(API_CONFIG.REDEEM_INTERVAL_MINUTES);
   if (!shouldRun) return false;
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    await scheduleRetryAlarm();
     return false;
   }
 
-  if (API_CONFIG.CATCH_UP_DELAY_MS > 0) {
-    await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
-  }
+  await waitCatchUpDelay();
 
   return await runAutoRedeemFlow(triggerSource);
 }
@@ -82,6 +129,8 @@ export async function maybeRunCatchUp(triggerSource = 'STARTUP') {
 export async function maybeRunDailySignCatchUp(triggerSource = 'STARTUP', skipDelay = false) {
   const settings = await getSettings();
   if (!settings.optInAccepted || !settings.autoSignEnabled) return false;
+  if (await isUnderBackoff()) return false;
+  if (await isUnderAutoAttemptCooldown('SIGN')) return false;
 
   const enabledGames = settings.enabledGames || Object.keys(GAMES);
   const gameBizList = enabledGames.map(k => GAMES[k]?.gameBiz).filter(Boolean);
@@ -89,12 +138,12 @@ export async function maybeRunDailySignCatchUp(triggerSource = 'STARTUP', skipDe
   if (!shouldRun) return false;
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    await scheduleSignRetryAlarm();
     return false;
   }
 
-  if (!skipDelay && API_CONFIG.CATCH_UP_DELAY_MS > 0) {
-    await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
+  if (!skipDelay) {
+    await waitCatchUpDelay();
   }
 
   return await runDailySignFlow(triggerSource);
@@ -103,24 +152,28 @@ export async function maybeRunDailySignCatchUp(triggerSource = 'STARTUP', skipDe
 export async function maybeRunAllCatchUp(triggerSource = 'STARTUP', skipDelay = false) {
   const settings = await getSettings();
   if (!settings.optInAccepted) return { signResult: false, redeemResult: false };
+  if (await isUnderBackoff()) return { signResult: false, redeemResult: false };
 
   const enabledGames = settings.enabledGames || Object.keys(GAMES);
   const gameBizList = enabledGames.map(k => GAMES[k]?.gameBiz).filter(Boolean);
-  const needSign = settings.autoSignEnabled && (await shouldRunDailySign(gameBizList));
-  const needRedeem = settings.autoRedeemEnabled && (await shouldRunRedeem(API_CONFIG.REDEEM_INTERVAL_MINUTES));
+  const needSign = settings.autoSignEnabled &&
+    !(await isUnderAutoAttemptCooldown('SIGN')) &&
+    (await shouldRunDailySign(gameBizList));
+  const needRedeem = settings.autoRedeemEnabled &&
+    (await shouldRunRedeem(API_CONFIG.REDEEM_INTERVAL_MINUTES));
 
   if (!needSign && !needRedeem) {
     return { signResult: false, redeemResult: false };
   }
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    if (needSign) await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
-    if (needRedeem) await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+    if (needSign) await scheduleSignRetryAlarm();
+    if (needRedeem) await scheduleRetryAlarm();
     return { signResult: false, redeemResult: false };
   }
 
-  if (!skipDelay && API_CONFIG.CATCH_UP_DELAY_MS > 0) {
-    await new Promise(r => setTimeout(r, API_CONFIG.CATCH_UP_DELAY_MS));
+  if (!skipDelay) {
+    await waitCatchUpDelay();
   }
 
   const signResult = needSign ? await runDailySignFlow(triggerSource) : false;
@@ -162,8 +215,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const settings = await getSettings();
     if (!settings.optInAccepted || !settings.autoRedeemEnabled) return;
 
+    if (alarm.name === ALARM_NAMES.AUTO_REDEEM) {
+      await resetRetryState('REDEEM');
+    }
+
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      await scheduleRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+      await scheduleRetryAlarm();
       return;
     }
 
@@ -176,8 +233,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const settings = await getSettings();
     if (!settings.optInAccepted || !settings.autoSignEnabled) return;
 
+    if (alarm.name === ALARM_NAMES.DAILY_SIGN) {
+      await resetRetryState('SIGN');
+    }
+
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      await scheduleSignRetryAlarm(API_CONFIG.RETRY_INTERVAL_MINUTES);
+      await scheduleSignRetryAlarm();
       return;
     }
 
@@ -205,33 +266,68 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-function classifyFetchError(fetchErr) {
-  const match = fetchErr.message && fetchErr.message.match(/HTTP_ERROR_(\d+)/);
+export function classifyFetchError(fetchErr) {
+  const msg = typeof fetchErr?.message === 'string' ? fetchErr.message : '';
+  const match = msg.match(/HTTP_ERROR_(\d+)/);
   const httpStatus = match ? parseInt(match[1], 10) : 0;
-  const isTimeout = fetchErr.name === 'AbortError' || Boolean(fetchErr.message?.includes('TIMEOUT'));
-  const isParseErr = fetchErr instanceof SyntaxError || Boolean(fetchErr.message?.includes('JSON'));
+  const isTimeout = isTimeoutError(fetchErr);
+  const isParseErr = fetchErr instanceof SyntaxError || msg.includes('JSON');
   const errorType = isTimeout
     ? 'timeout'
     : (httpStatus > 0 ? 'http_error' : (isParseErr ? 'parse_error' : 'network_error'));
   return { httpStatus, errorType };
 }
 
-function classifyRedeemRetcode(retcode) {
+function classifyRedeemRetcode(retcode, res = {}) {
+  if (res?.shouldBackoff) {
+    return {
+      codeStatus: null,
+      skipMarkStatus: true,
+      gaStatus: 'failed',
+      errorReason: res.isRateLimited ? 'rate_limited' : 'server_error',
+      shouldBreak: true,
+      triggerBackoff: true
+    };
+  }
   switch (retcode) {
     case 0:
-      return { codeStatus: 'SUCCESS', gaStatus: 'success', errorReason: 'none', shouldBreak: false };
+      return { codeStatus: 'SUCCESS', gaStatus: 'success', errorReason: 'none', shouldBreak: false, skipMarkStatus: false };
     case -2017:
-      return { codeStatus: 'ALREADY_CLAIMED', gaStatus: 'already_claimed', errorReason: 'none', shouldBreak: false };
+      return { codeStatus: 'ALREADY_CLAIMED', gaStatus: 'already_claimed', errorReason: 'none', shouldBreak: false, skipMarkStatus: false };
     case -2001:
-      return { codeStatus: 'EXPIRED', gaStatus: 'expired', errorReason: 'none', shouldBreak: false };
+      return { codeStatus: 'EXPIRED', gaStatus: 'expired', errorReason: 'none', shouldBreak: false, skipMarkStatus: false };
     case -2016:
-      return { codeStatus: 'RETRY', gaStatus: 'cooldown', errorReason: 'cooldown', shouldBreak: true, triggerBackoff: true };
+      return { codeStatus: null, skipMarkStatus: true, gaStatus: 'cooldown', errorReason: 'cooldown', shouldBreak: true, triggerBackoff: true };
     case -100:
     case -1071:
-      return { codeStatus: 'RETRY', gaStatus: 'failed', errorReason: 'not_logged_in', shouldBreak: true };
+      return { codeStatus: null, skipMarkStatus: true, gaStatus: 'failed', errorReason: 'not_logged_in', shouldBreak: true };
     default:
-      return { codeStatus: 'RETRY', gaStatus: 'failed', errorReason: 'unknown', shouldBreak: false };
+      return { codeStatus: 'RETRY', gaStatus: 'failed', errorReason: 'unknown', shouldBreak: false, skipMarkStatus: false };
   }
+}
+
+async function handleHttpBackoffResponse({ gameKey, gameName, category, gaEventName, trigger, lang, res }) {
+  const backoff = await recordBackoffFailure({ retryAfterMs: res.retryAfterMs });
+  const errorReason = res.isRateLimited ? 'rate_limited' : 'server_error';
+  await sendGAEvent(gaEventName, {
+    game: toGaGameKey(gameKey),
+    status: 'failed',
+    error_reason: errorReason,
+    trigger,
+    lang
+  });
+  const boMsg = t('logHttpBackoff', [gameName, res.httpStatus, backoff.remainingMinutes], lang);
+  await addExecutionLog({ type: 'WARN', category, gameKey, message: boMsg });
+  return {
+    success: false,
+    skipped: false,
+    backoffTriggered: true,
+    httpStatus: res.httpStatus,
+    retcode: res.retcode,
+    reason: boMsg,
+    gameKey,
+    gameName
+  };
 }
 
 function isTerminalCodeStatus(status) {
@@ -252,6 +348,17 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
 
   const roleRes = await getUserGameRoles(gameConfig.gameBiz, lang);
   if (!roleRes.success) {
+    if (roleRes.shouldBackoff) {
+      return await handleHttpBackoffResponse({
+        gameKey,
+        gameName,
+        category: 'CODE',
+        gaEventName: 'code_redeem_result',
+        trigger,
+        lang,
+        res: roleRes
+      });
+    }
     if (roleRes.retcode === -1 || roleRes.retcode === -2) {
       await addExecutionLog({
         type: 'INFO',
@@ -302,6 +409,7 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
 
   const redeemed = await getRedeemedCodes(gameConfig.gameBiz);
   let redeemedCount = 0;
+  let backoffTriggered = false;
 
   for (const cdkey of activeCodes) {
     const entry = redeemed[cdkey];
@@ -321,7 +429,13 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
       }
     }
 
-    await new Promise(r => setTimeout(r, API_CONFIG.INTER_REQUEST_DELAY_MS));
+    const delayMs = computeJitteredDelayMs(
+      API_CONFIG.INTER_REQUEST_DELAY_MS,
+      API_CONFIG.INTER_REQUEST_JITTER_MAX_MS
+    );
+    if (delayMs > 0) {
+      await new Promise(r => setTimeout(r, delayMs));
+    }
 
     const res = await redeemCode({
       exchangeHost: gameConfig.exchangeHost,
@@ -333,11 +447,22 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
       lang
     });
 
-    const outcome = classifyRedeemRetcode(res.retcode);
+    const outcome = classifyRedeemRetcode(res.retcode, res);
     if (outcome.triggerBackoff) {
-      await setBackoff();
+      const backoff = await recordBackoffFailure({ retryAfterMs: res.retryAfterMs });
+      backoffTriggered = true;
+      if (res.shouldBackoff) {
+        await addExecutionLog({
+          type: 'WARN',
+          category: 'CODE',
+          gameKey,
+          message: t('logHttpBackoff', [gameName, res.httpStatus, backoff.remainingMinutes], lang)
+        });
+      }
     }
-    await markCodeStatus(gameConfig.gameBiz, cdkey, outcome.codeStatus);
+    if (!outcome.skipMarkStatus) {
+      await markCodeStatus(gameConfig.gameBiz, cdkey, outcome.codeStatus);
+    }
     if (outcome.codeStatus === 'SUCCESS') {
       redeemedCount++;
     }
@@ -356,6 +481,17 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
   }
 
   await pruneHistoryIfExceeded(gameConfig.gameBiz, activeCodes);
+  if (backoffTriggered) {
+    return {
+      success: false,
+      skipped: false,
+      backoffTriggered: true,
+      redeemedCount,
+      gameKey,
+      gameName
+    };
+  }
+
   await addExecutionLog({
     type: 'INFO',
     category: 'CODE',
@@ -369,6 +505,8 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
 export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey = null) {
   return executeMultiGameFlow({
     lockKey: triggerSource,
+    triggerSource,
+    attemptKind: 'REDEEM',
     targetGameKey,
     category: 'CODE',
     countPropName: 'redeemedCount',
@@ -376,14 +514,20 @@ export async function runAutoRedeemFlow(triggerSource = 'ALARM', targetGameKey =
     logBackoffAbort: true,
     notifyStorageWriteFailure: true,
     skippedDelayMs: 500,
-    getNormalDelayMs: () => API_CONFIG.INTER_REQUEST_DELAY_MS,
+    getNormalDelayMs: () => computeJitteredDelayMs(
+      API_CONFIG.INTER_REQUEST_DELAY_MS,
+      API_CONFIG.INTER_REQUEST_JITTER_MAX_MS
+    ),
     runSingleGame: (gKey, lang) => redeemForGame(gKey, lang, triggerSource),
     extractCount: (res) => (res.success && !res.skipped && res.redeemedCount ? res.redeemedCount : 0),
     onFullRunSuccess: async () => {
       await setLastSuccessfulRun(Date.now());
       await clearRetryAlarm();
+      await resetRetryState('REDEEM');
     },
     scheduleRetry: scheduleRetryAlarm,
+    clearRetry: clearRetryAlarm,
+    resetRetry: () => resetRetryState('REDEEM'),
     exceptionLogKey: 'logExceptionRedeem'
   });
 }
@@ -397,19 +541,42 @@ export async function signForGame(gameKey, options = {}, lang = 'ja', triggerSou
   const trigger = toCheckinTrigger(triggerSource);
   const gameName = getGameLocalized(gameKey, lang).name;
 
-  if (!options.forceCheck && (await isDailySignedToday(gameConfig.gameBiz))) {
-    return {
-      success: true,
-      skipped: true,
-      alreadySigned: true,
-      reason: 'ALREADY_SIGNED_TODAY',
-      gameKey,
-      gameName
-    };
+  if (!options.forceCheck) {
+    if (await isDailySignedToday(gameConfig.gameBiz)) {
+      return {
+        success: true,
+        skipped: true,
+        alreadySigned: true,
+        reason: 'ALREADY_SIGNED_TODAY',
+        gameKey,
+        gameName
+      };
+    }
+    if (await isDailySignAutoSkippedToday(gameConfig.gameBiz)) {
+      return {
+        success: true,
+        skipped: true,
+        captchaBlocked: true,
+        reason: 'CAPTCHA_BLOCKED_TODAY',
+        gameKey,
+        gameName
+      };
+    }
   }
 
   const roleRes = await getUserGameRoles(gameConfig.gameBiz, lang);
   if (!roleRes.success) {
+    if (roleRes.shouldBackoff) {
+      return await handleHttpBackoffResponse({
+        gameKey,
+        gameName,
+        category: 'SIGN',
+        gaEventName: 'daily_checkin_result',
+        trigger,
+        lang,
+        res: roleRes
+      });
+    }
     if (roleRes.retcode === -1 || roleRes.retcode === -2) {
       await setDailySignRecord(gameConfig.gameBiz, {
         date: getHoyoTodayDateString(),
@@ -451,6 +618,17 @@ export async function signForGame(gameKey, options = {}, lang = 'ja', triggerSou
   }
 
   const infoRes = await getDailySignInfo(gameConfig, lang);
+  if (infoRes.shouldBackoff) {
+    return await handleHttpBackoffResponse({
+      gameKey,
+      gameName,
+      category: 'SIGN',
+      gaEventName: 'daily_checkin_result',
+      trigger,
+      lang,
+      res: infoRes
+    });
+  }
   const todayStr = (infoRes.success && infoRes.today) ? infoRes.today : getHoyoTodayDateString();
 
   if (infoRes.success && infoRes.isSigned) {
@@ -487,7 +665,25 @@ export async function signForGame(gameKey, options = {}, lang = 'ja', triggerSou
 
   const claimRes = await claimDailyBonus(gameConfig, lang);
 
+  if (claimRes.shouldBackoff) {
+    return await handleHttpBackoffResponse({
+      gameKey,
+      gameName,
+      category: 'SIGN',
+      gaEventName: 'daily_checkin_result',
+      trigger,
+      lang,
+      res: claimRes
+    });
+  }
+
   if (claimRes.isRisk) {
+    await setDailySignRecord(gameConfig.gameBiz, {
+      date: todayStr,
+      isSigned: false,
+      skippedNoChar: false,
+      captchaBlocked: true
+    });
     await sendGAEvent('daily_checkin_result', {
       game: toGaGameKey(gameKey),
       status: 'failed',
@@ -582,6 +778,8 @@ export async function signForGame(gameKey, options = {}, lang = 'ja', triggerSou
 export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGameKey = null) {
   return executeMultiGameFlow({
     lockKey: `SIGN_${triggerSource}`,
+    triggerSource,
+    attemptKind: 'SIGN',
     targetGameKey,
     category: 'SIGN',
     countPropName: 'signedCount',
@@ -589,11 +787,19 @@ export async function runDailySignFlow(triggerSource = 'DAILY_ALARM', targetGame
     logBackoffAbort: false,
     notifyStorageWriteFailure: false,
     skippedDelayMs: 200,
-    getNormalDelayMs: () => 1_500,
+    getNormalDelayMs: () => computeJitteredDelayMs(
+      API_CONFIG.SIGN_GAME_DELAY_MS,
+      API_CONFIG.SIGN_GAME_JITTER_MAX_MS
+    ),
     runSingleGame: (gKey, lang) => signForGame(gKey, { forceCheck: !!targetGameKey }, lang, triggerSource),
     extractCount: (res) => (res.success && res.signed ? 1 : 0),
-    onFullRunSuccess: clearSignRetryAlarm,
+    onFullRunSuccess: async () => {
+      await clearSignRetryAlarm();
+      await resetRetryState('SIGN');
+    },
     scheduleRetry: scheduleSignRetryAlarm,
+    clearRetry: clearSignRetryAlarm,
+    resetRetry: () => resetRetryState('SIGN'),
     exceptionLogKey: 'logExceptionSign'
   });
 }

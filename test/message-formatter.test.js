@@ -77,6 +77,40 @@ test('formatRedeemResult: バックオフ中 (UNDER_BACKOFF)', () => {
   assert.equal(res.title, 'コード交換一時停止中');
   assert.match(res.message, /連続リクエスト制限中のため/);
   assert.match(res.detail, /バックオフ期間中/);
+
+  const resWithMins = formatRedeemResult({
+    success: false,
+    reason: 'UNDER_BACKOFF',
+    remainingMinutes: 45
+  });
+  assert.equal(resWithMins.detail, 'バックオフ期間中 (残り約45分一時停止)');
+});
+
+test('formatRedeemResult / formatSignResult: MANUAL_COOLDOWN と NETWORK_RETRY_EXHAUSTED', () => {
+  const cdRedeem = formatRedeemResult({
+    success: false,
+    reason: 'MANUAL_COOLDOWN',
+    remainingSec: 42
+  });
+  assert.equal(cdRedeem.title, 'しばらくお待ちください');
+  assert.match(cdRedeem.message, /42秒/);
+  assert.match(cdRedeem.detail, /42秒/);
+
+  const cdSignEn = formatSignResult({
+    success: false,
+    reason: 'MANUAL_COOLDOWN',
+    remainingSec: 15
+  }, 'en');
+  assert.equal(cdSignEn.title, 'Please Wait');
+  assert.match(cdSignEn.message, /15 second\(s\)/);
+
+  const exhausted = formatSignResult({
+    success: false,
+    reason: 'NETWORK_RETRY_EXHAUSTED',
+    error: 'Failed to fetch'
+  });
+  assert.equal(exhausted.title, '通信エラー');
+  assert.equal(exhausted.detail, 'Failed to fetch');
 });
 
 test('formatRedeemResult: 例外発生 (EXCEPTION)', () => {

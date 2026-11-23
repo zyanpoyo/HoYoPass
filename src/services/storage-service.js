@@ -6,9 +6,48 @@ import {
   PRIVACY_POLICY_VERSION,
   LEGACY_POLICY_VERSION
 } from '../config/constants.js';
+import {
+  isUnderBackoff,
+  setBackoff,
+  getBackoffState,
+  recordBackoffFailure,
+  resetBackoffLevel,
+  computeJitteredDelayMs,
+  getDailySignJitterMinutes,
+  getOrCreateDailySignJitterMinutes,
+  getRetryState,
+  consumeRetrySlot,
+  resetRetryState,
+  getLastAttemptTimestamp,
+  setLastAttemptTimestamp,
+  isUnderAutoAttemptCooldown,
+  checkManualCooldown,
+  recordManualCooldown,
+  clearManualCooldowns
+} from './rate-limit-service.js';
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const STORAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+export {
+  isUnderBackoff,
+  setBackoff,
+  getBackoffState,
+  recordBackoffFailure,
+  resetBackoffLevel,
+  computeJitteredDelayMs,
+  getDailySignJitterMinutes,
+  getOrCreateDailySignJitterMinutes,
+  getRetryState,
+  consumeRetrySlot,
+  resetRetryState,
+  getLastAttemptTimestamp,
+  setLastAttemptTimestamp,
+  isUnderAutoAttemptCooldown,
+  checkManualCooldown,
+  recordManualCooldown,
+  clearManualCooldowns
+};
 
 export async function acquireExecutionLock(triggerSource) {
   const session = await chrome.storage.session.get('lock_state');
@@ -27,15 +66,6 @@ export async function acquireExecutionLock(triggerSource) {
 
 export async function releaseExecutionLock() {
   await chrome.storage.session.remove('lock_state');
-}
-
-export async function isUnderBackoff(nowMs = Date.now()) {
-  const data = await chrome.storage.local.get('backoff_until');
-  return nowMs < (data.backoff_until || 0);
-}
-
-export async function setBackoff(durationMs = API_CONFIG.BACKOFF_DURATION_MS) {
-  await chrome.storage.local.set({ backoff_until: Date.now() + durationMs });
 }
 
 export function needsPolicyReview(settings, current = PRIVACY_POLICY_VERSION) {
@@ -286,9 +316,11 @@ export async function setLastSuccessfulRun(timestamp = Date.now()) {
   await chrome.storage.local.set({ last_successful_run: timestamp });
 }
 
-export async function shouldRunRedeem(minIntervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES) {
-  const lastRun = await getLastSuccessfulRun();
-  const elapsedMs = Date.now() - lastRun;
+export async function shouldRunRedeem(minIntervalMinutes = API_CONFIG.REDEEM_INTERVAL_MINUTES, nowMs = Date.now()) {
+  const lastSuccess = await getLastSuccessfulRun();
+  const lastAttempt = await getLastAttemptTimestamp('REDEEM');
+  const lastRun = Math.max(lastSuccess, lastAttempt);
+  const elapsedMs = nowMs - lastRun;
   return elapsedMs >= minIntervalMinutes * 60 * 1000;
 }
 
@@ -306,11 +338,17 @@ export async function getDailySignRecord(gameBiz) {
 export async function setDailySignRecord(gameBiz, record) {
   const key = `daily_sign_${gameBiz}`;
   const current = await getDailySignRecord(gameBiz);
+  // 日付が切り替わった場合は古い日の captchaBlocked / skippedNoChar を引き継がない
+  const isSameDate = Boolean(current && record.date && current.date === record.date);
+  const base = isSameDate ? current : {};
   const updated = {
-    ...(current || {}),
+    ...base,
     ...record,
     updatedAt: Date.now()
   };
+  if (record.isSigned === true) {
+    updated.captchaBlocked = false;
+  }
   try {
     await chrome.storage.local.set({ [key]: updated });
   } catch (err) {
@@ -326,10 +364,21 @@ export async function isDailySignedToday(gameBiz, nowMs = Date.now()) {
   return record.date === today && (record.isSigned === true || record.skippedNoChar === true);
 }
 
+export async function isDailySignAutoSkippedToday(gameBiz, nowMs = Date.now()) {
+  const record = await getDailySignRecord(gameBiz);
+  if (!record || !record.date) return false;
+  const today = getHoyoTodayDateString(nowMs);
+  return record.date === today && (
+    record.isSigned === true ||
+    record.skippedNoChar === true ||
+    record.captchaBlocked === true
+  );
+}
+
 export async function shouldRunDailySign(gameBizList, nowMs = Date.now()) {
   for (const gameBiz of gameBizList) {
-    const signed = await isDailySignedToday(gameBiz, nowMs);
-    if (!signed) return true;
+    const skipped = await isDailySignAutoSkippedToday(gameBiz, nowMs);
+    if (!skipped) return true;
   }
   return false;
 }
