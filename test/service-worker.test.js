@@ -93,6 +93,7 @@ const {
   signForGame,
   runDailySignFlow
 } = await import('../src/background/service-worker.js');
+const { reportGameFailure } = await import('../src/background/flow-runner.js');
 
 test('排他ロック: 獲得と解放', async () => {
   const lock1 = await acquireExecutionLock('TEST');
@@ -1661,5 +1662,214 @@ test('waitCatchUpDelay: デフォルト pingFn が chrome.storage.session.get �
     assert.deepEqual(resErr, { totalWaitMs: 45_000, chunks: [20_000, 20_000, 5_000], pingCount: 2 });
   } finally {
     chrome.storage.session.get = originalSessionGet;
+  }
+});
+
+test('reportGameFailure: 未ログイン時・その他エラー時・GA抑制時の挙動を共通処理で正しく制御すること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  const origIsDev = API_CONFIG.IS_DEV;
+  const origMid = API_CONFIG.GA_MEASUREMENT_ID;
+  const origSec = API_CONFIG.GA_API_SECRET;
+  API_CONFIG.IS_DEV = false;
+  API_CONFIG.GA_MEASUREMENT_ID = 'G-TEST';
+  API_CONFIG.GA_API_SECRET = 'SECRET';
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      language: 'en'
+    }
+  });
+
+  const gaPayloads = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('google-analytics.com/mp/collect')) {
+      gaPayloads.push(JSON.parse(opts.body));
+      return { ok: true, status: 204 };
+    }
+    return { ok: true, status: 200 };
+  };
+
+  try {
+    // 1. 未ログイン (-1071): GA error_reason=not_logged_in, ERROR ログ, 通知作成
+    const loginFail = await reportGameFailure({
+      category: 'CODE',
+      gaEvent: 'code_redeem_result',
+      gameKey: 'GENSHIN',
+      gameName: 'Genshin Impact',
+      trigger: 'manual',
+      lang: 'en',
+      retcode: -1071,
+      errorMessage: 'Genshin Impact: Failed to fetch character info (Not logged in [retcode: -1071])',
+      fallbackErrorReason: 'unknown',
+      notifPrefix: LOGIN_NOTIFICATION_PREFIX,
+      notifMsgKey: 'notifLoginMsgRedeem'
+    });
+
+    assert.equal(loginFail.success, false);
+    assert.equal(loginFail.skipped, false);
+    assert.equal(loginFail.retcode, -1071);
+    assert.equal(mockCreatedNotifications.length, 1);
+    assert.equal(mockCreatedNotifications[0].id, `${LOGIN_NOTIFICATION_PREFIX}GENSHIN`);
+    assert.equal(mockCreatedNotifications[0].opts.title, 'Login Required');
+
+    const ev1 = gaPayloads[0].events[0];
+    assert.equal(ev1.name, 'code_redeem_result');
+    assert.equal(ev1.params.error_reason, 'not_logged_in');
+
+    // 2. その他エラー (-9999): GA error_reason=fallbackErrorReason, 通知は作成しない
+    mockCreatedNotifications.length = 0;
+    const apiFail = await reportGameFailure({
+      category: 'SIGN',
+      gaEvent: 'daily_checkin_result',
+      gameKey: 'STAR_RAIL',
+      gameName: 'Honkai: Star Rail',
+      trigger: 'auto',
+      lang: 'en',
+      retcode: -9999,
+      errorMessage: 'Honkai: Star Rail: [Check-in] Failed to fetch character info (HTTP 502 - Non-JSON response [retcode: -9999])',
+      fallbackErrorReason: 'api_error',
+      notifPrefix: SIGN_LOGIN_NOTIFICATION_PREFIX,
+      notifMsgKey: 'notifLoginMsgSign'
+    });
+
+    assert.equal(apiFail.success, false);
+    assert.equal(mockCreatedNotifications.length, 0);
+    const ev2 = gaPayloads[1].events[0];
+    assert.equal(ev2.name, 'daily_checkin_result');
+    assert.equal(ev2.params.error_reason, 'api_error');
+
+    // 3. shouldSendGa: false のときは GA 送信をスキップしつつログ記録と戻り値を返す
+    const gaCountBefore = gaPayloads.length;
+    const noGaFail = await reportGameFailure({
+      category: 'CODE',
+      gaEvent: 'code_redeem_result',
+      gameKey: 'ZZZ',
+      gameName: 'Zenless Zone Zero',
+      trigger: 'auto',
+      lang: 'en',
+      retcode: -500,
+      errorMessage: 'Zenless Zone Zero: Failed to fetch character info (Err [retcode: -500])',
+      fallbackErrorReason: 'unknown',
+      shouldSendGa: false,
+      notifPrefix: LOGIN_NOTIFICATION_PREFIX,
+      notifMsgKey: 'notifLoginMsgRedeem'
+    });
+
+    assert.equal(noGaFail.success, false);
+    assert.equal(gaPayloads.length, gaCountBefore, 'shouldSendGa=false 時は GA イベントを送信しないこと');
+    const logs = mockStorage.local.get('exec_logs') || [];
+    assert.equal(logs.filter(l => l.type === 'ERROR').length, 3);
+  } finally {
+    API_CONFIG.IS_DEV = origIsDev;
+    API_CONFIG.GA_MEASUREMENT_ID = origMid;
+    API_CONFIG.GA_API_SECRET = origSec;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('i18n (lang=en): ロール取得失敗・受取失敗・未知/無効ゲームキーが英語で出力されること', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  // 1. 単体関数の未知ゲームキーエラー (en)
+  const unknownRedeem = await redeemForGame('UNKNOWN_GAME', 'en');
+  assert.equal(unknownRedeem.success, false);
+  assert.equal(unknownRedeem.reason, 'Unknown game key: UNKNOWN_GAME');
+
+  const unknownSign = await signForGame('UNKNOWN_GAME', {}, 'en');
+  assert.equal(unknownSign.success, false);
+  assert.equal(unknownSign.reason, 'Unknown game key: UNKNOWN_GAME');
+
+  // 2. runAutoRedeemFlow (language=en) での未知・無効ゲームキー
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      autoSignEnabled: true,
+      enabledGames: ['GENSHIN'],
+      language: 'en'
+    }
+  });
+
+  const flowUnknown = await runAutoRedeemFlow('MANUAL', 'UNKNOWN_GAME');
+  assert.equal(flowUnknown.success, false);
+  assert.equal(flowUnknown.reason, 'Unknown game key: UNKNOWN_GAME');
+
+  const flowDisabled = await runAutoRedeemFlow('MANUAL', 'ZZZ');
+  assert.equal(flowDisabled.success, false);
+  assert.equal(flowDisabled.reason, 'Game is hidden or disabled: ZZZ');
+
+  // 3. redeemForGame (lang=en) のロール取得失敗 (-100)
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      return {
+        status: 200,
+        json: async () => ({ retcode: -100, message: 'Not logged in', data: null })
+      };
+    }
+    return { status: 200, json: async () => ({}) };
+  };
+
+  try {
+    const redeemFail = await redeemForGame('GENSHIN', 'en', 'MANUAL');
+    assert.equal(redeemFail.success, false);
+    assert.equal(redeemFail.reason, 'Genshin Impact: Failed to fetch character info (Not logged in [retcode: -100])');
+    assert.equal(/ロール取得失敗|未知のゲームキー/.test(redeemFail.reason), false);
+
+    // 4. signForGame (lang=en) のロール取得失敗 (-100)
+    const signRoleFail = await signForGame('GENSHIN', { forceCheck: true }, 'en', 'MANUAL');
+    assert.equal(signRoleFail.success, false);
+    assert.equal(signRoleFail.reason, 'Genshin Impact: [Check-in] Failed to fetch character info (Not logged in [retcode: -100])');
+    assert.equal(/ログボ|ロール取得失敗/.test(signRoleFail.reason), false);
+
+    // 5. signForGame (lang=en) の受取失敗 (claimDailyBonus が -500)
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('getUserGameRolesByCookie')) {
+        return {
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: 'Traveler', level: 60 }] }
+          })
+        };
+      }
+      if (u.includes('/event/sol/info')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { is_sign: false, total_sign_day: 2 } })
+        };
+      }
+      if (u.includes('/event/sol/sign')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ retcode: -500, message: 'Temporary error' })
+        };
+      }
+      return { status: 200, json: async () => ({}) };
+    };
+
+    const signClaimFail = await signForGame('GENSHIN', { forceCheck: true }, 'en', 'MANUAL');
+    assert.equal(signClaimFail.success, false);
+    assert.equal(signClaimFail.reason, 'Genshin Impact: [Check-in] Failed to claim reward (Temporary error [retcode: -500])');
+    assert.equal(/ログボ|受取失敗/.test(signClaimFail.reason), false);
+
+    const logs = mockStorage.local.get('exec_logs') || [];
+    assert.ok(logs.some(l => l.message === redeemFail.reason));
+    assert.ok(logs.some(l => l.message === signRoleFail.reason));
+    assert.ok(logs.some(l => l.message === signClaimFail.reason));
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });

@@ -5,6 +5,8 @@ import {
   releaseExecutionLock,
   getBackoffState,
   resetBackoffLevel,
+  recordBackoffFailure,
+  computeJitteredDelayMs,
   getOrCreateDailySignJitterMinutes,
   consumeRetrySlot,
   setLastAttemptTimestamp,
@@ -17,6 +19,7 @@ import {
 import { incrementReviewSuccessCount } from '../services/review-prompt-service.js';
 import { toGaGameKey, sendGAEvent } from '../services/analytics-service.js';
 import { isNetworkException } from '../services/http-client.js';
+import { isNotLoggedIn } from '../services/hoyo-api.js';
 
 export const LOGIN_NOTIFICATION_PREFIX = 'login_required_';
 export const SIGN_LOGIN_NOTIFICATION_PREFIX = 'sign_login_required_';
@@ -187,6 +190,136 @@ export async function clearSignRetryAlarm() {
   await chrome.alarms.clear(ALARM_NAMES.SIGN_RETRY);
 }
 
+async function pingServiceWorkerKeepAlive() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.session?.get) {
+      await chrome.storage.session.get('lock_state');
+    }
+  } catch {
+    // keepalive ping の失敗でキャッチアップ本体を止めない
+  }
+}
+
+/**
+ * キャッチアップ実行前の待機を Service Worker 停止防止のため分割実行する
+ */
+export async function waitCatchUpDelay({
+  totalDelayMs = computeJitteredDelayMs(
+    API_CONFIG.CATCH_UP_DELAY_MS,
+    API_CONFIG.CATCH_UP_JITTER_MAX_MS
+  ),
+  maxStepMs = API_CONFIG.CATCH_UP_KEEPALIVE_INTERVAL_MS,
+  sleepFn = (ms) => new Promise(r => setTimeout(r, ms)),
+  pingFn = pingServiceWorkerKeepAlive
+} = {}) {
+  if (!Number.isFinite(totalDelayMs) || totalDelayMs <= 0) {
+    return { totalWaitMs: 0, chunks: [], pingCount: 0 };
+  }
+
+  const stepLimit = (Number.isFinite(maxStepMs) && maxStepMs > 0) ? maxStepMs : totalDelayMs;
+  let remainingMs = totalDelayMs;
+  const chunks = [];
+  let pingCount = 0;
+
+  while (remainingMs > 0) {
+    const chunkMs = Math.min(remainingMs, stepLimit);
+    await sleepFn(chunkMs);
+    chunks.push(chunkMs);
+    remainingMs -= chunkMs;
+    if (remainingMs > 0) {
+      await pingFn();
+      pingCount++;
+    }
+  }
+
+  return { totalWaitMs: totalDelayMs, chunks, pingCount };
+}
+
+/**
+ * HTTP 429 / 5xx 等のバックオフ要求応答を共通処理する
+ */
+export async function handleHttpBackoffResponse({
+  gameKey,
+  gameName,
+  category,
+  gaEventName,
+  trigger,
+  lang,
+  res
+}) {
+  const backoff = await recordBackoffFailure({ retryAfterMs: res.retryAfterMs });
+  const errorReason = res.isRateLimited ? 'rate_limited' : 'server_error';
+  await sendGAEvent(gaEventName, {
+    game: toGaGameKey(gameKey),
+    status: 'failed',
+    error_reason: errorReason,
+    trigger,
+    lang
+  });
+  const boMsg = t('logHttpBackoff', [gameName, res.httpStatus, backoff.remainingMinutes], lang);
+  await addExecutionLog({ type: 'WARN', category, gameKey, message: boMsg });
+  return {
+    success: false,
+    skipped: false,
+    backoffTriggered: true,
+    httpStatus: res.httpStatus,
+    retcode: res.retcode,
+    reason: boMsg,
+    gameKey,
+    gameName
+  };
+}
+
+/**
+ * ゲーム単位の失敗時の GA 送信・ERROR ログ記録・未ログイン通知を共通処理する
+ */
+export async function reportGameFailure({
+  category,
+  gaEvent,
+  gameKey,
+  gameName,
+  trigger,
+  lang,
+  retcode,
+  errorMessage,
+  fallbackErrorReason = 'api_error',
+  shouldSendGa = true,
+  notifPrefix,
+  notifMsgKey
+}) {
+  const notLoggedIn = isNotLoggedIn(retcode);
+  if (shouldSendGa) {
+    const errorReason = notLoggedIn ? 'not_logged_in' : fallbackErrorReason;
+    await sendGAEvent(gaEvent, {
+      game: toGaGameKey(gameKey),
+      status: 'failed',
+      error_reason: errorReason,
+      trigger,
+      lang
+    });
+  }
+
+  await addExecutionLog({
+    type: 'ERROR',
+    category,
+    gameKey,
+    message: errorMessage
+  });
+
+  if (notLoggedIn && notifPrefix && notifMsgKey) {
+    notifyLoginRequired(notifPrefix, gameKey, notifMsgKey, gameName, lang);
+  }
+
+  return {
+    success: false,
+    skipped: false,
+    reason: errorMessage,
+    retcode,
+    gameKey,
+    gameName
+  };
+}
+
 /**
  * コード引き換え・ログインボーナス共通のマルチゲーム巡回実行パイプライン
  */
@@ -229,7 +362,7 @@ export async function executeMultiGameFlow({
     }
 
     if (targetGameKey && !GAMES[targetGameKey]) {
-      return { success: false, reason: `未知のゲームキー: ${targetGameKey}` };
+      return { success: false, reason: t('errUnknownGameKey', [targetGameKey], lang) };
     }
 
     if (triggerSource === 'MANUAL' && targetGameKey) {
@@ -263,7 +396,7 @@ export async function executeMultiGameFlow({
     if (targetGameKey && !enabledGames.includes(targetGameKey)) {
       return {
         success: false,
-        reason: `非表示または無効化されたゲームです: ${targetGameKey}`,
+        reason: t('errDisabledGameKey', [targetGameKey], lang),
         gameKey: targetGameKey
       };
     }

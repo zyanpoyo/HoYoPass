@@ -8,8 +8,12 @@ const TAKUMI_HOSTS = [
   'https://api-os-takumi.hoyolab.com'
 ];
 
-function isAuthRetryableRetcode(retcode) {
+export function isNotLoggedIn(retcode) {
   return retcode === -100 || retcode === -1071;
+}
+
+function formatNonJsonMessage(resp, rawText, lang) {
+  return t('apiNonJsonResponse', [resp?.status ?? 'unknown', rawText.slice(0, 50)], lang);
 }
 
 async function parseJsonResponse(resp) {
@@ -63,7 +67,7 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
       console.error(`[getUserGameRoles] Non-JSON response (HTTP ${resp?.status ?? 'unknown'}, ${host}):`, parsed.rawText.slice(0, 200));
       lastData = {
         retcode: -9999,
-        message: `HTTP ${resp?.status ?? 'unknown'} - 非JSON応答 (${parsed.rawText.slice(0, 50)})`
+        message: formatNonJsonMessage(resp, parsed.rawText, lang)
       };
       continue;
     }
@@ -91,7 +95,7 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
       return { success: true, retcode: 0, role: selectedRole, allRoles: validRoles };
     }
 
-    if (!isAuthRetryableRetcode(data.retcode)) {
+    if (!isNotLoggedIn(data.retcode)) {
       break;
     }
   }
@@ -127,7 +131,7 @@ export async function redeemCode({ exchangeHost, exchangePath, gameBiz, uid, reg
     console.error(`[redeemCode] Non-JSON response (HTTP ${resp?.status ?? 'unknown'}):`, parsed.rawText.slice(0, 200));
     return {
       retcode: -9999,
-      message: `HTTP ${resp?.status ?? 'unknown'} - 非JSON応答 (${parsed.rawText.slice(0, 50)})`,
+      message: formatNonJsonMessage(resp, parsed.rawText, lang),
       cdkey
     };
   }
@@ -178,7 +182,7 @@ async function callSignApiWithFallback(gameOrKey, lang, buildRequest, parseSucce
         ...defaultFallback,
         success: false,
         retcode: -9999,
-        message: `HTTP ${resp?.status ?? 'unknown'} - 非JSON応答 (${parsed.rawText.slice(0, 50)})`
+        message: formatNonJsonMessage(resp, parsed.rawText, lang)
       };
       continue;
     }
@@ -196,7 +200,7 @@ async function callSignApiWithFallback(gameOrKey, lang, buildRequest, parseSucce
       message: resJson.message || `API error (${resJson.retcode})`
     };
 
-    if (!isAuthRetryableRetcode(resJson.retcode)) {
+    if (!isNotLoggedIn(resJson.retcode)) {
       break;
     }
   }

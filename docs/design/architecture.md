@@ -124,8 +124,10 @@ HoYoLABの公式デイリーチェックインページ（`act.hoyolab.com`）�
 ```
 src/
 ├── background/
-│   ├── flow-runner.js          # アラーム制御、通知ルーティング、共通マルチゲーム巡回パイプライン
-│   └── service-worker.js       # 2系統アラーム発火・キャッチアップ起動、コード引換/ログボ個別処理、メッセージハンドラ
+│   ├── flow-runner.js          # アラーム制御、通知ルーティング、共通マルチゲーム巡回・失敗報告（reportGameFailure）・バックオフ・待機制御
+│   ├── redeem-runner.js        # 交換コード取得・順次引き換え個別処理（redeemForGame）および自動引き換えフロー（runAutoRedeemFlow）
+│   ├── sign-runner.js          # ログボ照会・受取個別処理（signForGame）および自動受取フロー（runDailySignFlow）
+│   └── service-worker.js       # イベントリスナー登録（アラーム・通知・起動/復帰・メッセージ）およびキャッチアップ起動制御
 ├── config/
 │   ├── constants.js            # API定数、ゲーム固有エンドポイント設定（ログボ・コード）、URL定義
 │   ├── env.js                  # ビルド時自動生成されるフレーバー・GA4環境変数定義
@@ -140,7 +142,7 @@ src/
 ├── services/
 │   ├── analytics-service.js    # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
 │   ├── code-fetcher.js         # hoyo-codes APIからのコード一覧取得・ペイロード検証
-│   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し
+│   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し、未ログイン判定（isNotLoggedIn）
 │   ├── http-client.js          # ホワイトリスト検証・429/5xx検知付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
 │   ├── rate-limit-service.js   # ジッター、指数バックオフ、短期リトライ上限、自動/手動クールダウン状態管理
 │   ├── review-prompt-service.js# ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GAMES } from '../src/config/constants.js';
 import {
+  isNotLoggedIn,
   isCaptchaRisk,
   getDailySignInfo,
   claimDailyBonus,
@@ -393,6 +394,51 @@ test('getUserGameRoles: レスポンス読み取り中に TimeoutError が発生
       () => getUserGameRoles('hk4e_global'),
       (err) => err === timeoutErr && err.name === 'TimeoutError'
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('isNotLoggedIn: 未ログイン retcode (-100 / -1071) を正確に判定すること', () => {
+  assert.equal(isNotLoggedIn(-100), true);
+  assert.equal(isNotLoggedIn(-1071), true);
+  assert.equal(isNotLoggedIn(0), false);
+  assert.equal(isNotLoggedIn(-1), false);
+  assert.equal(isNotLoggedIn(-2016), false);
+  assert.equal(isNotLoggedIn(undefined), false);
+  assert.equal(isNotLoggedIn(null), false);
+});
+
+test('非JSON応答: lang=en 指定時は英語の Non-JSON response メッセージを返すこと', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    status: 403,
+    text: async () => '<html>Forbidden</html>'
+  });
+
+  try {
+    const roleRes = await getUserGameRoles('hk4e_global', 'en');
+    assert.equal(roleRes.success, false);
+    assert.equal(roleRes.retcode, -9999);
+    assert.match(roleRes.message, /HTTP 403 - Non-JSON response/);
+    assert.equal(/非JSON/.test(roleRes.message), false);
+
+    const redeemRes = await redeemCode({
+      exchangeHost: GAMES.GENSHIN.exchangeHost,
+      exchangePath: GAMES.GENSHIN.exchangePath,
+      gameBiz: GAMES.GENSHIN.gameBiz,
+      uid: '800123456',
+      region: 'os_asia',
+      cdkey: 'TESTCODE',
+      lang: 'en'
+    });
+    assert.equal(redeemRes.retcode, -9999);
+    assert.match(redeemRes.message, /HTTP 403 - Non-JSON response/);
+
+    const signRes = await getDailySignInfo('GENSHIN', 'en');
+    assert.equal(signRes.success, false);
+    assert.equal(signRes.retcode, -9999);
+    assert.match(signRes.message, /HTTP 403 - Non-JSON response/);
   } finally {
     globalThis.fetch = originalFetch;
   }
