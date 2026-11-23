@@ -1,4 +1,5 @@
 import { getGameLocalized, t } from './i18n.js';
+import { isNotLoggedIn } from '../services/hoyo-api.js';
 
 function resolveGameDisplayName(gameKey, res, lang) {
   const localizedGame = getGameLocalized(gameKey, lang);
@@ -8,8 +9,7 @@ function resolveGameDisplayName(gameKey, res, lang) {
 function isLoginErrorResult(res) {
   if (!res) return false;
   const reason = res.reason || '';
-  return res.retcode === -100 ||
-    res.retcode === -1071 ||
+  return isNotLoggedIn(res.retcode) ||
     reason === 'LOGIN_REQUIRED' ||
     reason.includes('-100') ||
     reason.includes('-1071') ||
@@ -97,7 +97,7 @@ function formatMultiGameRedeem(results, totalCount, lang) {
 
     if (res.skipped && res.reason === 'NO_CHARACTER') {
       summaryLines.push(t('fmtItemSkippedNoChar', [name], lang));
-    } else if (res.retcode === -100 || res.retcode === -1071 || res.reason === 'LOGIN_REQUIRED') {
+    } else if (isNotLoggedIn(res.retcode) || res.reason === 'LOGIN_REQUIRED') {
       summaryLines.push(t('fmtItemNotLoggedIn', [name], lang));
       hasLoginError = true;
       anyPlayed = true;
@@ -299,7 +299,7 @@ function formatMultiGameSign(results, signedCount, lang) {
     } else if (res.isRisk) {
       summaryLines.push(t('fmtSignItemCaptcha', [name], lang));
       hasError = true;
-    } else if (res.retcode === -100 || res.retcode === -1071 || res.reason === 'LOGIN_REQUIRED') {
+    } else if (isNotLoggedIn(res.retcode) || res.reason === 'LOGIN_REQUIRED') {
       summaryLines.push(t('fmtItemNotLoggedIn', [name], lang));
       hasError = true;
     } else if (res.success) {

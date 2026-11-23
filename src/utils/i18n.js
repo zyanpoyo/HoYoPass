@@ -260,6 +260,11 @@ export const MESSAGES = {
     logSignAlready: '{0}: [ログボ] 本日受取済み{1}',
     logSignDone: '{0}: [ログボ] 受取完了{1}',
     logSignRisk: '{0}: [ログボ] セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください',
+    logRoleFetchFailedRedeem: '{0}: ロール取得失敗 ({1} [retcode: {2}])',
+    logRoleFetchFailedSign: '{0}: [ログボ] ロール取得失敗 ({1} [retcode: {2}])',
+    logSignClaimFailed: '{0}: [ログボ] 受取失敗 ({1} [retcode: {2}])',
+    errUnknownGameKey: '未知のゲームキー: {0}',
+    errDisabledGameKey: '非表示または無効化されたゲームです: {0}',
 
     // API共通メッセージ
     apiNoChar: 'アカウント内にキャラクターが見つかりません',
@@ -268,6 +273,7 @@ export const MESSAGES = {
     apiCaptchaRequired: 'セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください。',
     apiAlreadySignedToday: '本日はすでにサインイン済みです',
     apiPleaseLogin: 'ログインしてください',
+    apiNonJsonResponse: 'HTTP {0} - 非JSON応答 ({1})',
 
     // 結果フォーマッタ共通
     fmtEmptyRespMsg: '応答がありませんでした。もう一度お試しください。',
@@ -457,6 +463,11 @@ export const MESSAGES = {
     logSignAlready: '{0}: [Check-in] Already claimed today{1}',
     logSignDone: '{0}: [Check-in] Successfully claimed{1}',
     logSignRisk: '{0}: [Check-in] Security verification (CAPTCHA) required. Please claim manually.',
+    logRoleFetchFailedRedeem: '{0}: Failed to fetch character info ({1} [retcode: {2}])',
+    logRoleFetchFailedSign: '{0}: [Check-in] Failed to fetch character info ({1} [retcode: {2}])',
+    logSignClaimFailed: '{0}: [Check-in] Failed to claim reward ({1} [retcode: {2}])',
+    errUnknownGameKey: 'Unknown game key: {0}',
+    errDisabledGameKey: 'Game is hidden or disabled: {0}',
 
     // API Common Messages
     apiNoChar: 'No character found in account',
@@ -465,6 +476,7 @@ export const MESSAGES = {
     apiCaptchaRequired: 'Security verification (CAPTCHA) required. Please claim manually from the official page.',
     apiAlreadySignedToday: 'Already checked in today',
     apiPleaseLogin: 'Please log in',
+    apiNonJsonResponse: 'HTTP {0} - Non-JSON response ({1})',
 
     // Formatter Common
     fmtEmptyRespMsg: 'No response received. Please try again.',

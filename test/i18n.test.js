@@ -136,3 +136,53 @@ test('t: レビュー促進バナー関連メッセージの日英一貫性', ()
   assert.equal(t('reviewPromptBtnDismiss', [], 'ja'), '今後は表示しない');
   assert.equal(t('reviewPromptBtnDismiss', [], 'en'), "Don't show again");
 });
+
+test('t: エラーログ・API非JSON応答・ゲームキーエラーの日英翻訳とプレースホルダー置換', () => {
+  const keys = [
+    'logRoleFetchFailedRedeem',
+    'logRoleFetchFailedSign',
+    'logSignClaimFailed',
+    'errUnknownGameKey',
+    'errDisabledGameKey',
+    'apiNonJsonResponse'
+  ];
+
+  keys.forEach(key => {
+    const jaText = t(key, ['A', 'B', 'C'], 'ja');
+    const enText = t(key, ['A', 'B', 'C'], 'en');
+    assert.ok(jaText && jaText !== key, `ja に ${key} の翻訳が存在すること`);
+    assert.ok(enText && enText !== key, `en に ${key} の翻訳が存在すること`);
+    assert.notEqual(jaText, enText, `${key} の日英でテキストが異なること`);
+  });
+
+  assert.equal(
+    t('logRoleFetchFailedRedeem', ['原神', 'ログインしてください', -100], 'ja'),
+    '原神: ロール取得失敗 (ログインしてください [retcode: -100])'
+  );
+  assert.equal(
+    t('logRoleFetchFailedRedeem', ['Genshin Impact', 'Not logged in', -100], 'en'),
+    'Genshin Impact: Failed to fetch character info (Not logged in [retcode: -100])'
+  );
+  assert.equal(
+    t('logRoleFetchFailedSign', ['崩壊：スターレイル', 'Err', -1071], 'ja'),
+    '崩壊：スターレイル: [ログボ] ロール取得失敗 (Err [retcode: -1071])'
+  );
+  assert.equal(
+    t('logRoleFetchFailedSign', ['Honkai: Star Rail', 'Err', -1071], 'en'),
+    'Honkai: Star Rail: [Check-in] Failed to fetch character info (Err [retcode: -1071])'
+  );
+  assert.equal(
+    t('logSignClaimFailed', ['ゼンレスゾーンゼロ', 'Server error', -500], 'ja'),
+    'ゼンレスゾーンゼロ: [ログボ] 受取失敗 (Server error [retcode: -500])'
+  );
+  assert.equal(
+    t('logSignClaimFailed', ['Zenless Zone Zero', 'Server error', -500], 'en'),
+    'Zenless Zone Zero: [Check-in] Failed to claim reward (Server error [retcode: -500])'
+  );
+  assert.equal(t('errUnknownGameKey', ['FOO'], 'ja'), '未知のゲームキー: FOO');
+  assert.equal(t('errUnknownGameKey', ['FOO'], 'en'), 'Unknown game key: FOO');
+  assert.equal(t('errDisabledGameKey', ['ZZZ'], 'ja'), '非表示または無効化されたゲームです: ZZZ');
+  assert.equal(t('errDisabledGameKey', ['ZZZ'], 'en'), 'Game is hidden or disabled: ZZZ');
+  assert.equal(t('apiNonJsonResponse', [403, '<html>Forbidden'], 'ja'), 'HTTP 403 - 非JSON応答 (<html>Forbidden)');
+  assert.equal(t('apiNonJsonResponse', [403, '<html>Forbidden'], 'en'), 'HTTP 403 - Non-JSON response (<html>Forbidden)');
+});
