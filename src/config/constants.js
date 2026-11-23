@@ -11,6 +11,7 @@ export const API_CONFIG = {
   RETRY_INTERVAL_MINUTES: 2, // 2分後短期リトライ
   CATCH_UP_DELAY_MS: FLAVOR_CONFIG?.config?.CATCH_UP_DELAY_MS ?? 15_000,
   CATCH_UP_JITTER_MAX_MS: 30_000, // キャッチアップ待機ランダム揺らぎ (最大+30秒)
+  CATCH_UP_KEEPALIVE_INTERVAL_MS: 20_000, // キャッチアップ待機中のSW停止防止分割間隔 (20秒)
   DAILY_SIGN_JITTER_MAX_MINUTES: 30, // ログボ定時アラーム分散幅 (0〜30分)
   INTER_REQUEST_DELAY_MS: 5_200, // 5.2秒ウェイト
   INTER_REQUEST_JITTER_MAX_MS: 1_500, // コード交換間ランダム揺らぎ (最大+1.5秒)

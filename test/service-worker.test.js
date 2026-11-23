@@ -80,6 +80,7 @@ const {
   SIGN_LOGIN_NOTIFICATION_PREFIX,
   SIGN_CAPTCHA_NOTIFICATION_PREFIX,
   classifyFetchError,
+  waitCatchUpDelay,
   redeemForGame,
   runAutoRedeemFlow,
   setupAlarm,
@@ -1563,5 +1564,102 @@ test('runDailySignFlow: 1ゲーム目のロール取得が非JSON応答でも全
     API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
     API_CONFIG.SIGN_GAME_JITTER_MAX_MS = origSignJitter;
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('waitCatchUpDelay: 20秒単位の分割スリープとチャンク間キープアライブ呼び出しの境界値検証', async () => {
+  // 1. 0ms 以下は待機も ping も発生しないこと
+  let events = [];
+  let res = await waitCatchUpDelay({
+    totalDelayMs: 0,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 0, chunks: [], pingCount: 0 });
+  assert.deepEqual(events, []);
+
+  res = await waitCatchUpDelay({
+    totalDelayMs: -500,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 0, chunks: [], pingCount: 0 });
+
+  // 2. 20秒以下 (18,000ms / 20,000ms) は1チャンクのみで余分な ping を呼ばないこと
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 18_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 18_000, chunks: [18_000], pingCount: 0 });
+  assert.deepEqual(events, ['sleep:18000']);
+
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 20_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 20_000, chunks: [20_000], pingCount: 0 });
+  assert.deepEqual(events, ['sleep:20000']);
+
+  // 3. 40,000ms ちょうどは2チャンク・合間の ping 1回のみ（完了直前は呼ばない）
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 40_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 40_000, chunks: [20_000, 20_000], pingCount: 1 });
+  assert.deepEqual(events, ['sleep:20000', 'ping', 'sleep:20000']);
+
+  // 4. 最大 45,000ms は [20_000, 20_000, 5_000] の3チャンク・合間の ping 2回
+  events = [];
+  res = await waitCatchUpDelay({
+    totalDelayMs: 45_000,
+    maxStepMs: 20_000,
+    sleepFn: async (ms) => { events.push(`sleep:${ms}`); },
+    pingFn: async () => { events.push('ping'); }
+  });
+  assert.deepEqual(res, { totalWaitMs: 45_000, chunks: [20_000, 20_000, 5_000], pingCount: 2 });
+  assert.deepEqual(events, ['sleep:20000', 'ping', 'sleep:20000', 'ping', 'sleep:5000']);
+});
+
+test('waitCatchUpDelay: デフォルト pingFn が chrome.storage.session.get を呼び出し例外時も完走すること', async () => {
+  const originalSessionGet = chrome.storage.session.get;
+  const sessionGetKeys = [];
+
+  try {
+    chrome.storage.session.get = async (key) => {
+      sessionGetKeys.push(key);
+      return originalSessionGet(key);
+    };
+
+    const res = await waitCatchUpDelay({
+      totalDelayMs: 35_000,
+      maxStepMs: 20_000,
+      sleepFn: async () => {}
+    });
+    assert.deepEqual(res, { totalWaitMs: 35_000, chunks: [20_000, 15_000], pingCount: 1 });
+    assert.deepEqual(sessionGetKeys, ['lock_state']);
+
+    // session.get が例外を投げても待機が中断されないこと
+    chrome.storage.session.get = async () => {
+      throw new Error('storage session error');
+    };
+    const resErr = await waitCatchUpDelay({
+      totalDelayMs: 45_000,
+      maxStepMs: 20_000,
+      sleepFn: async () => {}
+    });
+    assert.deepEqual(resErr, { totalWaitMs: 45_000, chunks: [20_000, 20_000, 5_000], pingCount: 2 });
+  } finally {
+    chrome.storage.session.get = originalSessionGet;
   }
 });

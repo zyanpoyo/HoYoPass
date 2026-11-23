@@ -66,14 +66,46 @@ export {
   clearSignRetryAlarm
 };
 
-async function waitCatchUpDelay() {
-  const delayMs = computeJitteredDelayMs(
+async function pingServiceWorkerKeepAlive() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.session?.get) {
+      await chrome.storage.session.get('lock_state');
+    }
+  } catch {
+    // keepalive ping の失敗でキャッチアップ本体を止めない
+  }
+}
+
+export async function waitCatchUpDelay({
+  totalDelayMs = computeJitteredDelayMs(
     API_CONFIG.CATCH_UP_DELAY_MS,
     API_CONFIG.CATCH_UP_JITTER_MAX_MS
-  );
-  if (delayMs > 0) {
-    await new Promise(r => setTimeout(r, delayMs));
+  ),
+  maxStepMs = API_CONFIG.CATCH_UP_KEEPALIVE_INTERVAL_MS,
+  sleepFn = (ms) => new Promise(r => setTimeout(r, ms)),
+  pingFn = pingServiceWorkerKeepAlive
+} = {}) {
+  if (!Number.isFinite(totalDelayMs) || totalDelayMs <= 0) {
+    return { totalWaitMs: 0, chunks: [], pingCount: 0 };
   }
+
+  const stepLimit = (Number.isFinite(maxStepMs) && maxStepMs > 0) ? maxStepMs : totalDelayMs;
+  let remainingMs = totalDelayMs;
+  const chunks = [];
+  let pingCount = 0;
+
+  while (remainingMs > 0) {
+    const chunkMs = Math.min(remainingMs, stepLimit);
+    await sleepFn(chunkMs);
+    chunks.push(chunkMs);
+    remainingMs -= chunkMs;
+    if (remainingMs > 0) {
+      await pingFn();
+      pingCount++;
+    }
+  }
+
+  return { totalWaitMs: totalDelayMs, chunks, pingCount };
 }
 
 export async function maybeRunCatchUp(triggerSource = 'STARTUP') {
