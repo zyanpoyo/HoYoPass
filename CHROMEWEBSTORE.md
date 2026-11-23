@@ -48,7 +48,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.2 — バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上、UI表示および操作性の改善
+バージョン 1.3.3 — リクエスト分散・指数バックオフ等による通信耐性と安定性の向上、および内部処理の改善
 
 **Category** [REQUIRED]
 Productivity
@@ -102,7 +102,7 @@ HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed 
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.2 — Improved background auto-claim and sleep/startup catch-up reliability, UI refinements, and overall stability enhancements.
+Version 1.3.3 — Improved network resilience and stability with request jitter and exponential backoff, along with internal refinements.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -199,7 +199,8 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Ready |
+| 1.3.3 | 2026-11-23 | リクエスト分散（ジッター）・指数バックオフ・リトライ上限・手動クールダウンの導入、MV3待機保護・非JSON応答防御による通信耐性および安定性の向上 | Ready |
+| 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Released |
 | 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Released |
 | 1.3.0 | 2026-10-27 | サービス品質向上のための匿名利用統計（GA4 Measurement Protocol）の導入、明示的なオプトイン/オプトアウト設定UI、初回利用時および既存ユーザー向け同意フローの実装、アンインストール時の品質改善アンケートフォーム誘導対応、機密情報保護アーキテクチャの強化、プライバシーポリシー日英多言語対応および将来の改定管理（バージョン管理）機構の導入 | Released |
 | 1.2.2 | 2026-10-25 | 多言語対応（日本語 / 英語）、ブラウザ言語自動判定＆手動切替UI（Auto / 日本語 / English）、ロケーション連動APIリクエスト、現地時刻自動換算表示、CWS英語掲載情報および英語スクリーンショット生成対応 | Released |
