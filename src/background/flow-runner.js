@@ -16,6 +16,7 @@ import {
 } from '../services/storage-service.js';
 import { incrementReviewSuccessCount } from '../services/review-prompt-service.js';
 import { toGaGameKey, sendGAEvent } from '../services/analytics-service.js';
+import { isNetworkException } from '../services/http-client.js';
 
 export const LOGIN_NOTIFICATION_PREFIX = 'login_required_';
 export const SIGN_LOGIN_NOTIFICATION_PREFIX = 'sign_login_required_';
@@ -184,16 +185,6 @@ export async function scheduleSignRetryAlarm(explicitDelayMinutes = null) {
 
 export async function clearSignRetryAlarm() {
   await chrome.alarms.clear(ALARM_NAMES.SIGN_RETRY);
-}
-
-function isNetworkException(err) {
-  return Boolean(
-    err?.message && (
-      err.message.includes('fetch') ||
-      err.message.includes('Network') ||
-      err.message.includes('TIMEOUT')
-    )
-  );
 }
 
 /**

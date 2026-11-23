@@ -12,6 +12,36 @@ function isAuthRetryableRetcode(retcode) {
   return retcode === -100 || retcode === -1071;
 }
 
+async function parseJsonResponse(resp) {
+  if (typeof resp?.text === 'function') {
+    const rawText = await resp.text();
+    try {
+      const data = JSON.parse(rawText);
+      if (data && typeof data === 'object') {
+        return { ok: true, data };
+      }
+      return { ok: false, rawText };
+    } catch {
+      return { ok: false, rawText };
+    }
+  }
+  if (typeof resp?.json === 'function') {
+    try {
+      const data = await resp.json();
+      if (data && typeof data === 'object') {
+        return { ok: true, data };
+      }
+      return { ok: false, rawText: String(data ?? '') };
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return { ok: false, rawText: '' };
+      }
+      throw err;
+    }
+  }
+  return { ok: false, rawText: '' };
+}
+
 export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
   let lastData = null;
 
@@ -28,7 +58,16 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
         role: null
       };
     }
-    const data = await resp.json();
+    const parsed = await parseJsonResponse(resp);
+    if (!parsed.ok) {
+      console.error(`[getUserGameRoles] Non-JSON response (HTTP ${resp?.status ?? 'unknown'}, ${host}):`, parsed.rawText.slice(0, 200));
+      lastData = {
+        retcode: -9999,
+        message: `HTTP ${resp?.status ?? 'unknown'} - 非JSON応答 (${parsed.rawText.slice(0, 50)})`
+      };
+      continue;
+    }
+    const data = parsed.data;
     console.log(`[getUserGameRoles] ${gameBiz} (${host}) Response:`, data);
     lastData = data;
 
@@ -83,22 +122,21 @@ export async function redeemCode({ exchangeHost, exchangePath, gameBiz, uid, reg
       cdkey
     };
   }
-  const text = await resp.text();
-  try {
-    const resJson = JSON.parse(text);
-    return {
-      retcode: resJson.retcode,
-      message: resJson.message || 'No message',
-      cdkey
-    };
-  } catch {
-    console.error(`[redeemCode] Non-JSON response (HTTP ${resp.status}):`, text.slice(0, 200));
+  const parsed = await parseJsonResponse(resp);
+  if (!parsed.ok) {
+    console.error(`[redeemCode] Non-JSON response (HTTP ${resp?.status ?? 'unknown'}):`, parsed.rawText.slice(0, 200));
     return {
       retcode: -9999,
-      message: `HTTP ${resp.status} - 非JSON応答 (${text.slice(0, 50)})`,
+      message: `HTTP ${resp?.status ?? 'unknown'} - 非JSON応答 (${parsed.rawText.slice(0, 50)})`,
       cdkey
     };
   }
+  const resJson = parsed.data;
+  return {
+    retcode: resJson.retcode,
+    message: resJson.message || 'No message',
+    cdkey
+  };
 }
 
 export function isCaptchaRisk(resJson) {
@@ -133,18 +171,18 @@ async function callSignApiWithFallback(gameOrKey, lang, buildRequest, parseSucce
         message: `HTTP ${backoffInfo.httpStatus}`
       };
     }
-    const text = await resp.text();
-    let resJson;
-    try {
-      resJson = JSON.parse(text);
-    } catch {
+    const parsed = await parseJsonResponse(resp);
+    if (!parsed.ok) {
+      console.error(`[callSignApiWithFallback] Non-JSON response (HTTP ${resp?.status ?? 'unknown'}, ${host}):`, parsed.rawText.slice(0, 200));
       lastRes = {
+        ...defaultFallback,
         success: false,
         retcode: -9999,
-        message: `HTTP ${resp.status} - 非JSON応答 (${text.slice(0, 50)})`
+        message: `HTTP ${resp?.status ?? 'unknown'} - 非JSON応答 (${parsed.rawText.slice(0, 50)})`
       };
       continue;
     }
+    const resJson = parsed.data;
 
     const handled = parseSuccess(resJson, lang);
     if (handled) {

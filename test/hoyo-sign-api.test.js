@@ -290,3 +290,110 @@ test('HTTP 429 / 503 検知時はフォールバックせず即座に shouldBack
     globalThis.fetch = originalFetch;
   }
 });
+
+async function createRealTimeoutError() {
+  const signal = AbortSignal.timeout(1);
+  if (!signal.aborted) {
+    await new Promise(resolve => {
+      signal.addEventListener('abort', resolve, { once: true });
+    });
+  }
+  return signal.reason;
+}
+
+test('getUserGameRoles: 1ホスト目が非JSON応答(HTML等)の場合に2ホスト目へフォールバックして成功すること', async () => {
+  const originalFetch = globalThis.fetch;
+  const calledUrls = [];
+
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    calledUrls.push(u);
+    if (u.includes('api-os-takumi.hoyoverse.com')) {
+      return {
+        status: 200,
+        text: async () => '<html><body>WAF Challenge</body></html>'
+      };
+    }
+    return {
+      status: 200,
+      text: async () => JSON.stringify({
+        retcode: 0,
+        message: 'OK',
+        data: {
+          list: [
+            { game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60, is_chosen: true }
+          ]
+        }
+      })
+    };
+  };
+
+  try {
+    const res = await getUserGameRoles('hk4e_global');
+    assert.equal(res.success, true);
+    assert.equal(res.role.game_uid, '800123456');
+    assert.equal(calledUrls.length, 2, '1ホスト目が非JSONなら2ホスト目へフォールバックすること');
+    assert.ok(calledUrls[0].includes('api-os-takumi.hoyoverse.com'));
+    assert.ok(calledUrls[1].includes('api-os-takumi.hoyolab.com'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getUserGameRoles: 両ホストとも非JSON応答や非オブジェクトJSONの場合は retcode -9999 を返し例外を投げないこと', async () => {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    // 1. 両ホストとも HTML 応答
+    globalThis.fetch = async () => ({
+      status: 403,
+      text: async () => '<!DOCTYPE html><html>Forbidden</html>'
+    });
+    const htmlRes = await getUserGameRoles('hk4e_global');
+    assert.equal(htmlRes.success, false);
+    assert.equal(htmlRes.retcode, -9999);
+    assert.equal(htmlRes.role, null);
+    assert.match(htmlRes.message, /非JSON応答/);
+
+    // 2. JSON.parse('null') 等の非オブジェクト JSON
+    globalThis.fetch = async () => ({
+      status: 200,
+      text: async () => 'null'
+    });
+    const nullJsonRes = await getUserGameRoles('hk4e_global');
+    assert.equal(nullJsonRes.success, false);
+    assert.equal(nullJsonRes.retcode, -9999);
+    assert.equal(nullJsonRes.role, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getUserGameRoles: レスポンス読み取り中に TimeoutError が発生した場合は握りつぶさず再スローすること', async () => {
+  const originalFetch = globalThis.fetch;
+  const timeoutErr = await createRealTimeoutError();
+
+  try {
+    // 1. resp.text() 中に TimeoutError
+    globalThis.fetch = async () => ({
+      status: 200,
+      text: async () => { throw timeoutErr; }
+    });
+    await assert.rejects(
+      () => getUserGameRoles('hk4e_global'),
+      (err) => err === timeoutErr && err.name === 'TimeoutError'
+    );
+
+    // 2. resp.json() のみのモックで TimeoutError
+    globalThis.fetch = async () => ({
+      status: 200,
+      json: async () => { throw timeoutErr; }
+    });
+    await assert.rejects(
+      () => getUserGameRoles('hk4e_global'),
+      (err) => err === timeoutErr && err.name === 'TimeoutError'
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

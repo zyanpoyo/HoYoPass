@@ -25,6 +25,7 @@ import {
 } from '../services/storage-service.js';
 import { initReviewPromptState } from '../services/review-prompt-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
+import { isTimeoutError } from '../services/http-client.js';
 import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
 import {
   toGaGameKey,
@@ -233,11 +234,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-function classifyFetchError(fetchErr) {
-  const match = fetchErr.message && fetchErr.message.match(/HTTP_ERROR_(\d+)/);
+export function classifyFetchError(fetchErr) {
+  const msg = typeof fetchErr?.message === 'string' ? fetchErr.message : '';
+  const match = msg.match(/HTTP_ERROR_(\d+)/);
   const httpStatus = match ? parseInt(match[1], 10) : 0;
-  const isTimeout = fetchErr.name === 'AbortError' || Boolean(fetchErr.message?.includes('TIMEOUT'));
-  const isParseErr = fetchErr instanceof SyntaxError || Boolean(fetchErr.message?.includes('JSON'));
+  const isTimeout = isTimeoutError(fetchErr);
+  const isParseErr = fetchErr instanceof SyntaxError || msg.includes('JSON');
   const errorType = isTimeout
     ? 'timeout'
     : (httpStatus > 0 ? 'http_error' : (isParseErr ? 'parse_error' : 'network_error'));

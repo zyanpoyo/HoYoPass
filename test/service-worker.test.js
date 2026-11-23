@@ -79,6 +79,7 @@ const {
   LOGIN_NOTIFICATION_PREFIX,
   SIGN_LOGIN_NOTIFICATION_PREFIX,
   SIGN_CAPTCHA_NOTIFICATION_PREFIX,
+  classifyFetchError,
   redeemForGame,
   runAutoRedeemFlow,
   setupAlarm,
@@ -1275,6 +1276,292 @@ test('手動クールダウン: 60秒以内の同ゲーム同種別連打は拒�
     const r3 = await runAutoRedeemFlow('MANUAL', 'STAR_RAIL');
     assert.equal(r3.success, true);
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+async function createRealTimeoutError() {
+  const signal = AbortSignal.timeout(1);
+  if (!signal.aborted) {
+    await new Promise(resolve => {
+      signal.addEventListener('abort', resolve, { once: true });
+    });
+  }
+  return signal.reason;
+}
+
+test('classifyFetchError: TimeoutError / AbortError / HTTP / SyntaxError / ネットワークエラーを正確に分類すること', async () => {
+  const realTimeoutErr = await createRealTimeoutError();
+  assert.deepEqual(classifyFetchError(realTimeoutErr), { httpStatus: 0, errorType: 'timeout' });
+  assert.deepEqual(classifyFetchError(new DOMException('aborted', 'AbortError')), { httpStatus: 0, errorType: 'timeout' });
+  assert.deepEqual(classifyFetchError(new Error('HTTP_ERROR_503')), { httpStatus: 503, errorType: 'http_error' });
+  assert.deepEqual(classifyFetchError(new SyntaxError('Unexpected token <')), { httpStatus: 0, errorType: 'parse_error' });
+  assert.deepEqual(classifyFetchError(new TypeError('Failed to fetch')), { httpStatus: 0, errorType: 'network_error' });
+});
+
+test('runAutoRedeemFlow: コード一覧取得の TimeoutError 時に GA4 error_type=timeout 送信と短期リトライ予約を行うこと', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origIsDev = API_CONFIG.IS_DEV;
+  const origMid = API_CONFIG.GA_MEASUREMENT_ID;
+  const origSec = API_CONFIG.GA_API_SECRET;
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+
+  API_CONFIG.IS_DEV = false;
+  API_CONFIG.GA_MEASUREMENT_ID = 'G-TEST';
+  API_CONFIG.GA_API_SECRET = 'SECRET';
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      enabledGames: ['GENSHIN'],
+      language: 'ja'
+    }
+  });
+
+  const timeoutErr = await createRealTimeoutError();
+  const gaPayloads = [];
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+        })
+      };
+    }
+    if (u.includes('hoyo-codes.seria.moe')) {
+      throw timeoutErr;
+    }
+    if (u.includes('google-analytics.com/mp/collect')) {
+      gaPayloads.push(JSON.parse(opts.body));
+      return { ok: true, status: 204 };
+    }
+    return { status: 200, text: async () => '{}' };
+  };
+
+  try {
+    const res = await runAutoRedeemFlow('ALARM');
+    assert.equal(res.success, false);
+    assert.equal(res.reason, 'NETWORK_RETRY_SCHEDULED');
+    assert.ok(mockAlarms.get(ALARM_NAMES.RETRY), 'TimeoutError 時に RETRY アラームが予約されること');
+
+    const fetchErrEvent = gaPayloads
+      .flatMap(p => p.events || [])
+      .find(e => e.name === 'code_list_fetch_error');
+    assert.ok(fetchErrEvent, 'code_list_fetch_error が GA4 へ送信されること');
+    assert.equal(fetchErrEvent.params.game, 'genshin');
+    assert.equal(fetchErrEvent.params.http_status, 0);
+    assert.equal(fetchErrEvent.params.error_type, 'timeout');
+  } finally {
+    API_CONFIG.IS_DEV = origIsDev;
+    API_CONFIG.GA_MEASUREMENT_ID = origMid;
+    API_CONFIG.GA_API_SECRET = origSec;
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runDailySignFlow: API TimeoutError 発生時に短期リトライアラームが予約されること', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origSignDelay = API_CONFIG.SIGN_GAME_DELAY_MS;
+  API_CONFIG.SIGN_GAME_DELAY_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      enabledGames: ['GENSHIN']
+    }
+  });
+
+  const timeoutErr = await createRealTimeoutError();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw timeoutErr;
+  };
+
+  try {
+    const res = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(res.success, false);
+    assert.equal(res.reason, 'NETWORK_RETRY_SCHEDULED');
+    assert.ok(mockAlarms.get(ALARM_NAMES.SIGN_RETRY), 'TimeoutError 時に SIGN_RETRY アラームが予約されること');
+  } finally {
+    API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow: 1ゲーム目のロール取得が非JSON応答でも全体停止せず後続ゲームを完了すること', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+  const origInterJitter = API_CONFIG.INTER_REQUEST_JITTER_MAX_MS;
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+  API_CONFIG.INTER_REQUEST_JITTER_MAX_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['GENSHIN', 'STAR_RAIL', 'ZZZ']
+    }
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hk4e_global')) {
+        return { status: 200, text: async () => '<html>WAF Block</html>' };
+      }
+      if (u.includes('hkrpg_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hkrpg_global', region: 'prod_official_asia', game_uid: '800111222', nickname: '星', level: 70 }] }
+          })
+        };
+      }
+      if (u.includes('nap_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'nap_global', region: 'prod_gf_jp', game_uid: '1300111222', nickname: 'アキラ', level: 60 }] }
+          })
+        };
+      }
+    }
+    if (u.includes('hoyo-codes.seria.moe')) {
+      const code = u.includes('hkrpg') ? 'HSRCODE1' : 'ZZZCODE1';
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code }] })
+      };
+    }
+    if (u.includes('webExchangeCdkey')) {
+      return { status: 200, text: async () => JSON.stringify({ retcode: 0, message: 'OK' }) };
+    }
+    return { status: 200, text: async () => '{}' };
+  };
+
+  try {
+    const flowRes = await runAutoRedeemFlow('ALARM');
+    assert.equal(flowRes.success, true);
+    assert.equal(flowRes.redeemedCount, 2, 'スタレとZZZの2件が正常に引き換えられること');
+    assert.equal(flowRes.results.GENSHIN.success, false);
+    assert.equal(flowRes.results.GENSHIN.retcode, -9999);
+    assert.equal(flowRes.results.STAR_RAIL.success, true);
+    assert.equal(flowRes.results.STAR_RAIL.redeemedCount, 1);
+    assert.equal(flowRes.results.ZZZ.success, true);
+    assert.equal(flowRes.results.ZZZ.redeemedCount, 1);
+  } finally {
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
+    API_CONFIG.INTER_REQUEST_JITTER_MAX_MS = origInterJitter;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runDailySignFlow: 1ゲーム目のロール取得が非JSON応答でも全体停止せず後続ゲームを完了すること', async () => {
+  mockAlarms.clear();
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+
+  const origSignDelay = API_CONFIG.SIGN_GAME_DELAY_MS;
+  const origSignJitter = API_CONFIG.SIGN_GAME_JITTER_MAX_MS;
+  API_CONFIG.SIGN_GAME_DELAY_MS = 0;
+  API_CONFIG.SIGN_GAME_JITTER_MAX_MS = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoSignEnabled: true,
+      enabledGames: ['GENSHIN', 'STAR_RAIL', 'ZZZ']
+    }
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('getUserGameRolesByCookie')) {
+      if (u.includes('hk4e_global')) {
+        return { status: 200, text: async () => '<html>WAF Block</html>' };
+      }
+      if (u.includes('hkrpg_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hkrpg_global', region: 'prod_official_asia', game_uid: '800111222', nickname: '星', level: 70 }] }
+          })
+        };
+      }
+      if (u.includes('nap_global')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'nap_global', region: 'prod_gf_jp', game_uid: '1300111222', nickname: 'アキラ', level: 60 }] }
+          })
+        };
+      }
+    }
+    if (u.includes('/info')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({
+          retcode: 0,
+          message: 'OK',
+          data: { is_sign: false, total_sign_day: 4, today: '2026-11-23' }
+        })
+      };
+    }
+    if (u.includes('/sign')) {
+      return {
+        status: 200,
+        text: async () => JSON.stringify({ retcode: 0, message: 'OK', data: { is_risk: false } })
+      };
+    }
+    return { status: 200, text: async () => '{}' };
+  };
+
+  try {
+    const flowRes = await runDailySignFlow('DAILY_ALARM');
+    assert.equal(flowRes.success, true);
+    assert.equal(flowRes.signedCount, 2, 'スタレとZZZの2件が正常にサインインされること');
+    assert.equal(flowRes.results.GENSHIN.success, false);
+    assert.equal(flowRes.results.GENSHIN.retcode, -9999);
+    assert.equal(flowRes.results.STAR_RAIL.success, true);
+    assert.equal(flowRes.results.STAR_RAIL.signed, true);
+    assert.equal(flowRes.results.ZZZ.success, true);
+    assert.equal(flowRes.results.ZZZ.signed, true);
+  } finally {
+    API_CONFIG.SIGN_GAME_DELAY_MS = origSignDelay;
+    API_CONFIG.SIGN_GAME_JITTER_MAX_MS = origSignJitter;
     globalThis.fetch = originalFetch;
   }
 });

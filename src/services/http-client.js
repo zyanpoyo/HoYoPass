@@ -78,3 +78,31 @@ export async function publicFetch(url, options = {}) {
     signal
   });
 }
+
+export function isTimeoutError(err) {
+  if (!err) return false;
+  if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+    return true;
+  }
+  const msg = typeof err.message === 'string' ? err.message : '';
+  return /timeout|timed\s*out/i.test(msg);
+}
+
+export function isNetworkException(err) {
+  if (!err) return false;
+  const msg = typeof err.message === 'string' ? err.message : '';
+  if (
+    msg.startsWith('SECURITY_ERROR') ||
+    msg.startsWith('STORAGE_WRITE_FAILURE') ||
+    /^HTTP_ERROR_\d+/.test(msg)
+  ) {
+    return false;
+  }
+  if (isTimeoutError(err)) {
+    return true;
+  }
+  if (/failed to fetch|fetch failed|networkerror|network request failed|err_internet_disconnected|err_network/i.test(msg)) {
+    return true;
+  }
+  return /\bfetch\b|\bnetwork\b/i.test(msg);
+}
