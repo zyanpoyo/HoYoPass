@@ -32,7 +32,7 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(devDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.name, '__MSG_extName__', 'i18nプレースホルダーを維持');
   assert.equal(manifest.short_name, 'HoYoPass-Dev');
-  assert.equal(manifest.version_name, '1.3.3-dev');
+  assert.equal(manifest.version_name, '1.3.4-dev');
 
   // _locales/ devサフィックス検証
   const jaMsgDev = JSON.parse(fs.readFileSync(path.join(devDir, '_locales/ja/messages.json'), 'utf8'));

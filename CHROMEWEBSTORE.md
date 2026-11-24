@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — HoYoPass
 
-> Last Updated: 2026-11-13
+> Last Updated: 2026-11-24
 
 ## Store Listing (Japanese / 日本語)
 
@@ -8,47 +8,51 @@
 HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ
 
 **Short Description** [REQUIRED]
-原神・崩壊スターレイル・ゼンゼロのHoYoLABデイリーログインボーナス（ログボ）と最新シリアルコード（交換コード）の自動入力・自動受取ツール。ブラウザを開くだけで原石・星玉・ポリクローム等のゲーム内報酬の取り逃がしをゼロにするChrome拡張機能です。
+原神・崩壊スターレイル・ゼンゼロのHoYoLABデイリーログインボーナス（ログボ）と最新シリアルコード（交換コード）の自動入力・自動受取ツール。ブラウザを開くだけで原石・星玉・ポリクローム等のゲーム内報酬の取り逃がしを防ぐChrome拡張機能です。
 
 **Detailed Description** [REQUIRED]
 HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾーンゼロ）のHoYoLABデイリーログインボーナスと最新ギフト交換コード（シリアルコード）を自動で受け取り、原石・星玉・ポリクロームなどの報酬獲得をサポートする非公式ファンメイドツールです。
 毎日各サイトを開く手間を省き、コードの入力忘れ・期限切れによる報酬の取り逃がしを防ぎます。
+※ 本拡張機能はファンメイドの非公式ツールです。自動化ツールの利用は運営元の利用規約解釈によってはアカウント制限等のリスクがゼロではないため、内容をご理解の上、自己責任でご利用ください（詳細は下部の【ご利用にあたっての重要事項・リスクについて】をご確認ください）。
 
 【こんな方におすすめ】
 • 原神、崩壊：スターレイル（スタレ）、ゼンレスゾーンゼロ（ゼンゼロ / ZZZ）を掛け持ちしていて、毎日の日課を効率化したい方
 • ホヨラボ（HoYoLAB）のログボ（デイリーチェックイン）をつい受け取り忘れてしまう方
-• 公式の予告番組・生放送のシリアルコード（プロモコード / ギフトコード）を期限切れ前に自動入力で確実に回収したい方
+• 公式の予告番組・生放送のシリアルコード（プロモコード / ギフトコード）を期限切れ前に自動入力で手軽に回収したい方
 • 毎回ブラウザで複数の交換サイトを開いてコードをコピペする手間をなくしたい方
 
 【主な機能】
 • 多言語対応（日本語 / 英語）— ブラウザの表示言語に合わせた自動表示に加え、設定（⚙）から手動切り替え可能
 • 初回利用時の即時自動受取 — 初期設定（同意）完了直後から未受取のログインボーナスおよび有効な交換コードを即座に自動取得
 • デイリーログインボーナス自動受取 — 毎日 01:05 JST頃（00:05 UTC+8基準・負荷分散のため30分幅で自動調整／お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動実行。PC起動時やスリープ復帰時にも未受取のログボ・最新コードを自動でキャッチアップするため、深夜にPCを起動しておく必要はありません
-• 交換コードの3時間ごと自動引き換え — バックグラウンドで最新コードを自動検知して順次引き換え
+• 交換コードの3時間ごと自動引き換え — 3時間ごとに公開コード一覧を確認し、未使用コード検知時のみ公式APIで順次引き換えを実行
 • プレイ中タイトルのみ表示するタブカスタマイズ — プレイしていないゲームはタブ非表示＆バックグラウンド巡回から安全に除外可能
 • ワンクリック手動実行 — ポップアップ画面から現在選択中のタイトルを即時実行
 • コード適用実績＆有効コード消化状況の可視化 — ポップアップ上で現在有効なコードの消化状況と、今月・累計の引き換え実績を確認可能
 
 【使い方】
 1. ブラウザでHoYoLABの公式ログインボーナスページ、または各ゲームの公式ギフト交換ページにログインします。
-2. 拡張機能のアイコンをクリックし、利用規約・免責事項を確認して利用を開始します。
+2. 拡張機能のアイコンをクリックし、利用規約・免責事項およびリスクに関する注意事項を確認して利用を開始します。
 3. 自動受取トグルをONにしておくだけで、毎日のログインボーナスと新着交換コードをバックグラウンドで自動取得します。
 ※ 初回利用時、過去に手動交換済みのコードがある場合はゲーム内に「使用済み（重複）」の通知メールが届くことがありますが、API仕様による正常な挙動です（実害はなく、一度処理されたコードは拡張機能内に記録され次回以降再送されません）。
 
 【プライバシーとセキュリティ】
-本拡張機能は「アカウント安全第一」のゼロトラスト設計です。
+本拡張機能は、認証情報を外部に出さないプライバシー重視のゼロトラスト設計です。
 • ログイン情報、Cookie、パスワードを拡張機能が読み取ったり外部サーバーへ送信することはありません。
-• お使いのブラウザに保存された既存セッションを通じ、公式API（HoYoLAB / HoYoverse）とのみ直接通信します。
+• ログインセッションを用いる通信は、お使いのブラウザから公式API（HoYoLAB / HoYoverse）とのみ直接行います（最新コード一覧の取得にのみ、認証情報を含めない形で公開APIを利用します）。
 • 設定や受取履歴はすべてお使いのPCローカル内に安全に保存されます。
 • ※品質改善用の匿名利用統計（個人を特定しない操作ログ）は、設定画面からいつでも完全無効化（オプトアウト）可能です。
 
-【免責事項】
-本拡張機能はファンメイドの非公式ツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。
+【ご利用にあたっての重要事項・リスクについて】
+• 本拡張機能はファンメイドの非公式ツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。
+• 外部ツールを用いたログインボーナス受取やギフトコード引き換えの自動化は、運営元の利用規約や運用方針の解釈によっては、アカウント制限・停止等のリスクがゼロではありません。
+• 過剰なリクエストや短時間の連続実行を避けるため、リクエストの分散・指数バックオフ制御や、未使用コード検知時のみ公式APIを実行する設計を採用していますが、これらの対策によって規約上のリスクが完全に消えるものではありません。
+• 最終的なご利用の判断および利用に伴う結果・損害等については、すべてユーザーご自身の責任（自己責任）となります。上記をご理解・ご同意いただいた上でのみご利用ください。
 
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.3 — リクエスト分散・指数バックオフ等による通信耐性と安定性の向上、および内部処理の改善
+バージョン 1.3.4 — 未使用コード事前判定による公式API通信の削減、および注意喚起・免責表記の強化
 
 **Category** [REQUIRED]
 Productivity
@@ -68,41 +72,45 @@ English (Default) / Japanese
 HoYoPass - Auto Daily Check-In & Codes for Genshin / HSR / ZZZ
 
 **Short Description** [REQUIRED]
-Auto-claims daily check-in rewards & gift codes for Genshin Impact, Honkai: Star Rail and ZZZ in the background. Never miss rewards!
+Auto-claims HoYoLAB daily check-in rewards & gift codes for Genshin Impact, Honkai: Star Rail, and ZZZ in the background.
 
 **Detailed Description** [REQUIRED]
-HoYoPass is an unofficial, fan-made Chrome extension designed to help Travelers, Trailblazers, and Proxies never miss a single reward. It quietly claims HoYoLAB daily check-in bonuses and works to auto-redeem newly released promo codes and gift codes for Genshin Impact, Honkai: Star Rail (HSR), and Zenless Zone Zero (ZZZ) directly in the background.
-Say goodbye to opening multiple tabs every single day or missing out on limited-time livestream codes and redemption codes (Primogems, Stellar Jades, Polychromes).
+HoYoPass is an unofficial, fan-made Chrome extension designed to help Travelers, Trailblazers, and Proxies reduce the hassle of claiming daily rewards. It claims HoYoLAB daily check-in bonuses and auto-redeems newly released promo codes and gift codes for Genshin Impact, Honkai: Star Rail (HSR), and Zenless Zone Zero (ZZZ) directly in the background.
+Save time opening multiple tabs every day and reduce the chance of missing limited-time livestream codes and redemption codes (Primogems, Stellar Jades, Polychromes).
+* Note: This is an unofficial fan-made tool. Automating actions via third-party tools carries a non-zero risk of account restrictions depending on HoYoverse's Terms of Service interpretation. Please review [Important Notice & Risks] below and use entirely at your own risk.
 
 [Key Features]
 • Multi-Language Support (English / Japanese) — Automatically matches your browser language or can be toggled manually from settings (⚙).
 • Immediate Auto-Claim on Setup — Right after agreeing to terms, it instantly collects all pending check-in rewards and available active codes.
 • Background Daily Check-In — Automatically cycles through all enabled games daily around 00:05 UTC+8 (around 01:05 JST, distributed across a 30-minute window and calculated in your local timezone). It also automatically catches up on any unclaimed daily check-in bonuses and latest promo codes when you start your PC or wake it from sleep, so there is no need to leave your PC running overnight.
-• 3-Hour Periodic Code Redemption — Checks and auto-redeems newly discovered gift codes and special program livestream codes every 3 hours without opening browser tabs.
+• 3-Hour Periodic Code Redemption — Checks the public code list every 3 hours and calls the official redemption API only when unclaimed codes are detected.
 • Tab Filter & Game Customization — Playing only Genshin, HSR, or ZZZ? Hide unplayed games from the interface and exclude them safely from background checks.
 • One-Click Instant Manual Trigger — Instantly redeem codes or claim check-in for the currently selected game from the popup.
 • Transparent Stats & Active Code Tracker — Easily check how many active codes are available, your monthly count, and total redeemed codes.
 
 [How to Use]
 1. Log in to the official HoYoLAB check-in page or game redemption website in your browser.
-2. Click the HoYoPass icon on your toolbar and accept the disclaimer to start.
+2. Click the HoYoPass icon on your toolbar and review the disclaimer and risk notice to start.
 3. Keep the toggles ON. This Chrome extension will automatically collect check-in rewards and auto-redeem codes in the background.
 * Note: On your first run, you may receive in-game mail stating "Code has already been used" for codes you previously claimed manually. This is normal behavior from the official API. These codes are safely remembered and will not be re-submitted.
 
 [Privacy & Security]
-HoYoPass is built from the ground up with a security-first, zero-credential-collection philosophy:
+HoYoPass is built with a privacy-first, zero-credential-collection design:
 • No passwords, session tokens, or account credentials are ever read, stored, or sent to external servers.
-• Communicates directly and exclusively with official HoYoLAB / HoYoverse APIs using your local browser session.
+• All authenticated requests using your browser session communicate directly and exclusively with official HoYoLAB / HoYoverse APIs (the public code-list API is queried without any credentials or cookies).
 • All preferences and redemption histories are stored 100% locally on your computer.
 • Fully transparent: Anonymous usage metrics for quality improvements can be toggled off at any time via Settings (⚙).
 
-[Disclaimer]
-HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).
+[Important Notice & Risks]
+• HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).
+• Automating daily check-ins or gift code redemptions via third-party tools carries a non-zero risk of account restrictions or suspension depending on how HoYoverse interprets and enforces its Terms of Service.
+• To minimize server load and avoid burst requests, HoYoPass implements request jitter, exponential backoff, and only calls official APIs when unclaimed codes are detected; however, these safeguards do not completely eliminate Terms of Service risks.
+• Use of this extension is entirely at your own discretion and risk. By using HoYoPass, you acknowledge and accept full responsibility for any outcomes.
 
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.3 — Improved network resilience and stability with request jitter and exponential backoff, along with internal refinements.
+Version 1.3.4 — Reduced official API calls by checking for unclaimed codes upfront, and strengthened Terms of Service risk notices.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -199,7 +207,8 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.3.3 | 2026-11-23 | リクエスト分散（ジッター）・指数バックオフ・リトライ上限・手動クールダウンの導入、MV3待機保護・非JSON応答防御による通信耐性および安定性の向上 | Ready |
+| 1.3.4 | 2026-11-24 | 未使用コード事前判定による公式API通信の削減、ストア説明文・UI・ドキュメントの注意喚起および免責表記の強化 | Ready |
+| 1.3.3 | 2026-11-23 | リクエスト分散（ジッター）・指数バックオフ・リトライ上限・手動クールダウンの導入、MV3待機保護・非JSON応答防御による通信耐性および安定性の向上 | Released |
 | 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Released |
 | 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Released |
 | 1.3.0 | 2026-10-27 | サービス品質向上のための匿名利用統計（GA4 Measurement Protocol）の導入、明示的なオプトイン/オプトアウト設定UI、初回利用時および既存ユーザー向け同意フローの実装、アンインストール時の品質改善アンケートフォーム誘導対応、機密情報保護アーキテクチャの強化、プライバシーポリシー日英多言語対応および将来の改定管理（バージョン管理）機構の導入 | Released |
