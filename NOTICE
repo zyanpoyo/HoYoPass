@@ -38,3 +38,44 @@ For detailed legal and open source license compliance analysis, see docs/legal/l
 本プロジェクトは外部のサードパーティ製 npm パッケージに依存しておらず、
 Node.js 標準ライブラリおよび WebExtensions 標準 API のみで動作しています。
 詳細な法的およびオープンソースライセンス適合性の検証結果については docs/legal/license_compliance_report.md をご覧ください。
+
+================================================================================
+Development Support Skills (.agents/skills/) / 開発支援スキル
+================================================================================
+This repository's local development workflow adapts agent skills from:
+- mattpocock/skills (https://github.com/mattpocock/skills)
+  Copyright (c) 2026 Matt Pocock
+  Licensed under the MIT License.
+
+Adapted skills (local development only; excluded from distribution packages and
+Git tracking via .gitignore):
+  ask-matt, code-review, domain-modeling, grill-with-docs, grilling, handoff,
+  implement, implement-spec, improve-codebase-architecture, research, retro,
+  tdd, teach, to-questionnaire, to-spec, to-tickets, wait-what, wayfinder
+
+本リポジトリのローカル開発支援スキル（.agents/skills/）の一部は、
+mattpocock/skills（MIT License）をベースに日本語トリガー付与等のローカル改変を
+加えて取り込んでいます（.gitignore によりリポジトリ公開および拡張機能配布物からは
+除外されています）。
+
+MIT License (mattpocock/skills)
+
+Copyright (c) 2026 Matt Pocock
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
