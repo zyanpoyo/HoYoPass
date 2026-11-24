@@ -265,21 +265,21 @@ function generateScreenshot1Html(lang = 'ja') {
   const badgeText = isEn ? 'Genshin Impact / Honkai: Star Rail / ZZZ' : '原神・崩壊：スターレイル・ゼンレスゾーンゼロ';
   const headingHtml = isEn
     ? 'Auto Daily Check-In &<br>Gift Code Redeemer.'
-    : '毎日のログボも交換コードも、<br>ぜんぶ自動で取りこぼしゼロへ。';
+    : '毎日のログボも交換コードも、<br>バックグラウンドで自動受け取り。';
   const leadText = isEn
-    ? 'Fully automate HoYoLAB daily check-in rewards and latest redemption codes in the background. Enjoy seamless rewards delivered straight to your in-game mailbox.'
-    : '原神・崩壊：スターレイル・ゼンレスゾーンゼロのデイリーログインボーナス受け取りと最新ギフト交換コードの引き換えをバックグラウンドで全自動化。報酬の取りこぼしを防ぎます。';
+    ? 'Automate HoYoLAB daily check-in bonuses and latest gift code redemptions in the background to reduce daily hassle and missed rewards.'
+    : '原神・崩壊：スターレイル・ゼンレスゾーンゼロのデイリーログインボーナス受取と最新ギフト交換コードの引き換えをバックグラウンドで自動化し、報酬の受け取り忘れを防ぎます。';
 
   const feats = isEn
     ? [
-        { icon: '🎁', title: 'Daily Check-In Auto Claim', desc: 'Claims check-in rewards across all 3 games daily at 00:05 UTC+8.' },
-        { icon: '🎟️', title: 'Automatic Code Redemption', desc: 'Checks and redeems newly released codes every 3 hours.' },
-        { icon: '🛡️', title: 'Zero-Trust Secure Design', desc: 'No passwords or cookies collected. Uses local browser session only.' }
+        { icon: '🎁', title: 'Daily Check-In Auto Claim', desc: 'Claims check-in rewards across enabled games daily around 00:05 UTC+8.' },
+        { icon: '🎟️', title: 'Automatic Code Redemption', desc: 'Checks public codes every 3 hours and redeems unclaimed ones.' },
+        { icon: '🛡️', title: 'Privacy-First Zero-Trust Design', desc: 'No passwords or cookies collected. Uses local browser session only.' }
       ]
     : [
-        { icon: '🎁', title: 'ログインボーナス完全自動受取', desc: '毎日 01:05 JST に全3タイトルのログボを自動巡回して取得' },
-        { icon: '🎟️', title: '交換コード3時間毎自動引き換え', desc: '最新の有効シリアルコードを検知し、バックグラウンドで即時適用' },
-        { icon: '🛡️', title: '最高水準のゼロトラスト安全性', desc: 'パスワードやCookie送信なし。お使いのPCローカル内のみで完結' }
+        { icon: '🎁', title: 'デイリーログインボーナス自動受取', desc: '毎日 01:05 JST頃に有効タイトルのログボを自動巡回して取得' },
+        { icon: '🎟️', title: '交換コード3時間毎自動引き換え', desc: '3時間毎に公開コードを確認し、未使用コード検知時に引き換え' },
+        { icon: '🛡️', title: '認証情報を外部に出さない設計', desc: 'パスワードやCookie送信なし。ブラウザ内セッションのみ利用' }
       ];
 
   const popupHtml = renderPopupHtml({ showDialog: false, lang });
@@ -291,7 +291,12 @@ function generateScreenshot1Html(lang = 'ja') {
   <meta charset="UTF-8">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
+    html {
+      width: 1280px !important;
+      height: 800px !important;
+      overflow: hidden !important;
+    }
+    body {
       width: 1280px !important;
       height: 800px !important;
       overflow: hidden !important;
@@ -401,13 +406,13 @@ function generateScreenshot2Html(lang = 'ja') {
     : 'ワンクリックで即座に実行。<br>完了ダイアログで安心確認。';
   const leadText = isEn
     ? 'Trigger check-in or code redemption right after special program livestreams. Instant modal displays redeem outcomes with breakdown.'
-    : '生放送直後の新着コードや、今すぐボーナスを受け取りたい時も安心。ポップアップ内の実行ボタンを押すだけで、現在選択中のゲームを即座に引き換えます。';
+    : '生放送直後の新着コードや、今すぐボーナスを受け取りたい時にも便利。ポップアップ内の実行ボタンを押すだけで、現在選択中のゲームを即座に引き換えます。';
 
   const feats = isEn
     ? [
         { icon: '⚡', title: 'Targeted Game Execution', desc: 'Runs only the currently selected title without waiting for timers.' },
         { icon: '📬', title: 'Delivery Outcome Display', desc: 'Displays exact count of redeemed codes and in-game mailbox notice.' },
-        { icon: '🔄', title: 'Seamless Duplicate Handling', desc: 'Codes already used in-game are safely handled without account risk.' }
+        { icon: '🔄', title: 'Seamless Duplicate Handling', desc: 'Codes already used in-game are safely recorded to avoid duplicate runs.' }
       ]
     : [
         { icon: '⚡', title: '選択中ゲームのみを即時実行', desc: 'タブで開いているタイトルだけを無駄なくピンポイントで手動処理' },
@@ -434,7 +439,12 @@ function generateScreenshot2Html(lang = 'ja') {
   <meta charset="UTF-8">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
+    html {
+      width: 1280px !important;
+      height: 800px !important;
+      overflow: hidden !important;
+    }
+    body {
       width: 1280px !important;
       height: 800px !important;
       overflow: hidden !important;
@@ -526,7 +536,7 @@ function generateScreenshot3Html(lang = 'ja') {
     : 'ブラウザに常駐して自動サポート。<br>設定後は放っておくだけ。';
   const desc = isEn
     ? 'HoYoPass runs quietly in the background without opening tabs. Automatic catch-up claims rewards even when your PC wakes up from sleep.'
-    : '拡張機能アイコンをクリックするだけでいつでも受取実績や稼働状況を確認可能。PCのスリープ復帰時や起動時も自動キャッチアップで取りこぼしません。';
+    : '拡張機能アイコンをクリックするだけでいつでも受取実績や稼働状況を確認可能。PCのスリープ復帰時や起動時も自動キャッチアップで受取忘れを防ぎます。';
 
   const popupHtml = renderPopupHtml({ showDialog: false, lang });
 
@@ -537,7 +547,12 @@ function generateScreenshot3Html(lang = 'ja') {
   <meta charset="UTF-8">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
+    html {
+      width: 1280px !important;
+      height: 800px !important;
+      overflow: hidden !important;
+    }
+    body {
       width: 1280px !important;
       height: 800px !important;
       overflow: hidden !important;
