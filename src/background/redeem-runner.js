@@ -10,7 +10,6 @@ import {
   pruneHistoryIfExceeded,
   addExecutionLog,
   setLastSuccessfulRun,
-  getActiveCodes,
   setActiveCodes
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
@@ -88,6 +87,45 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
   const trigger = toRedeemTrigger(triggerSource);
   const gameName = getGameLocalized(gameKey, lang).name;
 
+  let activeCodes = [];
+  try {
+    activeCodes = await fetchValidCodes(gameKey);
+    await setActiveCodes(gameConfig.gameBiz, activeCodes);
+  } catch (fetchErr) {
+    const { httpStatus, errorType } = classifyFetchError(fetchErr);
+    await sendGAEvent('code_list_fetch_error', {
+      game: toGaGameKey(gameKey),
+      http_status: httpStatus,
+      error_type: errorType,
+      lang
+    });
+    throw fetchErr;
+  }
+
+  const redeemed = await getRedeemedCodes(gameConfig.gameBiz);
+  const pendingCodes = activeCodes.filter(cdkey => {
+    const entry = redeemed[cdkey];
+    return !(entry && isTerminalCodeStatus(entry.s));
+  });
+
+  if (pendingCodes.length === 0) {
+    await pruneHistoryIfExceeded(gameConfig.gameBiz, activeCodes);
+    await addExecutionLog({
+      type: 'INFO',
+      category: 'CODE',
+      gameKey,
+      message: t('logRedeemComplete', [gameName, 0], lang)
+    });
+    return {
+      success: true,
+      skipped: true,
+      reason: 'NO_PENDING_CODES',
+      redeemedCount: 0,
+      gameKey,
+      gameName
+    };
+  }
+
   const roleRes = await getUserGameRoles(gameConfig.gameBiz, lang);
   if (!roleRes.success) {
     if (roleRes.shouldBackoff) {
@@ -111,10 +149,6 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
       return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName };
     }
 
-    const activeCodes = (await getActiveCodes(gameConfig.gameBiz)) || [];
-    const redeemed = await getRedeemedCodes(gameConfig.gameBiz);
-    const hasPendingCodes = activeCodes.some(cd => !redeemed[cd] || !isTerminalCodeStatus(redeemed[cd].s));
-
     return await reportGameFailure({
       category: 'CODE',
       gaEvent: 'code_redeem_result',
@@ -125,36 +159,17 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
       retcode: roleRes.retcode,
       errorMessage: t('logRoleFetchFailedRedeem', [gameName, roleRes.message, roleRes.retcode], lang),
       fallbackErrorReason: 'unknown',
-      shouldSendGa: hasPendingCodes || trigger === 'manual',
+      shouldSendGa: true,
       notifPrefix: LOGIN_NOTIFICATION_PREFIX,
       notifMsgKey: 'notifLoginMsgRedeem'
     });
   }
 
-  let activeCodes = [];
-  try {
-    activeCodes = await fetchValidCodes(gameKey);
-    await setActiveCodes(gameConfig.gameBiz, activeCodes);
-  } catch (fetchErr) {
-    const { httpStatus, errorType } = classifyFetchError(fetchErr);
-    await sendGAEvent('code_list_fetch_error', {
-      game: toGaGameKey(gameKey),
-      http_status: httpStatus,
-      error_type: errorType,
-      lang
-    });
-    throw fetchErr;
-  }
-
-  const redeemed = await getRedeemedCodes(gameConfig.gameBiz);
   let redeemedCount = 0;
   let backoffTriggered = false;
 
-  for (const cdkey of activeCodes) {
+  for (const cdkey of pendingCodes) {
     const entry = redeemed[cdkey];
-    if (entry && isTerminalCodeStatus(entry.s)) {
-      continue;
-    }
 
     if (!entry) {
       const canAccept = await canAcceptNewCode(gameConfig.gameBiz);

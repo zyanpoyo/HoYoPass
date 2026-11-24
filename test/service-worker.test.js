@@ -164,10 +164,19 @@ test('handleNotificationClick: ログイン誘導通知クリック時に正し�
 test('redeemForGame: 未プレイ（retcode: -1 / キャラクター不在）の場合はエラー通知を出さず安全にスキップ', async () => {
   mockCreatedNotifications.length = 0;
 
-  // fetch をモックして空のキャラクター一覧を返却
+  // fetch をモックしてコード一覧と空のキャラクター一覧を返却
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    if (url.includes('getUserGameRolesByCookie')) {
+    const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'ZZZNEW1' }] })
+      };
+    }
+    if (u.includes('getUserGameRolesByCookie')) {
       return {
         ok: true,
         status: 200,
@@ -567,6 +576,14 @@ test('runAutoRedeemFlow & runDailySignFlow: enabledGames で指定したタイ�
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'ENABLEDTEST1' }] })
+      };
+    }
     if (u.includes('getUserGameRolesByCookie')) {
       if (u.includes('hkrpg_global')) calledGames.push('STAR_RAIL');
       if (u.includes('hk4e_global')) calledGames.push('GENSHIN');
@@ -1104,6 +1121,14 @@ test('未ログイン時の自動3時間クールダウンとコード失敗回�
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'ENABLEDTEST1' }] })
+      };
+    }
     if (u.includes('getUserGameRolesByCookie')) {
       roleCalls++;
       return {
@@ -1251,6 +1276,14 @@ test('手動クールダウン: 60秒以内の同ゲーム同種別連打は拒�
   globalThis.fetch = async (url) => {
     fetchCount++;
     const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'COOLDOWN1' }] })
+      };
+    }
     if (u.includes('getUserGameRolesByCookie')) {
       return { status: 200, json: async () => ({ retcode: 0, message: 'OK', data: { list: [] } }) };
     }
@@ -1811,6 +1844,14 @@ test('i18n (lang=en): ロール取得失敗・受取失敗・未知/無効ゲー
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'ENABLEDTEST1' }] })
+      };
+    }
     if (u.includes('getUserGameRolesByCookie')) {
       return {
         status: 200,
@@ -1869,6 +1910,79 @@ test('i18n (lang=en): ロール取得失敗・受取失敗・未知/無効ゲー
     assert.ok(logs.some(l => l.message === redeemFail.reason));
     assert.ok(logs.some(l => l.message === signRoleFail.reason));
     assert.ok(logs.some(l => l.message === signClaimFail.reason));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または全件確定済み）時は公式APIを一切呼ばないこと', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['GENSHIN'],
+      language: 'ja'
+    }
+  });
+
+  let hoyoApiCalls = 0;
+  let codeListCalls = 0;
+  let mockCodes = [];
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      codeListCalls++;
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: mockCodes })
+      };
+    }
+    if (u.includes('hoyoverse.com') || u.includes('hoyolab.com')) {
+      hoyoApiCalls++;
+    }
+    return { ok: true, status: 200, text: async () => '{}' };
+  };
+
+  try {
+    // 1. 公開コード一覧が空の場合（自動・手動とも公式API 0回）
+    mockCodes = [];
+    const autoEmpty = await runAutoRedeemFlow('ALARM');
+    assert.equal(autoEmpty.success, true);
+    assert.equal(autoEmpty.redeemedCount, 0);
+    assert.equal(autoEmpty.results.GENSHIN.skipped, true);
+    assert.equal(autoEmpty.results.GENSHIN.reason, 'NO_PENDING_CODES');
+    assert.equal(codeListCalls, 1);
+    assert.equal(hoyoApiCalls, 0, '公開コード空のALARM実行で公式APIが呼ばれないこと');
+
+    const manualEmpty = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(manualEmpty.success, true);
+    assert.equal(manualEmpty.redeemedCount, 0);
+    assert.equal(manualEmpty.results.GENSHIN.reason, 'NO_PENDING_CODES');
+    assert.equal(codeListCalls, 2);
+    assert.equal(hoyoApiCalls, 0, '公開コード空のMANUAL実行でも公式APIが呼ばれないこと');
+
+    // 2. 公開コードが存在するがローカル履歴で全て確定済み（SUCCESS / EXPIRED）の場合
+    mockStorage.session.clear();
+    await markCodeStatus('hk4e_global', 'DONE1', 'SUCCESS');
+    await markCodeStatus('hk4e_global', 'EXPIRED1', 'EXPIRED');
+    mockCodes = [{ code: 'DONE1' }, { code: 'EXPIRED1' }];
+
+    const manualAllClaimed = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(manualAllClaimed.success, true);
+    assert.equal(manualAllClaimed.redeemedCount, 0);
+    assert.equal(manualAllClaimed.results.GENSHIN.skipped, true);
+    assert.equal(manualAllClaimed.results.GENSHIN.reason, 'NO_PENDING_CODES');
+    assert.equal(codeListCalls, 3);
+    assert.equal(hoyoApiCalls, 0, '全コード確定済みの場合は公式APIが呼ばれないこと');
+    assert.equal(mockCreatedNotifications.length, 0, '未ログイン通知等が誤発火しないこと');
   } finally {
     globalThis.fetch = originalFetch;
   }

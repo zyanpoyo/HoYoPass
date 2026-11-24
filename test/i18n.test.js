@@ -186,3 +186,19 @@ test('t: エラーログ・API非JSON応答・ゲームキーエラーの日英�
   assert.equal(t('apiNonJsonResponse', [403, '<html>Forbidden'], 'ja'), 'HTTP 403 - 非JSON応答 (<html>Forbidden)');
   assert.equal(t('apiNonJsonResponse', [403, '<html>Forbidden'], 'en'), 'HTTP 403 - Non-JSON response (<html>Forbidden)');
 });
+
+test('t: 初回同意モーダルの免責事項に非公式・規約リスク・自己責任が日英で含まれること', () => {
+  const jaTitle = t('optinDisclaimerTitle', [], 'ja');
+  const jaBody = t('optinDisclaimerBody', [], 'ja');
+  assert.ok(jaTitle.includes('免責事項'));
+  assert.ok(jaBody.includes('非公式'), '日本語免責に非公式が含まれること');
+  assert.ok(jaBody.includes('利用規約'), '日本語免責に利用規約が含まれること');
+  assert.ok(jaBody.includes('自己責任'), '日本語免責に自己責任が含まれること');
+
+  const enTitle = t('optinDisclaimerTitle', [], 'en');
+  const enBody = t('optinDisclaimerBody', [], 'en');
+  assert.ok(enTitle.includes('Disclaimer'));
+  assert.ok(enBody.includes('unofficial'), '英語免責にunofficialが含まれること');
+  assert.ok(enBody.includes('Terms of Service'), '英語免責にTerms of Serviceが含まれること');
+  assert.ok(enBody.includes('own risk'), '英語免責にown riskが含まれること');
+});

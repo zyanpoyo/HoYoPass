@@ -140,8 +140,8 @@ export const MESSAGES = {
     // 初回モーダル
     optinTitle: '利用開始のご確認',
     optinDesc: '本拡張機能（HoYoPass）をご利用いただく前に、以下の内容をご確認・同意してください。',
-    optinDisclaimerTitle: '【免責事項】',
-    optinDisclaimerBody: '本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE / HoYoverseとは関係ありません。本ツール内で使用されているゲーム画像・商標の権利は、各権利者に帰属します。',
+    optinDisclaimerTitle: '【免責事項・ご利用上の注意】',
+    optinDisclaimerBody: '本拡張機能はファンメイドの非公式ツールであり、COGNOSPHERE / HoYoverseとは一切関係ありません。外部ツールによる自動化は運営元の利用規約解釈によってはアカウント制限等のリスクがゼロではなく、最終的なご利用判断と結果はすべて自己責任となります。ゲーム画像・商標の権利は各権利者に帰属します。',
     optinGameTitle: '利用するゲーム',
     optinGameHint: '※表示するゲームは、開始後もタブ横の設定（⚙）からいつでも変更できます。',
     optinSecurityNote: '※ 本拡張機能はお使いのブラウザに保存された公式ログインCookieをローカルでのみ利用し、外部サーバーへのCookie送信・収集は一切行いません。詳細は{0}をご確認ください。',
@@ -343,8 +343,8 @@ export const MESSAGES = {
     // First-run Opt-in Modal
     optinTitle: 'Welcome to HoYoPass',
     optinDesc: 'Please review and agree to the following information before using HoYoPass.',
-    optinDisclaimerTitle: '[Disclaimer]',
-    optinDisclaimerBody: 'This extension is an unofficial fan-made tool and is not affiliated with COGNOSPHERE or HoYoverse. All game trademarks and copyrights belong to their respective owners.',
+    optinDisclaimerTitle: '[Disclaimer & Notice]',
+    optinDisclaimerBody: "This extension is an unofficial fan-made tool and is not affiliated with COGNOSPHERE or HoYoverse. Automated claiming via third-party tools carries a non-zero risk of account restrictions depending on HoYoverse's Terms of Service interpretation, and you use it entirely at your own risk. All game trademarks and copyrights belong to their respective owners.",
     optinGameTitle: 'Enabled Games',
     optinGameHint: '* You can change enabled games anytime from the settings (⚙) icon next to the tabs.',
     optinSecurityNote: '* This extension uses official login cookies locally in your browser and never sends or collects cookies to external servers. See our {0} for details.',
