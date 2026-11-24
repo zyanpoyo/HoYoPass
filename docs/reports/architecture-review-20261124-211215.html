@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Architecture review for HoYoPass</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { border-style: dashed; }
+      .seam-stroke { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .mermaid svg { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans antialiased">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <!-- Header -->
+      <header class="border-b border-stone-200 pb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-widest text-slate-500 font-mono">Architecture Review</p>
+          <h1 class="text-3xl font-serif font-semibold tracking-tight text-slate-900 mt-1">HoYoPass</h1>
+          <p class="text-sm text-slate-500 font-mono mt-1">2026-11-24</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-600 bg-white border border-stone-200 rounded-lg px-4 py-2.5">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-4 h-3 rounded-sm border border-slate-400 bg-white inline-block"></span>
+            モジュール
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-5 border-t-2 border-dashed border-emerald-600 inline-block"></span>
+            シーム
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-5 border-t-2 border-red-600 inline-block"></span>
+            リーク
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-4 h-3 rounded-sm deep inline-block"></span>
+            深いモジュール
+          </span>
+        </div>
+      </header>
+
+      <!-- Candidates -->
+      <section id="candidates" class="space-y-10">
+
+        <!-- Candidate 1: Call-graph collapse -->
+        <article id="candidate-1" class="bg-white border border-stone-200 rounded-xl p-6 md:p-8 shadow-sm space-y-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Candidate 01</span>
+              <h2 class="text-2xl font-serif font-semibold text-slate-900 mt-0.5">Background 実行・スケジューリングモジュール群の深化</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Strong</span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">ports &amp; adapters</span>
+            </div>
+          </div>
+
+          <ul class="flex flex-wrap gap-2 font-mono text-sm text-slate-700">
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/background/service-worker.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/background/flow-runner.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/background/redeem-runner.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/background/sign-runner.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">test/service-worker.test.js</li>
+          </ul>
+
+          <!-- Before / After: Call-graph collapse -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Before · 浅い呼び出し鎖とリーク</span>
+                <span class="text-[11px] font-mono text-red-600">4箇所でガード重複</span>
+              </div>
+              <div class="relative flex-1 flex flex-col justify-between gap-2.5">
+                <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 420 260" preserveAspectRatio="none">
+                  <defs>
+                    <marker id="arrow-slate-1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="#64748b" />
+                    </marker>
+                    <marker id="arrow-red-1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="#dc2626" />
+                    </marker>
+                  </defs>
+                  <line x1="130" y1="48" x2="130" y2="74" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-slate-1)" />
+                  <line x1="115" y1="126" x2="85" y2="154" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-slate-1)" />
+                  <line x1="145" y1="126" x2="180" y2="154" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-slate-1)" />
+                  <!-- Test bypass & direct lock_state leak -->
+                  <path d="M 335 58 C 335 100, 260 100, 235 102" fill="none" stroke="#dc2626" stroke-width="1.75" stroke-dasharray="4 3" marker-end="url(#arrow-red-1)" />
+                  <path d="M 215 112 L 305 162" fill="none" stroke="#dc2626" stroke-width="1.75" marker-end="url(#arrow-red-1)" />
+                </svg>
+
+                <div class="grid grid-cols-12 gap-2 items-start relative z-10">
+                  <div class="col-span-7 rounded border border-slate-300 bg-white p-2.5 shadow-xs">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">service-worker.js</div>
+                    <div class="text-[11px] font-mono text-slate-500 mt-0.5">18 再エクスポート / 4箇所の開始前ガード</div>
+                  </div>
+                  <div class="col-span-5 rounded border border-red-300 bg-red-50 p-2 text-red-800">
+                    <div class="text-xs uppercase tracking-wider font-semibold">service-worker.test.js</div>
+                    <div class="text-[11px] font-mono mt-0.5">globalThis 書き換え (1,875行)</div>
+                  </div>
+                </div>
+
+                <div class="w-4/5 rounded border border-slate-300 bg-white p-2.5 shadow-xs relative z-10">
+                  <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">flow-runner.js</div>
+                  <div class="text-[11px] font-mono text-slate-500 mt-0.5">15 エクスポート / 18引数オプション</div>
+                </div>
+
+                <div class="grid grid-cols-12 gap-2 items-stretch relative z-10">
+                  <div class="col-span-4 rounded border border-slate-300 bg-white p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">redeem-runner</div>
+                    <div class="text-[11px] font-mono text-red-600 mt-0.5">独自バックオフ分岐</div>
+                  </div>
+                  <div class="col-span-4 rounded border border-slate-300 bg-white p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">sign-runner</div>
+                    <div class="text-[11px] font-mono text-red-600 mt-0.5">バックオフ3箇所</div>
+                  </div>
+                  <div class="col-span-4 rounded border border-red-300 bg-red-50 p-2 text-red-800">
+                    <div class="text-xs uppercase tracking-wider font-semibold">lock_state</div>
+                    <div class="text-[11px] font-mono mt-0.5">キー直読リーク</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-emerald-700">After · 深い実行モジュールへ畳み込み</span>
+                <span class="text-[11px] font-mono text-emerald-700">1 シーム / 2 アダプター</span>
+              </div>
+              <div class="flex-1 grid grid-cols-12 gap-3 items-stretch">
+                <!-- Deep Module -->
+                <div class="col-span-7 deep text-white rounded-lg p-3.5 border-2 border-slate-900 flex flex-col justify-between shadow-sm">
+                  <div>
+                    <div class="text-xs uppercase tracking-wider font-semibold text-emerald-300">Background 実行モジュール</div>
+                    <div class="text-[11px] font-mono text-slate-300 mt-1">単一インターフェース（MV3起動・アラーム・通知・手動実行）</div>
+                  </div>
+                  <div class="space-y-1.5 my-2">
+                    <div class="rounded bg-slate-800/70 border border-slate-700/80 px-2.5 py-1.5 text-[11px] text-slate-300">
+                      <span class="uppercase tracking-wider text-slate-400">内部実装:</span> 実行前ガード・ロック・クールダウン順序
+                    </div>
+                    <div class="rounded bg-slate-800/70 border border-slate-700/80 px-2.5 py-1.5 text-[11px] text-slate-300">
+                      <span class="uppercase tracking-wider text-slate-400">内部実装:</span> 統一バックオフ・短期リトライ状態遷移
+                    </div>
+                    <div class="rounded bg-slate-800/70 border border-slate-700/80 px-2.5 py-1.5 text-[11px] text-slate-300">
+                      <span class="uppercase tracking-wider text-slate-400">内部実装:</span> ロール照会・Redeem / Sign 巡回・失敗通知
+                    </div>
+                  </div>
+                  <div class="text-[11px] font-mono text-slate-400">service-worker.js はリスナー配線のみ</div>
+                </div>
+
+                <!-- Seam + Adapters -->
+                <div class="col-span-5 flex items-stretch gap-2">
+                  <div class="w-3 border-l-2 seam border-emerald-600 flex items-center justify-center relative">
+                    <span class="text-[10px] font-mono uppercase tracking-widest text-emerald-700 -rotate-90 whitespace-nowrap bg-stone-50 px-1">SEAM</span>
+                  </div>
+                  <div class="flex-1 flex flex-col justify-between gap-2.5">
+                    <div class="rounded border border-slate-300 bg-white p-2.5 flex-1 flex flex-col justify-center">
+                      <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">MV3 本番アダプター</div>
+                      <div class="text-[11px] font-mono text-slate-500 mt-1">chrome.alarms / notifications / real clock</div>
+                    </div>
+                    <div class="rounded border border-emerald-300 bg-emerald-50 p-2.5 flex-1 flex flex-col justify-center">
+                      <div class="text-xs uppercase tracking-wider font-semibold text-emerald-900">決定論的検証アダプター</div>
+                      <div class="text-[11px] font-mono text-emerald-700 mt-1">in-memory store / fake timer / zero global</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm border-t border-stone-100 pt-4">
+            <div class="space-y-2">
+              <p><span class="font-semibold text-slate-800">Problem:</span> 18個の再エクスポートと18引数のオーケストレーションにより実行前ガードとバックオフ遷移が4ファイルへ分散し、テストがグローバル書き換えでシームを迂回している。</p>
+              <p><span class="font-semibold text-slate-800">Solution:</span> MV3 イベント登録だけを残し、スケジューリング・ロック・バックオフ・巡回実行を1つの深い実行モジュールへ統合して外部依存をシーム越しに注入する。</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Wins</p>
+              <ul class="space-y-1 text-slate-700 list-disc list-inside">
+                <li>局所性：バックオフ・リトライ・ガード順序が1モジュールへ集約</li>
+                <li>レバレッジ：18引数オプションと重複分岐を排除</li>
+                <li>テストが単一インターフェースを通りグローバル書き換えが消滅</li>
+                <li>2つのアダプターがシームの存在を正当化</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 2: Mermaid flowchart LR -->
+        <article id="candidate-2" class="bg-white border border-stone-200 rounded-xl p-6 md:p-8 shadow-sm space-y-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Candidate 02</span>
+              <h2 class="text-2xl font-serif font-semibold text-slate-900 mt-0.5">永続状態・レート制御ストアモジュールの統合と循環依存の解消</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Strong</span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">local-substitutable</span>
+            </div>
+          </div>
+
+          <ul class="flex flex-wrap gap-2 font-mono text-sm text-slate-700">
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/storage-service.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/rate-limit-service.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/review-prompt-service.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/popup.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/log-view.js</li>
+          </ul>
+
+          <!-- Before / After: Mermaid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 min-h-[320px] flex flex-col">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Before · 循環依存と生キー名の漏出</span>
+                <span class="text-[11px] font-mono text-red-600">43エクスポート中23再出力</span>
+              </div>
+              <div class="flex-1 rounded bg-white border border-slate-200 p-2 flex items-center justify-center overflow-hidden">
+                <pre class="mermaid">
+flowchart LR
+  S["storage-service.js&lt;br/&gt;(43 exports / 23 pass-through)"]
+  RL["rate-limit-service.js&lt;br/&gt;(17 primitives)"]
+  RP["review-prompt-service.js"]
+  POP["popup.js / log-view.js"]
+  CS["chrome.storage&lt;br/&gt;(raw keys + UTC+8 in 5 files)"]
+
+  RL --> S
+  S -- "circular" --> RP
+  RP -- "isUnderBackoff" --> S
+  RP -. "leak: redeemed_* / daily_sign_*" .-> CS
+  POP -. "leak: exec_logs / active_codes_*" .-> CS
+  S --> CS
+
+  linkStyle 1,2,3,4 stroke:#dc2626,stroke-width:2px;
+                </pre>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 min-h-[320px] flex flex-col">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs uppercase tracking-wider font-semibold text-emerald-700">After · 単一状態ストアと共通シーム</span>
+                <span class="text-[11px] font-mono text-emerald-700">循環ゼロ・生キー隠蔽</span>
+              </div>
+              <div class="flex-1 rounded bg-white border border-slate-200 p-2 flex items-center justify-center overflow-hidden">
+                <pre class="mermaid">
+flowchart LR
+  BG["Background"] --> DS
+  POP["Popup / Log"] --> DS
+  RP["Review Prompt"] --> DS
+
+  subgraph DS["深い状態ストアモジュール"]
+    direction TB
+    K["全キー所有・UTC+8日付・変更購読・レート制御遷移"]
+  end
+
+  DS -. "seam" .-> P["Chrome Storage アダプター"]
+  DS -. "seam" .-> T["共通 In-Memory アダプター"]
+
+  classDef deepNode fill:#0f172a,stroke:#0f172a,color:#f8fafc;
+  class DS deepNode
+                </pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm border-t border-stone-100 pt-4">
+            <div class="space-y-2">
+              <p><span class="font-semibold text-slate-800">Problem:</span> 23個の浅い再エクスポートと循環依存が存在し、生ストレージキー名や UTC+8 日付計算が5モジュールへ漏出、さらに4つの不整合なテストモックが session.get 配列取得バグを隠している。</p>
+              <p><span class="font-semibold text-slate-800">Solution:</span> 全ストレージキー所有権・変更通知・UTC+8 日付算出・レート制御の状態遷移を1つの深い状態モジュールへ集約し、単一のストレージシーム背後へ隠蔽する。</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Wins</p>
+              <ul class="space-y-1 text-slate-700 list-disc list-inside">
+                <li>局所性：生キー文字列と UTC+8 計算の5箇所重複が消滅</li>
+                <li>循環依存と23個の浅い再エクスポートを削除</li>
+                <li>インターフェース縮小：状態遷移の順序制約を内部化</li>
+                <li>4系統の独自モックを1つの仕様準拠アダプターへ統一</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 3: Mass diagram -->
+        <article id="candidate-3" class="bg-white border border-stone-200 rounded-xl p-6 md:p-8 shadow-sm space-y-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Candidate 03</span>
+              <h2 class="text-2xl font-serif font-semibold text-slate-900 mt-0.5">外部通信・入力検証・構造化エラー契約の深化</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Strong</span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">ports &amp; adapters</span>
+            </div>
+          </div>
+
+          <ul class="flex flex-wrap gap-2 font-mono text-sm text-slate-700">
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/hoyo-api.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/http-client.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/code-fetcher.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/security.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/utils/message-formatter.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">test/code-fetcher.test.js</li>
+          </ul>
+
+          <!-- Before / After: Mass diagram -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Before · 広いインターフェースと薄い実装群</span>
+                <span class="text-[11px] font-mono text-red-600">文言文字列リーク</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2.5 flex-1">
+                <div class="flex flex-col border border-slate-300 rounded overflow-hidden bg-white">
+                  <div class="bg-amber-100 border-b border-amber-200 px-2.5 py-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-amber-950">security.js (4 exports)</div>
+                    <div class="text-[10px] font-mono text-amber-800">maskUid は未使用</div>
+                  </div>
+                  <div class="p-2.5 text-[11px] text-slate-600 flex-1">25行の薄い正規表現集。削除テストで吸収可能。</div>
+                </div>
+
+                <div class="flex flex-col border border-slate-300 rounded overflow-hidden bg-white">
+                  <div class="bg-amber-100 border-b border-amber-200 px-2.5 py-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-amber-950">http-client.js (6 exports)</div>
+                    <div class="text-[10px] font-mono text-amber-800">許可ホスト10件手動重複</div>
+                  </div>
+                  <div class="p-2.5 text-[11px] text-slate-600 flex-1">例外メッセージ文字列の正規表現判定が漏出。</div>
+                </div>
+
+                <div class="flex flex-col border border-slate-300 rounded overflow-hidden bg-white">
+                  <div class="bg-amber-100 border-b border-amber-200 px-2.5 py-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-amber-950">hoyo-api.js</div>
+                    <div class="text-[10px] font-mono text-amber-800">3系統で重複パイプライン</div>
+                  </div>
+                  <div class="p-2.5 text-[11px] text-slate-600 flex-1">翻訳文言 t(...) を結果へ埋め込み返却。</div>
+                </div>
+
+                <div class="flex flex-col border border-red-300 rounded overflow-hidden bg-red-50">
+                  <div class="bg-red-100 border-b border-red-200 px-2.5 py-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-red-900">code-fetcher &amp; formatter</div>
+                    <div class="text-[10px] font-mono text-red-700">本体未テスト・文字列判定</div>
+                  </div>
+                  <div class="p-2.5 text-[11px] text-red-800 flex-1">message-formatter.js が日英文章を部分一致判定。</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-emerald-700">After · 薄いインターフェース × 厚い実装</span>
+                <span class="text-[11px] font-mono text-emerald-700">構造化結果＋fetchシーム</span>
+              </div>
+              <div class="flex-1 flex flex-col gap-3">
+                <div class="deep text-white rounded-lg border-2 border-slate-900 overflow-hidden flex-1 flex flex-col">
+                  <!-- Thin Interface -->
+                  <div class="bg-emerald-500/20 border-b border-emerald-400/40 px-4 py-2.5">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-emerald-300">Small Interface · 外部通信モジュール</div>
+                    <div class="text-[11px] font-mono text-emerald-100 mt-0.5">返却値は構造化ステータス種別のみ（翻訳文言・生エラー文字列なし）</div>
+                  </div>
+                  <!-- Tall Implementation -->
+                  <div class="p-4 flex-1 flex flex-col justify-between gap-2 text-xs text-slate-200">
+                    <div class="rounded bg-slate-800/80 border border-slate-700 px-3 py-2">
+                      <span class="uppercase tracking-wider text-slate-400">実装:</span> GAMES 定義から許可ホスト自動導出＋入力検証（security.js 吸収）
+                    </div>
+                    <div class="rounded bg-slate-800/80 border border-slate-700 px-3 py-2">
+                      <span class="uppercase tracking-wider text-slate-400">実装:</span> デュアルホストフォールバック・429/5xx検知・非JSON防御の一本化
+                    </div>
+                    <div class="rounded bg-slate-800/80 border border-slate-700 px-3 py-2">
+                      <span class="uppercase tracking-wider text-slate-400">実装:</span> 256KB / 50件上限検証付きコード取得と正規化された異常分類
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border-t-2 seam border-emerald-600 pt-2.5 grid grid-cols-2 gap-2.5">
+                  <div class="rounded border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-mono text-slate-700">Adapter: Browser fetch</div>
+                  <div class="rounded border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-[11px] font-mono text-emerald-800">Adapter: Test fetch stub</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm border-t border-stone-100 pt-4">
+            <div class="space-y-2">
+              <p><span class="font-semibold text-slate-800">Problem:</span> 浅い security.js と重複した HTTP フォールバック処理、文字列ベースのエラー・翻訳文言の漏出により、message-formatter.js が日英文章の部分一致に依存し code-fetcher.js 本体は未テストのままになっている。</p>
+              <p><span class="font-semibold text-slate-800">Solution:</span> 検証・許可ホスト導出・デュアルホスト通信・異常分類を1つの深い外部通信モジュールへ統合し、構造化された結果種別のみをシーム越しに返す。</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Wins</p>
+              <ul class="space-y-1 text-slate-700 list-disc list-inside">
+                <li>削除テスト通過：浅い security.js と未使用 maskUid を吸収</li>
+                <li>局所性：日英メッセージ文字列の部分一致判定が消滅</li>
+                <li>レバレッジ：ホスト許可リストとフォールバック重複を一元化</li>
+                <li>fetch アダプター注入でコード取得防御を直接テスト可能</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 4: Hand-built boxes-and-arrows -->
+        <article id="candidate-4" class="bg-white border border-stone-200 rounded-xl p-6 md:p-8 shadow-sm space-y-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Candidate 04</span>
+              <h2 class="text-2xl font-serif font-semibold text-slate-900 mt-0.5">Popup 状態遷移・表示モデルモジュールの深化</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">Worth exploring</span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">ports &amp; adapters</span>
+            </div>
+          </div>
+
+          <ul class="flex flex-wrap gap-2 font-mono text-sm text-slate-700">
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/popup.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/status-view.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/modals.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/log-view.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">test/popup-logic.test.js</li>
+          </ul>
+
+          <!-- Before / After: Hand-built boxes-and-arrows -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Before · 共有可変状態とDOM直結I/O</span>
+                <span class="text-[11px] font-mono text-red-600">約1,010行中 大半が未検証</span>
+              </div>
+              <div class="relative flex-1 flex flex-col justify-between gap-2.5">
+                <div class="rounded border border-amber-300 bg-amber-50 p-2 text-center">
+                  <div class="text-xs uppercase tracking-wider font-semibold text-amber-900">Mutable state (3ファイルから横断書換)</div>
+                  <div class="text-[11px] font-mono text-amber-800">{ currentGameKey, currentUid, currentLang }</div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="rounded border border-slate-300 bg-white p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">popup.js</div>
+                    <div class="text-[10px] font-mono text-red-600 mt-1">重複取得呼び出し</div>
+                  </div>
+                  <div class="rounded border border-slate-300 bg-white p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">status-view</div>
+                    <div class="text-[10px] font-mono text-red-600 mt-1">-1071 判定漏れ</div>
+                  </div>
+                  <div class="rounded border border-slate-300 bg-white p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">modals.js</div>
+                    <div class="text-[10px] font-mono text-slate-500 mt-1">同意・設定DOM</div>
+                  </div>
+                </div>
+
+                <div class="rounded border border-red-300 bg-red-50 p-2.5 text-red-900 space-y-1">
+                  <div class="text-xs uppercase tracking-wider font-semibold">View からの直接 I/O リーク</div>
+                  <div class="text-[11px] font-mono">status-view.js が直接 HTTP 通信・ストレージ保存・chrome.alarms 参照＋8箇所の陳腐化ガード</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-emerald-700">After · DOM非依存の制御モジュール＋薄い描画</span>
+                <span class="text-[11px] font-mono text-emerald-700">実遷移を直接テスト可能</span>
+              </div>
+              <div class="flex-1 flex flex-col justify-between gap-2.5">
+                <div class="deep text-white rounded-lg border-2 border-slate-900 p-3.5 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div class="text-xs uppercase tracking-wider font-semibold text-emerald-300">Popup 制御モジュール (DOM 非依存)</div>
+                    <div class="text-[11px] font-mono text-slate-300 mt-1">表示スナップショット・モーダル優先順位・レース制御を所有</div>
+                  </div>
+                  <div class="space-y-1.5 my-2 text-[11px] text-slate-300">
+                    <div class="rounded bg-slate-800/75 border border-slate-700 px-2.5 py-1.5">単一ステータス読込（重複取得・陳腐化ガード乱立を解消）</div>
+                    <div class="rounded bg-slate-800/75 border border-slate-700 px-2.5 py-1.5">Background メッセージ種別と未ログイン判定の共通化</div>
+                  </div>
+                </div>
+
+                <div class="border-t-2 seam border-emerald-600 pt-2.5 grid grid-cols-2 gap-2.5">
+                  <div class="rounded border border-slate-300 bg-white p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-800">DOM 描画アダプター</div>
+                    <div class="text-[10px] font-mono text-slate-500 mt-0.5">スナップショットを反映のみ</div>
+                  </div>
+                  <div class="rounded border border-emerald-300 bg-emerald-50 p-2">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-emerald-900">テストアダプター</div>
+                    <div class="text-[10px] font-mono text-emerald-700 mt-0.5">node:test で全遷移を検証</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm border-t border-stone-100 pt-4">
+            <div class="space-y-2">
+              <p><span class="font-semibold text-slate-800">Problem:</span> 可変状態と直接 I/O が3つの表示モジュールに混在しているため、重複取得や -1071 未ログイン誤判定が発生し、約1,010行の大部分がテスト不能になっている。</p>
+              <p><span class="font-semibold text-slate-800">Solution:</span> 状態遷移・レース防止・モーダル制御・ステータス集約を DOM 非依存の深い Popup 制御モジュールへ集約し、DOM 操作だけを薄いアダプターとして分離する。</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Wins</p>
+              <ul class="space-y-1 text-slate-700 list-disc list-inside">
+                <li>局所性：重複取得と -1071 判定漏れを構造的に防止</li>
+                <li>テスト対象が純粋関数断片から実ユースケース遷移へ拡大</li>
+                <li>共有可変オブジェクトへの横断書き込みとレース分岐を隠蔽</li>
+                <li>Background とのメッセージ契約を1箇所へ固定</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 5: Cross-section -->
+        <article id="candidate-5" class="bg-white border border-stone-200 rounded-xl p-6 md:p-8 shadow-sm space-y-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Candidate 05</span>
+              <h2 class="text-2xl font-serif font-semibold text-slate-900 mt-0.5">ゲーム定義カタログの一元化と未使用フレーバー設定の整理</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700 border border-slate-300">Speculative</span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200">in-process</span>
+            </div>
+          </div>
+
+          <ul class="flex flex-wrap gap-2 font-mono text-sm text-slate-700">
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/config/constants.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/utils/i18n.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/analytics-service.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/services/http-client.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/popup.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/popup/log-view.js</li>
+            <li class="bg-stone-100 px-2.5 py-1 rounded border border-stone-200">src/config/flavors.js</li>
+          </ul>
+
+          <!-- Before / After: Cross-section -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Before · 1ゲームの変更が6箇所を貫通</span>
+                <span class="text-[11px] font-mono text-red-600">散在するスイッチ群</span>
+              </div>
+              <div class="space-y-1.5 flex-1 flex flex-col justify-center">
+                <div class="h-10 border-l-4 border-red-500 bg-white border border-slate-200 rounded-r px-3 flex items-center justify-between">
+                  <span class="text-xs uppercase tracking-wider font-semibold text-slate-800">constants.js</span>
+                  <span class="text-[11px] font-mono text-slate-500">GAMES + 未使用 intervalLabel</span>
+                </div>
+                <div class="h-10 border-l-4 border-red-500 bg-white border border-slate-200 rounded-r px-3 flex items-center justify-between">
+                  <span class="text-xs uppercase tracking-wider font-semibold text-slate-800">i18n.js</span>
+                  <span class="text-[11px] font-mono text-slate-500">getGameLocalized 手動 switch</span>
+                </div>
+                <div class="h-10 border-l-4 border-red-500 bg-white border border-slate-200 rounded-r px-3 flex items-center justify-between">
+                  <span class="text-xs uppercase tracking-wider font-semibold text-slate-800">analytics-service.js</span>
+                  <span class="text-[11px] font-mono text-slate-500">toGaGameKey 手動 switch</span>
+                </div>
+                <div class="h-10 border-l-4 border-red-500 bg-white border border-slate-200 rounded-r px-3 flex items-center justify-between">
+                  <span class="text-xs uppercase tracking-wider font-semibold text-slate-800">http-client.js</span>
+                  <span class="text-[11px] font-mono text-slate-500">ALLOWED_HOYO_HOSTS 重複配列</span>
+                </div>
+                <div class="h-10 border-l-4 border-red-500 bg-white border border-slate-200 rounded-r px-3 flex items-center justify-between">
+                  <span class="text-xs uppercase tracking-wider font-semibold text-slate-800">popup.js / log-view.js</span>
+                  <span class="text-[11px] font-mono text-slate-500">個別キー分岐 / 名前プレフィックス</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-stone-50 p-4 flex flex-col justify-between min-h-[320px]">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs uppercase tracking-wider font-semibold text-emerald-700">After · 単一のゲーム定義＋派生参照</span>
+                <span class="text-[11px] font-mono text-emerald-700">重複スイッチ削除</span>
+              </div>
+              <div class="flex-1 flex flex-col justify-center gap-3">
+                <div class="deep text-white rounded-lg border-l-4 border-emerald-400 p-4 space-y-2">
+                  <div class="text-xs uppercase tracking-wider font-semibold text-emerald-300">ゲーム定義モジュール（単一ソース）</div>
+                  <div class="text-xs text-slate-200">各タイトルに日英表示名・GAキー・チェックイン/交換ホストを一元格納。</div>
+                  <div class="text-[11px] font-mono text-slate-400">未使用の FLAVOR_UI.intervalLabel / signIntervalLabel を削除</div>
+                </div>
+                <div class="border-t-2 seam border-emerald-600 pt-3 grid grid-cols-3 gap-2">
+                  <div class="rounded border border-slate-300 bg-white p-2 text-center">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-700">i18n / log</div>
+                    <div class="text-[10px] font-mono text-slate-500 mt-0.5">派生参照のみ</div>
+                  </div>
+                  <div class="rounded border border-slate-300 bg-white p-2 text-center">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-700">analytics</div>
+                    <div class="text-[10px] font-mono text-slate-500 mt-0.5">派生参照のみ</div>
+                  </div>
+                  <div class="rounded border border-slate-300 bg-white p-2 text-center">
+                    <div class="text-xs uppercase tracking-wider font-semibold text-slate-700">http-client</div>
+                    <div class="text-[10px] font-mono text-slate-500 mt-0.5">自動ホスト導出</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm border-t border-stone-100 pt-4">
+            <div class="space-y-2">
+              <p><span class="font-semibold text-slate-800">Problem:</span> 1タイトル分のメタデータが6モジュールのハードコード分岐・配列へ散在し、未使用のフレーバー表示文字列も残存している。</p>
+              <p><span class="font-semibold text-slate-800">Solution:</span> 各ゲームの多言語名称・分析キー・通信ホストを1つのゲーム定義モジュールへ統合し、利用側は派生参照のみにする。</p>
+            </div>
+            <div>
+              <p class="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1.5">Wins</p>
+              <ul class="space-y-1 text-slate-700 list-disc list-inside">
+                <li>局所性：タイトル変更時の修正箇所を6箇所から1箇所へ削減</li>
+                <li>3箇所の手動スイッチ・許可リストを派生参照で置換</li>
+                <li>未使用の FLAVOR_UI ラベル定義を削除</li>
+                <li>単独着手より候補3と合わせた段階整理が適切</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- Top recommendation -->
+      <section id="top-recommendation">
+        <div class="deep text-white rounded-xl p-8 border-2 border-slate-900 shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div class="space-y-2">
+            <span class="text-xs font-mono uppercase tracking-widest text-emerald-300">Top Recommendation</span>
+            <h2 class="text-2xl font-serif font-semibold">Candidate 1: Background 実行・スケジューリングモジュール群の深化</h2>
+            <p class="text-sm text-slate-300">直近の変更ホットスポットが最も集中しており、テストファイル肥大化（1,875行）とバックオフ・ガード分散の根本原因を単一の深いモジュールと明確な2アダプターシームで一挙に解消できるため。</p>
+          </div>
+          <a href="#candidate-1" class="shrink-0 inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-medium text-sm transition-colors">
+            Candidate 1 を見る →
+          </a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

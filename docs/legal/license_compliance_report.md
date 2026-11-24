@@ -1,11 +1,12 @@
 # HoYoPass ライセンス & 法的適合性調査レポート (License Compliance Report)
 
-**調査日**: 2026年10月12日  
+**調査日**: 2026年10月12日（追記更新: 2026年11月24日）  
 **対象ソフトウェア**: HoYoPass（Chrome拡張機能 Manifest V3）  
 **調査対象リポジトリ**: [zyanpoyo/HoYoPass](https://github.com/zyanpoyo/HoYoPass)  
-**調査対象API**:
+**調査対象API・外部リソース**:
 1. `hoyo-codes` API ([seriaati/hoyo-codes](https://github.com/seriaati/hoyo-codes) - GPL-3.0)
 2. HoYoverse 内部Web API（Takumi API / WebExchangeCdkey API）
+3. 開発支援スキル（[mattpocock/skills](https://github.com/mattpocock/skills) - MIT License）
 
 ---
 
@@ -24,6 +25,7 @@
 | **公式内部Web APIの利用** | HoYoverse Takumi / 交換API | 🟡 **適切な制御・リスク管理済** | ゼロトラスト認証・過負荷防止ディレイ（5.2秒）・非公式免責表記により安全に運用。 |
 | **プロジェクト内依存関係** | npm / サードパーティパッケージ | 🟢 **依存ゼロ（完全自律）** | 外部npmライブラリへの依存が0件であり、ライセンス衝突の余地がないため。 |
 | **商標・ゲーム画像アセット** | ゲームロゴ・タイトル・アイコン | 🟢 **適正表示（NOTICE完備）** | `NOTICE` および `README` にて権利帰属および非公式明記を徹底しているため。 |
+| **開発支援スキル** | [mattpocock/skills](https://github.com/mattpocock/skills) (MIT License) | 🟢 **適正対応済（MIT互換・NOTICE記載）** | MIT License は本プロジェクト（MIT）と完全互換。`.agents/` は `.gitignore` および配布ZIP対象外だが、`NOTICE` に著作権表示・対象スキル・MIT条文を記載済み。 |
 
 ---
 
@@ -123,7 +125,23 @@ export async function fetchValidCodes(gameKey = 'GENSHIN') {
 
 ---
 
-## 5. まとめと推奨アクション
+## 5. 開発支援スキル（`mattpocock/skills` - MIT License）との適合性
+
+### 5.1 対象リポジトリとライセンス
+- **リポジトリ**: [mattpocock/skills](https://github.com/mattpocock/skills)
+- **ライセンス**: **MIT License**
+- **著作権表示**: `Copyright (c) 2026 Matt Pocock`
+- **利用形態**: ローカル開発ワークフロー用のエージェントスキル（`.agents/skills/` 配下の18スキル：`ask-matt`, `code-review`, `domain-modeling`, `grill-with-docs`, `grilling`, `handoff`, `implement`, `implement-spec`, `improve-codebase-architecture`, `research`, `retro`, `tdd`, `teach`, `to-questionnaire`, `to-spec`, `to-tickets`, `wait-what`, `wayfinder`）に日本語トリガー等のローカル改変を加えて利用。
+
+### 5.2 ライセンス適合性・義務の確認
+- **ライセンス互換性**: MIT License はコピーレフト義務を持たないパーミッシブライセンスであり、本プロジェクトの MIT License と完全に互換です。複製・改変・結合・頒布が広く許諾されています。
+- **配布範囲と帰属表記**:
+  - `.agents/` ディレクトリは `.gitignore` により Git 管理・公開リポジトリから除外されており、Chrome Web Store 向け配布パッケージ（`dist/hoyopass-v*.zip`）にも含まれません。
+  - したがってスキルファイル自体の外部再配布は発生していませんが、改変利用の透明性および将来 `.agents/skills/` をリポジトリ公開対象とした場合への備えとして、`NOTICE` に著作権表示（`Copyright (c) 2026 Matt Pocock`）、対象18スキル一覧、および MIT License 条文全文を明記しています。
+
+---
+
+## 6. まとめと推奨アクション
 
 本拡張機能は、ソフトウェアライセンス、著作権法、およびオープンソースコミュニティの慣例に照らして**極めてクリーンかつ安全な設計**となっています。
 
