@@ -111,7 +111,7 @@
       <section class="policy-section">
         <h2>4. Handling of Credentials (Cookies)</h2>
         <p>
-          When sending requests to official APIs on your behalf to claim check-in rewards and redeem codes, the Extension uses standard browser secure transport (<code>credentials: 'include'</code>).
+          When sending requests to private APIs on your behalf to claim check-in rewards and redeem codes, the Extension uses standard browser secure transport (<code>credentials: 'include'</code>).
         </p>
         <ul>
           <li><strong>No Cookie Reading</strong>: The Extension's JavaScript code never reads, inspects, or loads your session cookies into memory.</li>
@@ -136,17 +136,17 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>*.hoyoverse.com</code><br><code>*.hoyolab.com</code><br>(Official Takumi API)</td>
+                <td><code>*.hoyoverse.com</code><br><code>*.hoyolab.com</code><br>(Private Takumi API)</td>
                 <td>Confirm character profiles (nickname, UID, server region)</td>
                 <td>Session cookies managed by browser (automatically attached)</td>
               </tr>
               <tr>
-                <td><code>*.hoyolab.com</code><br><code>*.hoyoverse.com</code><br>(Official Check-In APIs)</td>
+                <td><code>*.hoyolab.com</code><br><code>*.hoyoverse.com</code><br>(Private Check-In APIs)</td>
                 <td>Check daily check-in status and claim rewards</td>
                 <td>Event ID, request headers, session cookies (automatically attached)</td>
               </tr>
               <tr>
-                <td><code>*.hoyoverse.com</code><br>(Official Redemption APIs)</td>
+                <td><code>*.hoyoverse.com</code><br>(Private Redemption APIs)</td>
                 <td>Redeem promotional gift codes</td>
                 <td>Game identifier, UID, code string, session cookies (automatically attached)</td>
               </tr>
@@ -177,7 +177,7 @@
           <li><strong><code>alarms</code></strong>: To trigger background alarms for daily check-in (01:05 UTC+8) and periodic code checks (every 3 hours).</li>
           <li><strong><code>notifications</code></strong>: To notify you upon reward claiming, CAPTCHA verification requirements, or session expiration.</li>
           <li><strong><code>idle</code></strong>: To detect system wake or unlock, catching up on missed daily rewards safely after network reconnection.</li>
-          <li><strong><code>host_permissions</code></strong>: To perform secure HTTPS requests to the verified official APIs and open code repository listed in Section 5.</li>
+          <li><strong><code>host_permissions</code></strong>: To perform secure HTTPS requests to the private APIs and open code repository listed in Section 5.</li>
         </ul>
         <div class="notice-box info">
           <strong>* Deliberate Omission of Cookie Permission</strong><br>
@@ -206,7 +206,7 @@
         <ul>
           <li><strong>Unofficial Tool &amp; Intellectual Property</strong>: The Extension is an unofficial, fan-made tool developed by an individual and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse). &quot;Genshin Impact&quot;, &quot;Honkai: Star Rail&quot;, &quot;Zenless Zone Zero&quot;, &quot;HoYoverse&quot;, &quot;HoYoLAB&quot;, and all related names, trademarks, and intellectual property rights belong to their respective owners.</li>
           <li><strong>Risks Under Official Terms of Service &amp; User Responsibility</strong>: Automating daily check-in rewards and gift code redemption through the Extension may be deemed by the operator to violate the Terms of Service of HoYoverse titles (including prohibitions on third-party tools, bots, etc.). Automatic execution features are enabled only by the user's voluntary configuration, and users use the Extension at their own discretion and risk.</li>
-          <li><strong>Limitation of Liability</strong>: The developer assumes no responsibility for any damages arising from the use of (or inability to use) the Extension, including but not limited to account warnings, restrictions, or suspensions; revocation or reclamation of in-game rewards; and malfunctions caused by changes to or discontinuation of official APIs.</li>
+          <li><strong>Limitation of Liability</strong>: The developer assumes no responsibility for any damages arising from the use of (or inability to use) the Extension, including but not limited to account warnings, restrictions, or suspensions; revocation or reclamation of in-game rewards; and malfunctions caused by changes to or discontinuation of private APIs.</li>
           <li><strong>Suspension or Discontinuation</strong>: Upon request from rights holders or platform operators (such as Google), or whenever the developer deems it necessary, the developer may suspend distribution of, discontinue, or remove some features of the Extension without prior notice.</li>
         </ul>
       </section>
@@ -235,7 +235,7 @@
           </li>
           <li class="revision-history-item">
             <span class="revision-date">October 17, 2026 (Revised)</span>
-            <span class="revision-summary">Expanded local storage disclosures (check-in records), required permissions, and official API endpoints upon introducing daily check-in automation</span>
+            <span class="revision-summary">Expanded local storage disclosures (check-in records), required permissions, and private API endpoints upon introducing daily check-in automation</span>
           </li>
           <li class="revision-history-item">
             <span class="revision-date">October 12, 2026 (Enacted)</span>

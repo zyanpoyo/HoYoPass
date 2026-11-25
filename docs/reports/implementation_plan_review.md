@@ -23,7 +23,7 @@
   - **対応完了**: `credentials: 'include'` を用いたブラウザ標準のCookie自動付与に切り替え、トークン値をJSメモリに一切保持しない設計を計画書v3（`http-client.js`）に反映。
 
 - [x] **M-2: `cookies` 権限そのものの必要性を見直す（最小権限の原則）**
-  - **対応完了**: `manifest.json` から `"cookies"` 権限を完全削除し、ログイン判定を公式APIのレスポンス（`retcode`）で代替する方針で合意・計画書v3に反映。
+  - **対応完了**: `manifest.json` から `"cookies"` 権限を完全削除し、ログイン判定を非公開APIのレスポンス（`retcode`）で代替する方針で合意・計画書v3に反映。
 
 - [x] **M-3: `host_permissions` のワイルドカードを、実際に使う API ホストだけに絞る**
   - **対応完了**: `*.hoyoverse.com` 等のワイルドカードを廃止し、`api-os-takumi.hoyoverse.com`、`sg-hk4e-api.hoyoverse.com`、`hoyo-codes.seria.moe` の3ホストのみに限定。

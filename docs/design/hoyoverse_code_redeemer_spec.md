@@ -19,9 +19,9 @@
 
 ## 2. HoYoverse / HoYoLAB API & 認証仕様調査結果
 
-### 2.1 公式APIの提供状況
+### 2.1 公式開発者APIの提供状況
 * **公式開発者API**: **提供なし**（オープンなDeveloper PortalやOAuth 2.0認証、APIキー発行等は一切存在しない）。
-* **アクセス手法**: 公式Webサイト（HoYoLABおよびギフト交換ページ）が内部通信で利用している**公式内部REST API**を直接呼び出す。
+* **アクセス手法**: 公式Webサイト（HoYoLABおよびギフト交換ページ）が内部通信で利用している**非公開REST API**を直接呼び出す。
 
 ### 2.2 認証方式（Cookie透過通信 & デュアルドメイン対応）
 HoYoverse / HoYoLABのWebセッションはCookieによって管理される。HoYoPassでは `chrome.cookies` 権限を一切使用せず、ブラウザ標準の `fetch(..., { credentials: 'include' })` によってブラウザが保持する公式セッションCookieを自動付与させる。

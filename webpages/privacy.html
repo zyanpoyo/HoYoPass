@@ -111,7 +111,7 @@
       <section class="policy-section">
         <h2>4. 認証情報（Cookie）の取り扱い方針</h2>
         <p>
-          本拡張機能は、利用者に代わって公式APIへログインボーナス受取およびコード引き換えリクエストを送信する際、ブラウザ標準のセキュア通信機構（<code>credentials: 'include'</code>）を使用します。
+          本拡張機能は、利用者に代わって非公開APIへログインボーナス受取およびコード引き換えリクエストを送信する際、ブラウザ標準のセキュア通信機構（<code>credentials: 'include'</code>）を使用します。
         </p>
         <ul>
           <li><strong>Cookieの読み取り・取得を行いません</strong>: 拡張機能のプログラムコードから利用者のCookie文字列を読み出したり、メモリ上に展開したりしません。</li>
@@ -136,17 +136,17 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>*.hoyoverse.com</code><br><code>*.hoyolab.com</code><br>(公式Takumi API)</td>
+                <td><code>*.hoyoverse.com</code><br><code>*.hoyolab.com</code><br>(非公開Takumi API)</td>
                 <td>アカウントのキャラクター情報（ニックネーム・UID）確認</td>
                 <td>ブラウザが管理するセッションCookie（自動付与）</td>
               </tr>
               <tr>
-                <td><code>*.hoyolab.com</code><br><code>*.hoyoverse.com</code><br>(各ゲーム公式ログボAPI)</td>
+                <td><code>*.hoyolab.com</code><br><code>*.hoyoverse.com</code><br>(各ゲーム非公開ログボAPI)</td>
                 <td>デイリーログインボーナスの状態確認および受取実行</td>
                 <td>イベントID、リクエストヘッダー、Cookie（自動付与）</td>
               </tr>
               <tr>
-                <td><code>*.hoyoverse.com</code><br>(各ゲーム公式交換API)</td>
+                <td><code>*.hoyoverse.com</code><br>(各ゲーム非公開交換API)</td>
                 <td>交換コードの引き換え実行</td>
                 <td>対象ゲーム種別、UID、交換コード文字列、Cookie（自動付与）</td>
               </tr>
@@ -177,7 +177,7 @@
           <li><strong><code>alarms</code></strong>: 毎日深夜01:05のログインボーナス自動受取、および3時間ごとの交換コード自動引き換え処理をバックグラウンドで起動するため。</li>
           <li><strong><code>notifications</code></strong>: ログボ受取やコード引き換えの完了、パズル認証の案内、またはログイン期限切れをデスクトップ通知でお知らせするため。</li>
           <li><strong><code>idle</code></strong>: パソコンのスリープ復帰やロック解除を検知し、未受取ボーナスや新着コードのキャッチアップ処理を行うため。</li>
-          <li><strong><code>host_permissions</code></strong>: 上記「5. 外部通信および利用目的」に記載された公式APIおよび検証済みコード配布元との安全な通信を行うため。</li>
+          <li><strong><code>host_permissions</code></strong>: 上記「5. 外部通信および利用目的」に記載された非公開APIおよび検証済みコード配布元との安全な通信を行うため。</li>
         </ul>
         <div class="notice-box info">
           <strong>※ Cookie閲覧権限の不使用</strong><br>
@@ -206,7 +206,7 @@
         <ul>
           <li><strong>非公式ツールおよび権利帰属</strong>: 本拡張機能は個人が開発した非公式のファンメイドツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係がありません。「原神」「崩壊：スターレイル」「ゼンレスゾーンゼロ」「HoYoverse」「HoYoLAB」等の名称および関連する商標・知的財産権は、すべて各権利者に帰属します。</li>
           <li><strong>公式利用規約上のリスクと自己責任</strong>: 本拡張機能によるログインボーナス受取や交換コード引き換えの自動化は、HoYoverse各タイトルの利用規約（外部ツール・BOT等の禁止事項）に抵触すると運営側により判断される可能性があります。自動実行機能は利用者の任意設定により有効化されるものであり、利用者は自身の判断と責任において本拡張機能を使用するものとします。</li>
-          <li><strong>損害・仕様変更等に関する免責</strong>: 本拡張機能の利用（または利用不能）により生じたアカウントの警告・制限・停止、ゲーム内報酬の取消し・回収、公式APIの仕様変更・停止に伴う動作不具合その他一切の損害について、開発者は責任を負いかねます。</li>
+          <li><strong>損害・仕様変更等に関する免責</strong>: 本拡張機能の利用（または利用不能）により生じたアカウントの警告・制限・停止、ゲーム内報酬の取消し・回収、非公開APIの仕様変更・停止に伴う動作不具合その他一切の損害について、開発者は責任を負いかねます。</li>
           <li><strong>公開停止・機能終了</strong>: 権利者またはプラットフォーム事業者（Google等）からの要請があった場合、その他開発者が必要と判断した場合、事前の通知なく本拡張機能の公開停止、提供終了、または一部機能の廃止を行うことがあります。</li>
         </ul>
       </section>
@@ -235,7 +235,7 @@
           </li>
           <li class="revision-history-item">
             <span class="revision-date">2026年10月17日 (改定)</span>
-            <span class="revision-summary">デイリーログインボーナス自動受取機能の追加に伴い、ローカル保存データ（受取記録）、要求権限、および公式API通信先の記載を拡充</span>
+            <span class="revision-summary">デイリーログインボーナス自動受取機能の追加に伴い、ローカル保存データ（受取記録）、要求権限、および非公開API通信先の記載を拡充</span>
           </li>
           <li class="revision-history-item">
             <span class="revision-date">2026年10月12日 (制定)</span>
