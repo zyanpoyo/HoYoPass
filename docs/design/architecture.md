@@ -6,7 +6,7 @@
 
 ## 1. システム概要 & 全体構成図
 
-HoYoPassは、Google Chromeの拡張機能仕様（Manifest V3）に準拠したクライアント完結型の拡張機能です。専用のバックエンドサーバーを持たず、ブラウザのバックグラウンドService Workerと公式API（HoYoLAB / HoYoverse）、およびオープンソースの交換コードAPIのみと直接通信します。
+HoYoPassは、Google Chromeの拡張機能仕様（Manifest V3）に準拠したクライアント完結型の拡張機能です。専用のバックエンドサーバーを持たず、ブラウザのバックグラウンドService Workerと非公開API（HoYoLAB / HoYoverse）、およびオープンソースの交換コードAPIのみと直接通信します。
 
 ```mermaid
 flowchart TD
@@ -20,7 +20,7 @@ flowchart TD
     subgraph ExternalServices["外部サービス"]
         SignAPI["HoYoLAB / HoYoverse Daily Check-In API<br>(info / sign エンドポイント + x-rpc-signgame)"]
         TakumiAPI["HoYoverse Takumi API<br>(ロール情報照会・UID取得)"]
-        RedeemAPI["各ゲーム公式交換API<br>(原神 / スタレ / ZZZ)"]
+        RedeemAPI["各ゲーム非公開交換API<br>(原神 / スタレ / ZZZ)"]
         HoyoCodesAPI["hoyo-codes API<br>(公開交換コード一覧取得)"]
         GA4API["Google Analytics 4<br>(Measurement Protocol 匿名メトリクス収集)"]
     end
@@ -61,7 +61,7 @@ flowchart TD
 
 ### 2.4 ホスト権限（`host_permissions`）の厳格限定
 通信可能なオリジンを以下の公式ドメインおよび検証済みコード配布APIのみに制限しています：
-- `https://api-os-takumi.hoyoverse.com/*` / `https://api-os-takumi.hoyolab.com/*`（公式ユーザーロール照会API）
+- `https://api-os-takumi.hoyoverse.com/*` / `https://api-os-takumi.hoyolab.com/*`（非公開ユーザーロール照会API）
 - `https://sg-hk4e-api.hoyolab.com/*` / `https://sg-hk4e-api.hoyoverse.com/*`（原神 ログボ受取・交換コード引き換えAPI）
 - `https://sg-public-api.hoyolab.com/*` / `https://sg-public-api.hoyoverse.com/*`（崩壊：スターレイル ログボ受取API）
 - `https://sg-hkrpg-api.hoyoverse.com/*`（崩壊：スターレイル 交換コード引き換えAPI）
@@ -78,7 +78,7 @@ Manifest V3の厳格なCSPを採用し、インラインスクリプトや外部
 HoYoPassが利用・通信する外部APIの詳細および仕様・ソースコードのリファレンスとなるGitHubリポジトリは以下の通りです。
 
 ### 3.1 HoYoLAB / HoYoverse デイリーログインボーナスAPI（Daily Check-In API）
-HoYoLABの公式デイリーチェックインページ（`act.hoyolab.com`）が内部通信で使用している公式REST APIです。
+HoYoLABの公式デイリーチェックインページ（`act.hoyolab.com`）が内部通信で使用している非公開REST APIです。
 
 - **各タイトルのエンドポイント & 設定値**:
   | ゲーム | `act_id` | `x-rpc-signgame` ヘッダ | `info` パス | `sign` パス | 対応ホスト（Primary / Secondary） |
@@ -142,7 +142,7 @@ src/
 ├── services/
 │   ├── analytics-service.js    # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
 │   ├── code-fetcher.js         # hoyo-codes APIからのコード一覧取得・ペイロード検証
-│   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、公式交換API呼び出し、未ログイン判定（isNotLoggedIn）
+│   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、非公開交換API呼び出し、未ログイン判定（isNotLoggedIn）
 │   ├── http-client.js          # ホワイトリスト検証・429/5xx検知付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
 │   ├── rate-limit-service.js   # ジッター、指数バックオフ、短期リトライ上限、自動/手動クールダウン状態管理
 │   ├── review-prompt-service.js# ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定
@@ -165,10 +165,10 @@ src/
 - **事前 `info` チェックによる冪等性とCAPTCHA当日抑止**: `sign` を叩く前にまず `getDailySignInfo` で `is_sign` を確認し、すでに受取済みの場合はPOST通信を行わずにローカル記録を同期します。`claimDailyBonus` でCAPTCHA（`isRisk`）が要求された場合は `captchaBlocked: true` を保存し、当日（UTC+8）中の自動再実行・通知連発をスキップします（ユーザーによる手動実行は許可）。
 
 ### 5.2 交換コード自動引き換え（3時間インターバル軸）
-- **定期アラーム (`hoyo_auto_redeem_alarm`)**: 3時間（180分）周期で全有効タイトルを順次巡回し、まず外部の `hoyo-codes` API から最新コード一覧を取得してローカルの引き換え履歴と照合します。未処理コードが存在しないゲームでは公式API（ロール照会・交換APIとも）を一切呼び出さずスキップすることで、不要な公式APIリクエストを削減します。
+- **定期アラーム (`hoyo_auto_redeem_alarm`)**: 3時間（180分）周期で全有効タイトルを順次巡回し、まず外部の `hoyo-codes` API から最新コード一覧を取得してローカルの引き換え履歴と照合します。未処理コードが存在しないゲームでは非公開API（ロール照会・交換APIとも）を一切呼び出さずスキップすることで、不要な非公開APIリクエストを削減します。
 - **ジッター付き順次リクエスト遅延**: 1つのコードを引き換えるごと、およびゲーム切替ごとに **5.2〜6.7秒** のランダム揺らぎ付きスリープを挿入し、固定周期の機械的アクセスやレートリミットを回避します。
 - **HTTP 429 / 5xx・`-2016` による指数バックオフ**: HoYo API から HTTP `429`・`5xx` または `retcode: -2016` を検知した際は、予備ホストへのフォールバックも行わず即座に処理を中断し、連続発生に応じて **30分 → 60分 → 上限120分** へ段階延長する指数バックオフ（`Retry-After` ヘッダがある場合は上限120分の範囲で尊重）に遷移します。未ログイン（`-100`/`-1071`）・`429`・`5xx`・`-2016` 受信時は対象コードの失敗回数（上限3回）を消費しません。
-- **公式APIの二段階判定と重複メール仕様**: HoYoverseの交換コードAPIは、Web APIでの受付判定とゲームサーバーでのメール配送判定の二段階で動作します。事前照会APIが存在しないため、過去にゲーム内等で手動交換済みのコードに対して初回実行時に「交換済み重複メール」がゲーム内に届く場合がありますが、これはAPI仕様上の制約であり、一度処理されたコードはローカルに保存されて再送が防止されます。
+- **非公開APIの二段階判定と重複メール仕様**: HoYoverseの交換コードAPIは、Web APIでの受付判定とゲームサーバーでのメール配送判定の二段階で動作します。事前照会APIが存在しないため、過去にゲーム内等で手動交換済みのコードに対して初回実行時に「交換済み重複メール」がゲーム内に届く場合がありますが、これはAPI仕様上の制約であり、一度処理されたコードはローカルに保存されて再送が防止されます。
 
 ### 5.3 ブラウザ起動時・スリープ復帰時の直列キャッチアップ・リトライ・手動クールダウン
 - **ジッター付き待機と直列キャッチアップ (`maybeRunAllCatchUp`)**: Chrome起動時 (`chrome.runtime.onStartup`) やスリープ復帰時 (`chrome.idle.onStateChanged` -> `active`) には、**15〜45秒** のランダムな回線安定待機の後に `maybeRunAllCatchUp()` を実行し、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します（待機時間が20秒を超える場合は、MV3 Service Worker の30秒無活動停止を防ぐため20秒単位で分割待機し、`chrome.storage.session` への軽量読み出しでアイドルタイマーをリセットします）。

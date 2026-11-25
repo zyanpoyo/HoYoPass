@@ -25,7 +25,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 • 多言語対応（日本語 / 英語）— ブラウザの表示言語に合わせた自動表示に加え、設定（⚙）から手動切り替え可能
 • 初回利用時の即時自動受取 — 初期設定（同意）完了直後から未受取のログインボーナスおよび有効な交換コードを即座に自動取得
 • デイリーログインボーナス自動受取 — 毎日 01:05 JST頃（00:05 UTC+8基準・負荷分散のため30分幅で自動調整／お住まいの現地時刻へ自動換算）に各タイトルのログインボーナスを自動実行。PC起動時やスリープ復帰時にも未受取のログボ・最新コードを自動でキャッチアップするため、深夜にPCを起動しておく必要はありません
-• 交換コードの3時間ごと自動引き換え — 3時間ごとに公開コード一覧を確認し、未使用コード検知時のみ公式APIで順次引き換えを実行
+• 交換コードの3時間ごと自動引き換え — 3時間ごとに公開コード一覧を確認し、未使用コード検知時のみ非公開APIで順次引き換えを実行
 • プレイ中タイトルのみ表示するタブカスタマイズ — プレイしていないゲームはタブ非表示＆バックグラウンド巡回から安全に除外可能
 • ワンクリック手動実行 — ポップアップ画面から現在選択中のタイトルを即時実行
 • コード適用実績＆有効コード消化状況の可視化 — ポップアップ上で現在有効なコードの消化状況と、今月・累計の引き換え実績を確認可能
@@ -39,20 +39,20 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【プライバシーとセキュリティ】
 本拡張機能は、認証情報を外部に出さないプライバシー重視のゼロトラスト設計です。
 • ログイン情報、Cookie、パスワードを拡張機能が読み取ったり外部サーバーへ送信することはありません。
-• ログインセッションを用いる通信は、お使いのブラウザから公式API（HoYoLAB / HoYoverse）とのみ直接行います（最新コード一覧の取得にのみ、認証情報を含めない形で公開APIを利用します）。
+• ログインセッションを用いる通信は、お使いのブラウザから非公開API（HoYoLAB / HoYoverse）とのみ直接行います（最新コード一覧の取得にのみ、認証情報を含めない形で公開APIを利用します）。
 • 設定や受取履歴はすべてお使いのPCローカル内に安全に保存されます。
 • ※品質改善用の匿名利用統計（個人を特定しない操作ログ）は、設定画面からいつでも完全無効化（オプトアウト）可能です。
 
 【ご利用にあたっての重要事項・リスクについて】
 • 本拡張機能はファンメイドの非公式ツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。
 • 外部ツールを用いたログインボーナス受取やギフトコード引き換えの自動化は、運営元の利用規約や運用方針の解釈によっては、アカウント制限・停止等のリスクがゼロではありません。
-• 過剰なリクエストや短時間の連続実行を避けるため、リクエストの分散・指数バックオフ制御や、未使用コード検知時のみ公式APIを実行する設計を採用していますが、これらの対策によって規約上のリスクが完全に消えるものではありません。
+• 過剰なリクエストや短時間の連続実行を避けるため、リクエストの分散・指数バックオフ制御や、未使用コード検知時のみ非公開APIを実行する設計を採用していますが、これらの対策によって規約上のリスクが完全に消えるものではありません。
 • 最終的なご利用の判断および利用に伴う結果・損害等については、すべてユーザーご自身の責任（自己責任）となります。上記をご理解・ご同意いただいた上でのみご利用ください。
 
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.4 — 未使用コード事前判定による公式API通信の削減、および注意喚起・免責表記の強化
+バージョン 1.3.4 — 未使用コード事前判定による非公開API通信の削減、および注意喚起・免責表記の強化
 
 **Category** [REQUIRED]
 Productivity
@@ -83,7 +83,7 @@ Save time opening multiple tabs every day and reduce the chance of missing limit
 • Multi-Language Support (English / Japanese) — Automatically matches your browser language or can be toggled manually from settings (⚙).
 • Immediate Auto-Claim on Setup — Right after agreeing to terms, it instantly collects all pending check-in rewards and available active codes.
 • Background Daily Check-In — Automatically cycles through all enabled games daily around 00:05 UTC+8 (around 01:05 JST, distributed across a 30-minute window and calculated in your local timezone). It also automatically catches up on any unclaimed daily check-in bonuses and latest promo codes when you start your PC or wake it from sleep, so there is no need to leave your PC running overnight.
-• 3-Hour Periodic Code Redemption — Checks the public code list every 3 hours and calls the official redemption API only when unclaimed codes are detected.
+• 3-Hour Periodic Code Redemption — Checks the public code list every 3 hours and calls the private redemption API only when unclaimed codes are detected.
 • Tab Filter & Game Customization — Playing only Genshin, HSR, or ZZZ? Hide unplayed games from the interface and exclude them safely from background checks.
 • One-Click Instant Manual Trigger — Instantly redeem codes or claim check-in for the currently selected game from the popup.
 • Transparent Stats & Active Code Tracker — Easily check how many active codes are available, your monthly count, and total redeemed codes.
@@ -92,25 +92,25 @@ Save time opening multiple tabs every day and reduce the chance of missing limit
 1. Log in to the official HoYoLAB check-in page or game redemption website in your browser.
 2. Click the HoYoPass icon on your toolbar and review the disclaimer and risk notice to start.
 3. Keep the toggles ON. This Chrome extension will automatically collect check-in rewards and auto-redeem codes in the background.
-* Note: On your first run, you may receive in-game mail stating "Code has already been used" for codes you previously claimed manually. This is normal behavior from the official API. These codes are safely remembered and will not be re-submitted.
+* Note: On your first run, you may receive in-game mail stating "Code has already been used" for codes you previously claimed manually. This is normal behavior from the private API. These codes are safely remembered and will not be re-submitted.
 
 [Privacy & Security]
 HoYoPass is built with a privacy-first, zero-credential-collection design:
 • No passwords, session tokens, or account credentials are ever read, stored, or sent to external servers.
-• All authenticated requests using your browser session communicate directly and exclusively with official HoYoLAB / HoYoverse APIs (the public code-list API is queried without any credentials or cookies).
+• All authenticated requests using your browser session communicate directly and exclusively with private HoYoLAB / HoYoverse APIs (the public code-list API is queried without any credentials or cookies).
 • All preferences and redemption histories are stored 100% locally on your computer.
 • Fully transparent: Anonymous usage metrics for quality improvements can be toggled off at any time via Settings (⚙).
 
 [Important Notice & Risks]
 • HoYoPass is an unofficial fan-made project and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).
 • Automating daily check-ins or gift code redemptions via third-party tools carries a non-zero risk of account restrictions or suspension depending on how HoYoverse interprets and enforces its Terms of Service.
-• To minimize server load and avoid burst requests, HoYoPass implements request jitter, exponential backoff, and only calls official APIs when unclaimed codes are detected; however, these safeguards do not completely eliminate Terms of Service risks.
+• To minimize server load and avoid burst requests, HoYoPass implements request jitter, exponential backoff, and only calls private APIs when unclaimed codes are detected; however, these safeguards do not completely eliminate Terms of Service risks.
 • Use of this extension is entirely at your own discretion and risk. By using HoYoPass, you acknowledge and accept full responsibility for any outcomes.
 
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.4 — Reduced official API calls by checking for unclaimed codes upfront, and strengthened Terms of Service risk notices.
+Version 1.3.4 — Reduced private API calls by checking for unclaimed codes upfront, and strengthened Terms of Service risk notices.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -146,16 +146,16 @@ Automatically claims HoYoverse daily check-in rewards and redeems public gift co
 | `alarms` | permissions | 毎日01:05 JST頃（現地時刻換算・負荷分散オフセット付き）のログインボーナス自動受取アラーム、3時間周期の交換コード自動引き換えアラーム、および通信失敗時の回数上限付き自動再試行スケジュールを行うために使用します。 |
 | `notifications` | permissions | ログボ受取やコード引き換えの完了通知、CAPTCHA認証要求の案内、および公式セッション期限切れに伴う再ログイン誘導をユーザーへ通知するために使用します。 |
 | `idle` | permissions | PCのスリープ解除やユーザーのアイドル復帰を検知し、回線安定後に当日未受取のログインボーナスおよび最新交換コードの自動キャッチアップを行うために使用します。 |
-| `https://api-os-takumi.hoyoverse.com/*` | host_permissions | HoYoverse公式Takumi APIと通信し、ログイン中セッションに紐づくゲーム内キャラクター情報（UID・サーバー）を取得するために使用します。 |
-| `https://api-os-takumi.hoyolab.com/*` | host_permissions | HoYoLAB側の公式Takumi APIと通信し、`.hoyolab.com` セッション利用時にゲーム内キャラクター情報（UID・サーバー）を取得するために使用します。 |
-| `https://sg-hk4e-api.hoyolab.com/*` | host_permissions | 「原神」のHoYoLAB公式デイリーログインボーナスAPI（`/event/sol/info`, `/event/sol/sign`）と通信し、ログインボーナスの状態確認と受取を実行するために使用します。 |
-| `https://sg-hk4e-api.hoyoverse.com/*` | host_permissions | 「原神」の公式交換APIおよびデイリーログインボーナスAPIと通信し、交換コードの引き換えとログインボーナスの受取を実行するために使用します。 |
-| `https://sg-hkrpg-api.hoyoverse.com/*` | host_permissions | 「崩壊：スターレイル」の公式交換APIと通信し、取得した交換コードの引き換えを実行するために使用します。 |
-| `https://sg-public-api.hoyolab.com/*` | host_permissions | 「崩壊：スターレイル」のHoYoLAB公式デイリーログインボーナスAPI（`/event/luna/hkrpg/os/info`, `/event/luna/hkrpg/os/sign`）と通信し、ログインボーナスの状態確認と受取を実行するために使用します。 |
+| `https://api-os-takumi.hoyoverse.com/*` | host_permissions | HoYoverse非公開Takumi APIと通信し、ログイン中セッションに紐づくゲーム内キャラクター情報（UID・サーバー）を取得するために使用します。 |
+| `https://api-os-takumi.hoyolab.com/*` | host_permissions | HoYoLAB側の非公開Takumi APIと通信し、`.hoyolab.com` セッション利用時にゲーム内キャラクター情報（UID・サーバー）を取得するために使用します。 |
+| `https://sg-hk4e-api.hoyolab.com/*` | host_permissions | 「原神」のHoYoLAB非公開デイリーログインボーナスAPI（`/event/sol/info`, `/event/sol/sign`）と通信し、ログインボーナスの状態確認と受取を実行するために使用します。 |
+| `https://sg-hk4e-api.hoyoverse.com/*` | host_permissions | 「原神」の非公開交換APIおよびデイリーログインボーナスAPIと通信し、交換コードの引き換えとログインボーナスの受取を実行するために使用します。 |
+| `https://sg-hkrpg-api.hoyoverse.com/*` | host_permissions | 「崩壊：スターレイル」の非公開交換APIと通信し、取得した交換コードの引き換えを実行するために使用します。 |
+| `https://sg-public-api.hoyolab.com/*` | host_permissions | 「崩壊：スターレイル」のHoYoLAB非公開デイリーログインボーナスAPI（`/event/luna/hkrpg/os/info`, `/event/luna/hkrpg/os/sign`）と通信し、ログインボーナスの状態確認と受取を実行するために使用します。 |
 | `https://sg-public-api.hoyoverse.com/*` | host_permissions | 「崩壊：スターレイル」のHoYoverse側デイリーログインボーナスAPIと通信し、フォールバック時のログインボーナス状態確認と受取を実行するために使用します。 |
-| `https://public-operation-nap.hoyoverse.com/*` | host_permissions | 「ゼンレスゾーンゼロ」の公式交換APIと通信し、取得した交換コードの引き換えを実行するために使用します。 |
-| `https://sg-act-nap-api.hoyolab.com/*` | host_permissions | 「ゼンレスゾーンゼロ」のHoYoLAB公式デイリーログインボーナスAPI（`/event/luna/zzz/os/info`, `/event/luna/zzz/os/sign`）と通信し、ログインボーナスの状態確認と受取を実行するために使用します。 |
-| `https://sg-act-nap-api.hoyoverse.com/*` | host_permissions | 「ゼンレスゾーンゼロ」の公式Web交換APIおよびデイリーログインボーナスAPIと通信し、交換コードの引き換えとログインボーナスの受取を実行するために使用します。 |
+| `https://public-operation-nap.hoyoverse.com/*` | host_permissions | 「ゼンレスゾーンゼロ」の非公開交換APIと通信し、取得した交換コードの引き換えを実行するために使用します。 |
+| `https://sg-act-nap-api.hoyolab.com/*` | host_permissions | 「ゼンレスゾーンゼロ」のHoYoLAB非公開デイリーログインボーナスAPI（`/event/luna/zzz/os/info`, `/event/luna/zzz/os/sign`）と通信し、ログインボーナスの状態確認と受取を実行するために使用します。 |
+| `https://sg-act-nap-api.hoyoverse.com/*` | host_permissions | 「ゼンレスゾーンゼロ」の非公開Web交換APIおよびデイリーログインボーナスAPIと通信し、交換コードの引き換えとログインボーナスの受取を実行するために使用します。 |
 | `https://hoyo-codes.seria.moe/*` | host_permissions | 検証済みの最新公開ギフト交換コード一覧を取得するために使用します（オープンソースAPI、Cookie・個人情報の送信なし）。 |
 
 
@@ -207,7 +207,7 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.3.4 | 2026-11-24 | 未使用コード事前判定による公式API通信の削減、ストア説明文・UI・ドキュメントの注意喚起および免責表記の強化 | Ready |
+| 1.3.4 | 2026-11-24 | 未使用コード事前判定による非公開API通信の削減、ストア説明文・UI・ドキュメントの注意喚起および免責表記の強化 | Ready |
 | 1.3.3 | 2026-11-23 | リクエスト分散（ジッター）・指数バックオフ・リトライ上限・手動クールダウンの導入、MV3待機保護・非JSON応答防御による通信耐性および安定性の向上 | Released |
 | 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Released |
 | 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Released |
@@ -226,4 +226,4 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 - 本拡張機能は公式Webサイト（HoYoLABおよび各ゲームのギフト交換ページ）でのログインセッションが有効である必要があります。未ログインまたはセッション期限切れ時はデスクトップ通知にて再ログインを促します。
 - ログインボーナス受取時にHoYoLAB側からCAPTCHA認証（人間確認）が要求された場合は、デスクトップ通知にて公式チェックインページでの手動認証を案内します。
 - 各ゲームでキャラクターが作成されていない場合（未プレイタイトル）は安全にスキップされます。
-- 初回利用時、現在公開されている有効コードを一括で引き換えるため、過去にゲーム内等で手動交換済みのコードについてゲーム内メールで「交換コードは既に使用されています（重複エラー）」という通知が届く場合があります。これはHoYoverse公式APIの仕様による正常な挙動であり、アカウントへの実害はありません。
+- 初回利用時、現在公開されている有効コードを一括で引き換えるため、過去にゲーム内等で手動交換済みのコードについてゲーム内メールで「交換コードは既に使用されています（重複エラー）」という通知が届く場合があります。これはHoYoverse非公開APIの仕様による正常な挙動であり、アカウントへの実害はありません。

@@ -45,7 +45,7 @@ To ensure proper functionality, the Extension stores only the following operatio
 ---
 
 ## 4. Handling of Credentials (Cookies)
-When sending requests to official APIs on your behalf to claim check-in rewards and redeem codes, the Extension uses standard browser secure transport (`credentials: 'include'`).
+When sending requests to private APIs on your behalf to claim check-in rewards and redeem codes, the Extension uses standard browser secure transport (`credentials: 'include'`).
 
 - **No Cookie Reading**: The Extension's JavaScript code never reads, inspects, or loads your session cookies into memory.
 - **No Cookie Storage**: Cookies are never stored in local storage, session storage, or file caches.
@@ -58,9 +58,9 @@ External network communications performed by the Extension are strictly limited 
 
 | Destination Domain | Primary Purpose | Data Transmitted |
 | :--- | :--- | :--- |
-| `*.hoyoverse.com` / `*.hoyolab.com` (Official Takumi API) | Confirm character profiles (nickname, UID, server region) | Session cookies managed by browser (automatically attached) |
-| `*.hoyolab.com` / `*.hoyoverse.com` (Official Check-In APIs) | Check daily check-in status and claim rewards | Event ID (`act_id`), `x-rpc-signgame` header, session cookies (automatically attached) |
-| `*.hoyoverse.com` (Official Redemption APIs) | Redeem promotional gift codes | Game identifier, UID, code string, session cookies (automatically attached) |
+| `*.hoyoverse.com` / `*.hoyolab.com` (Private Takumi API) | Confirm character profiles (nickname, UID, server region) | Session cookies managed by browser (automatically attached) |
+| `*.hoyolab.com` / `*.hoyoverse.com` (Private Check-In APIs) | Check daily check-in status and claim rewards | Event ID (`act_id`), `x-rpc-signgame` header, session cookies (automatically attached) |
+| `*.hoyoverse.com` (Private Redemption APIs) | Redeem promotional gift codes | Game identifier, UID, code string, session cookies (automatically attached) |
 | `https://hoyo-codes.seria.moe`<br>([GitHub: seriaati/hoyo-codes](https://github.com/seriaati/hoyo-codes)) | Fetch verified active promotional codes list | None (standard anonymous HTTP GET request for public data) |
 | `https://www.google-analytics.com`<br>(Google Analytics 4 Measurement Protocol) | Monitor feature usage, success/error rates, and troubleshoot issues to improve quality | Anonymous metrics (game type, success/failure status, error category code, UI action type, extension version, UI language, random session ID and client ID).<br>**\* No UIDs, account names, passwords, cookies, or personal identifiers are ever collected.** |
 
@@ -75,7 +75,7 @@ The Extension requests only the minimal permissions required for its operation:
 - **`alarms`**: To trigger background alarms for daily check-in (01:05 UTC+8) and periodic code checks (every 3 hours).
 - **`notifications`**: To notify you upon reward claiming, CAPTCHA verification requirements, or session expiration.
 - **`idle`**: To detect system wake or unlock, catching up on missed daily rewards safely after network reconnection.
-- **`host_permissions`**: To perform secure HTTPS requests to the verified official APIs and open code repository listed in Section 5.
+- **`host_permissions`**: To perform secure HTTPS requests to the private APIs and open code repository listed in Section 5.
 
 \* The `cookies` permission—which would grant arbitrary access to read user cookie values—is intentionally omitted for enhanced security.
 
@@ -95,7 +95,7 @@ Users may opt out at any time during onboarding or by unchecking "Anonymous Anal
 
 - **Unofficial Tool & Intellectual Property**: The Extension is an unofficial, fan-made tool developed by an individual and is NOT affiliated with, endorsed by, or associated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse). "Genshin Impact", "Honkai: Star Rail", "Zenless Zone Zero", "HoYoverse", "HoYoLAB", and all related names, trademarks, and intellectual property rights belong to their respective owners.
 - **Risks Under Official Terms of Service & User Responsibility**: Automating daily check-in rewards and gift code redemption through the Extension may be deemed by the operator to violate the Terms of Service of HoYoverse titles (including prohibitions on third-party tools, bots, etc.). Automatic execution features are enabled only by the user's voluntary configuration, and users use the Extension at their own discretion and risk.
-- **Limitation of Liability**: The developer assumes no responsibility for any damages arising from the use of (or inability to use) the Extension, including but not limited to account warnings, restrictions, or suspensions; revocation or reclamation of in-game rewards; and malfunctions caused by changes to or discontinuation of official APIs.
+- **Limitation of Liability**: The developer assumes no responsibility for any damages arising from the use of (or inability to use) the Extension, including but not limited to account warnings, restrictions, or suspensions; revocation or reclamation of in-game rewards; and malfunctions caused by changes to or discontinuation of private APIs.
 - **Suspension or Discontinuation**: Upon request from rights holders or platform operators (such as Google), or whenever the developer deems it necessary, the developer may suspend distribution of, discontinue, or remove some features of the Extension without prior notice.
 
 ---
@@ -115,7 +115,7 @@ Minor modifications—such as wording clarifications, typographical corrections,
 
 ### Revision History
 - **October 26, 2026 (Revised)**: Added provisions and opt-out instructions for anonymous usage metrics (Google Analytics 4 Measurement Protocol) for quality improvement
-- **October 17, 2026 (Revised)**: Expanded local storage disclosures (check-in records), required permissions, and official API endpoints upon introducing daily check-in automation
+- **October 17, 2026 (Revised)**: Expanded local storage disclosures (check-in records), required permissions, and private API endpoints upon introducing daily check-in automation
 - **October 12, 2026 (Enacted)**: Initial enactment (automatic code redemption for Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero)
 
 ---

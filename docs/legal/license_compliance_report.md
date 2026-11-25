@@ -22,7 +22,7 @@
 | **ソースコードの複写・翻案** | hoyo-codes API / 関連リポジトリ | 🟢 **問題なし（完全独自実装）** | Python等の外部コードは一切同梱・流用しておらず、JavaScriptでゼロから独自実装されているため。 |
 | **返却データの著作権性** | 交換コード（シリアルコード）文字列 | 🟢 **問題なし（著作物非該当）** | ゲーム内交換コードは機械的識別子・事実情報であり、著作物性（創作性）が認められないため。 |
 | **API提供元の利用許諾** | hoyo-codes.seria.moe | 🟢 **問題なし（正規利用）** | 提供元の公式READMEで外部からのAPI消費（consuming the API）が想定・容認されているため。 |
-| **公式内部Web APIの利用** | HoYoverse Takumi / 交換API | 🟡 **適切な制御・リスク管理済** | ゼロトラスト認証・過負荷防止ディレイ（5.2秒）・非公式免責表記により安全に運用。 |
+| **非公開Web APIの利用** | HoYoverse Takumi / 交換API | 🟡 **適切な制御・リスク管理済** | ゼロトラスト認証・過負荷防止ディレイ（5.2秒）・非公式免責表記により安全に運用。 |
 | **プロジェクト内依存関係** | npm / サードパーティパッケージ | 🟢 **依存ゼロ（完全自律）** | 外部npmライブラリへの依存が0件であり、ライセンス衝突の余地がないため。 |
 | **商標・ゲーム画像アセット** | ゲームロゴ・タイトル・アイコン | 🟢 **適正表示（NOTICE完備）** | `NOTICE` および `README` にて権利帰属および非公式明記を徹底しているため。 |
 | **開発支援スキル** | [mattpocock/skills](https://github.com/mattpocock/skills) (MIT License) | 🟢 **適正対応済（MIT互換・NOTICE記載）** | MIT License は本プロジェクト（MIT）と完全互換。`.agents/` は `.gitignore` および配布ZIP対象外だが、`NOTICE` に著作権表示・対象スキル・MIT条文を記載済み。 |
@@ -84,7 +84,7 @@ export async function fetchValidCodes(gameKey = 'GENSHIN') {
 
 ---
 
-## 3. HoYoverse 公式内部Web APIとの適合性
+## 3. HoYoverse 非公開Web APIとの適合性
 
 ### 3.1 著作権法（オープンソースライセンス）の観点
 - HoYoverse のロール照会API（Takumi API）およびコード引き換えAPI（WebExchangeCdkey API）は、HoYoverseのプロプライエタリなWebサービスエンドポイントです。

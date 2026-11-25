@@ -1915,7 +1915,7 @@ test('i18n (lang=en): ロール取得失敗・受取失敗・未知/無効ゲー
   }
 });
 
-test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または全件確定済み）時は公式APIを一切呼ばないこと', async () => {
+test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または全件確定済み）時は非公開APIを一切呼ばないこと', async () => {
   mockStorage.local.clear();
   mockStorage.session.clear();
   mockCreatedNotifications.length = 0;
@@ -1952,7 +1952,7 @@ test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または�
   };
 
   try {
-    // 1. 公開コード一覧が空の場合（自動・手動とも公式API 0回）
+    // 1. 公開コード一覧が空の場合（自動・手動とも非公開API 0回）
     mockCodes = [];
     const autoEmpty = await runAutoRedeemFlow('ALARM');
     assert.equal(autoEmpty.success, true);
@@ -1960,14 +1960,14 @@ test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または�
     assert.equal(autoEmpty.results.GENSHIN.skipped, true);
     assert.equal(autoEmpty.results.GENSHIN.reason, 'NO_PENDING_CODES');
     assert.equal(codeListCalls, 1);
-    assert.equal(hoyoApiCalls, 0, '公開コード空のALARM実行で公式APIが呼ばれないこと');
+    assert.equal(hoyoApiCalls, 0, '公開コード空のALARM実行で非公開APIが呼ばれないこと');
 
     const manualEmpty = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
     assert.equal(manualEmpty.success, true);
     assert.equal(manualEmpty.redeemedCount, 0);
     assert.equal(manualEmpty.results.GENSHIN.reason, 'NO_PENDING_CODES');
     assert.equal(codeListCalls, 2);
-    assert.equal(hoyoApiCalls, 0, '公開コード空のMANUAL実行でも公式APIが呼ばれないこと');
+    assert.equal(hoyoApiCalls, 0, '公開コード空のMANUAL実行でも非公開APIが呼ばれないこと');
 
     // 2. 公開コードが存在するがローカル履歴で全て確定済み（SUCCESS / EXPIRED）の場合
     mockStorage.session.clear();
@@ -1981,7 +1981,7 @@ test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または�
     assert.equal(manualAllClaimed.results.GENSHIN.skipped, true);
     assert.equal(manualAllClaimed.results.GENSHIN.reason, 'NO_PENDING_CODES');
     assert.equal(codeListCalls, 3);
-    assert.equal(hoyoApiCalls, 0, '全コード確定済みの場合は公式APIが呼ばれないこと');
+    assert.equal(hoyoApiCalls, 0, '全コード確定済みの場合は非公開APIが呼ばれないこと');
     assert.equal(mockCreatedNotifications.length, 0, '未ログイン通知等が誤発火しないこと');
   } finally {
     globalThis.fetch = originalFetch;

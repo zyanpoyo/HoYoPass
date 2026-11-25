@@ -202,7 +202,7 @@
               On your first run, HoYoPass scans all currently active public gift codes. If you had previously redeemed some codes manually, the game server may send a standard notification mail stating that the code was already used.
             </p>
             <p style="margin-top: 0.5rem;">
-              This is standard behavior from the official game API and does not cause any harm to your account. Once verified, those codes are recorded locally and won't be re-submitted.
+              This is standard behavior from the private game API and does not cause any harm to your account. Once verified, those codes are recorded locally and won't be re-submitted.
             </p>
           </div>
         </details>
@@ -220,7 +220,7 @@
           <summary class="faq-question">Do I need to enter my account password? Is it safe?</summary>
           <div class="faq-answer">
             <p>
-              No, passwords or login credentials are never requested or stored. HoYoPass communicates directly with official endpoints using your existing Chrome session cookies via secure browser transport. No cookies or personal credentials are ever sent to external third-party servers.
+              No, passwords or login credentials are never requested or stored. HoYoPass communicates directly with private API endpoints using your existing Chrome session cookies via secure browser transport. No cookies or personal credentials are ever sent to external third-party servers.
             </p>
           </div>
         </details>
@@ -249,7 +249,7 @@
           <summary class="faq-question">Is there any risk of account suspension or Terms of Service issues?</summary>
           <div class="faq-answer">
             <p>
-              To minimize server load and avoid burst requests, HoYoPass uses randomized request timing (jitter), exponential backoff, and checks the public code list every 3 hours—calling the official redemption APIs only when unclaimed codes are detected.
+              To minimize server load and avoid burst requests, HoYoPass uses randomized request timing (jitter), exponential backoff, and checks the public code list every 3 hours—calling the private redemption APIs only when unclaimed codes are detected.
             </p>
             <p style="margin-top: 0.5rem;">
               However, automating check-ins or code redemptions via third-party tools carries a non-zero risk of account restrictions depending on how HoYoverse interprets and enforces its Terms of Service. Please use this extension at your own discretion and risk.
