@@ -27,7 +27,20 @@ test('resolveLanguage: auto指定時のブラウザ/navigator判定', () => {
   assert.equal(resolveLanguage('auto', 'de-DE'), 'en');
 
   // ブラウザ情報なし時はjaへフォールバック
-  assert.equal(resolveLanguage('auto', ''), 'ja');
+  const origNavLangDesc = Object.getOwnPropertyDescriptor(globalThis.navigator, 'language');
+  try {
+    Object.defineProperty(globalThis.navigator, 'language', {
+      value: '',
+      configurable: true
+    });
+    assert.equal(resolveLanguage('auto', ''), 'ja');
+  } finally {
+    if (origNavLangDesc) {
+      Object.defineProperty(globalThis.navigator, 'language', origNavLangDesc);
+    } else {
+      delete globalThis.navigator.language;
+    }
+  }
 });
 
 test('getPrivacyPolicyUrl: 言語別のURL解決', () => {

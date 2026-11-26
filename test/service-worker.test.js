@@ -68,6 +68,9 @@ globalThis.chrome = {
     onMessage: {
       addListener: (fn) => { mockMessageListeners.push(fn); }
     }
+  },
+  i18n: {
+    getUILanguage: () => 'ja'
   }
 };
 

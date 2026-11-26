@@ -4,6 +4,7 @@
   "description": "HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ",
   "type": "module",
   "scripts": {
+    "lint": "node scripts/lint.js",
     "build": "npm run build:dev && npm run build:prod",
     "test": "node --test test/*.test.js",
     "build:dev": "node scripts/build.js dev",
