@@ -7,7 +7,7 @@ import {
   setActiveCodes
 } from '../services/storage-service.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
-import { getUserGameRoles, getDailySignInfo } from '../services/hoyo-api.js';
+import { getUserGameRoles, getDailySignInfo, isNotLoggedIn } from '../services/hoyo-api.js';
 import {
   getGameLocalized,
   formatDailySignTimeLocal,
@@ -80,6 +80,161 @@ export function applyI18nToDom(lang) {
   updateIntervalLabels(lang);
 }
 
+function getGameAuthCache(state, gameKey) {
+  if (!state.authStateByGame) {
+    state.authStateByGame = {};
+  }
+  if (!state.authStateByGame[gameKey]) {
+    state.authStateByGame[gameKey] = { roleRes: null, signInfo: null };
+  }
+  return state.authStateByGame[gameKey];
+}
+
+function updateSiteLinkButton(btnEl, needsLogin, lang) {
+  if (!btnEl) return;
+  btnEl.textContent = t(needsLogin ? 'btnLoginRequired' : 'btnOfficial', [], lang);
+  btnEl.classList.toggle('needs-login', Boolean(needsLogin));
+}
+
+/**
+ * 認証結果と自動引き換え設定からヘッダバッジおよび各カード公式リンクの表示状態を決定する
+ */
+export function resolvePopupAuthState({ roleRes = null, signInfo = null, autoRedeemEnabled = false } = {}) {
+  const redeemEnabled = Boolean(autoRedeemEnabled);
+  const signNotLoggedIn = Boolean(signInfo && !signInfo.success && isNotLoggedIn(signInfo.retcode));
+
+  if (!roleRes) {
+    return {
+      headerStatus: 'checking',
+      needsSignLogin: signNotLoggedIn,
+      needsRedeemLogin: false
+    };
+  }
+
+  if (roleRes.networkError) {
+    return {
+      headerStatus: 'offline',
+      needsSignLogin: signNotLoggedIn,
+      needsRedeemLogin: false
+    };
+  }
+
+  if (roleRes.success && roleRes.role) {
+    const redeemBlocked = Boolean(roleRes.hoyoverseNotLoggedIn && redeemEnabled);
+    return {
+      headerStatus: (redeemBlocked || signNotLoggedIn) ? 'logged_out' : 'online',
+      needsSignLogin: signNotLoggedIn,
+      needsRedeemLogin: redeemBlocked
+    };
+  }
+
+  if (roleRes.retcode === -1 || roleRes.retcode === -2) {
+    return {
+      headerStatus: 'no_char',
+      needsSignLogin: signNotLoggedIn,
+      needsRedeemLogin: false
+    };
+  }
+
+  if (isNotLoggedIn(roleRes.retcode)) {
+    return {
+      headerStatus: 'logged_out',
+      needsSignLogin: signInfo?.success ? false : true,
+      needsRedeemLogin: redeemEnabled
+    };
+  }
+
+  return {
+    headerStatus: 'api_error',
+    needsSignLogin: signNotLoggedIn,
+    needsRedeemLogin: false
+  };
+}
+
+/**
+ * 手動引き換え結果ダイアログに表示する未ログイン補足オプションを判定する
+ */
+export function resolveManualRedeemFormatOptions({ roleRes = null, signInfo = null, autoRedeemEnabled = false } = {}) {
+  if (!roleRes || roleRes.networkError) {
+    return {};
+  }
+  const redeemNotLoggedIn = Boolean(
+    roleRes.hoyoverseNotLoggedIn ||
+    (!roleRes.success && isNotLoggedIn(roleRes.retcode))
+  );
+  if (!redeemNotLoggedIn) {
+    return {};
+  }
+  const authState = resolvePopupAuthState({ roleRes, signInfo, autoRedeemEnabled });
+  return {
+    redeemNotLoggedIn: true,
+    needsRedeemLogin: authState.needsRedeemLogin
+  };
+}
+
+/**
+ * 現在のキャッシュ済み認証状態からヘッダ・UID・各カードのログイン導線を再描画する
+ */
+export function applyPopupAuthView(gameKey, state) {
+  if (state.currentGameKey !== gameKey) return;
+
+  const lang = state.currentLang;
+  const badgeEl = document.getElementById('login-status-badge');
+  const uidChipEl = document.getElementById('uid-copy-chip');
+  const uidValueEl = document.getElementById('uid-value');
+  const checkinSiteBtn = document.getElementById('open-checkin-site-btn');
+  const giftSiteBtn = document.getElementById('open-gift-site-btn');
+  const autoRedeemToggle = document.getElementById('auto-redeem-toggle');
+  if (!badgeEl) return;
+
+  const autoRedeemEnabled = autoRedeemToggle ? autoRedeemToggle.checked : Boolean(state.autoRedeemEnabled);
+  const cache = getGameAuthCache(state, gameKey);
+  const authState = resolvePopupAuthState({
+    roleRes: cache.roleRes,
+    signInfo: cache.signInfo,
+    autoRedeemEnabled
+  });
+
+  updateSiteLinkButton(checkinSiteBtn, authState.needsSignLogin, lang);
+  updateSiteLinkButton(giftSiteBtn, authState.needsRedeemLogin, lang);
+
+  if (authState.headerStatus === 'checking') {
+    badgeEl.textContent = t('statusChecking', [], lang);
+    badgeEl.className = 'badge';
+    uidChipEl?.classList.add('hidden');
+    if (uidValueEl) uidValueEl.textContent = '--------';
+    state.currentUid = null;
+    return;
+  }
+
+  if (authState.headerStatus === 'online' && cache.roleRes?.role) {
+    badgeEl.textContent = t('statusOnline', [cache.roleRes.role.nickname], lang);
+    badgeEl.className = 'badge online';
+    state.currentUid = String(cache.roleRes.role.game_uid || '');
+    if (state.currentUid && uidValueEl && uidChipEl) {
+      uidValueEl.textContent = state.currentUid;
+      uidChipEl.classList.remove('hidden');
+      uidChipEl.setAttribute('aria-label', `UID ${state.currentUid}`);
+    }
+    return;
+  }
+
+  uidChipEl?.classList.add('hidden');
+  if (uidValueEl) uidValueEl.textContent = '--------';
+  state.currentUid = null;
+
+  if (authState.headerStatus === 'no_char') {
+    badgeEl.textContent = t('statusNoChar', [], lang);
+  } else if (authState.headerStatus === 'api_error') {
+    badgeEl.textContent = `${t('statusLoggedOut', [], lang)} (${cache.roleRes?.retcode ?? 'error'})`;
+  } else if (authState.headerStatus === 'offline') {
+    badgeEl.textContent = t('statusOffline', [], lang);
+  } else {
+    badgeEl.textContent = t('statusLoggedOut', [], lang);
+  }
+  badgeEl.className = 'badge offline';
+}
+
 export async function updateDailySignStatusView(gameKey, state) {
   const signBadgeEl = document.getElementById('sign-status-badge');
   if (!signBadgeEl) return;
@@ -105,6 +260,10 @@ export async function updateDailySignStatusView(gameKey, state) {
     const info = await getDailySignInfo(config, lang);
     if (state.currentGameKey !== gameKey) return;
 
+    const gameAuth = getGameAuthCache(state, gameKey);
+    gameAuth.signInfo = info;
+    applyPopupAuthView(gameKey, state);
+
     if (info.success) {
       await setDailySignRecord(config.gameBiz, {
         date: info.today || today,
@@ -121,11 +280,13 @@ export async function updateDailySignStatusView(gameKey, state) {
         signBadgeEl.className = 'status-pill unsigned';
       }
     } else if (!cached || cached.date !== today || !cached.isSigned) {
-      signBadgeEl.textContent = info.retcode === -100 ? t('statusLoggedOut', [], lang) : t('signStatusSkipped', [], lang);
+      signBadgeEl.textContent = isNotLoggedIn(info.retcode) ? t('statusLoggedOut', [], lang) : t('signStatusSkipped', [], lang);
       signBadgeEl.className = 'status-pill skipped';
     }
   } catch {
     if (state.currentGameKey !== gameKey) return;
+    getGameAuthCache(state, gameKey).signInfo = null;
+    applyPopupAuthView(gameKey, state);
     if (!cached || cached.date !== today || !cached.isSigned) {
       signBadgeEl.textContent = t('statusOffline', [], lang);
       signBadgeEl.className = 'status-pill skipped';
@@ -215,11 +376,8 @@ export async function updateGameView(state) {
   const titleEl = document.getElementById('game-title');
   const iconEl = document.getElementById('game-icon');
   const fallbackEl = document.getElementById('icon-fallback');
-  const badgeEl = document.getElementById('login-status-badge');
   const checkinSiteBtn = document.getElementById('open-checkin-site-btn');
   const giftSiteBtn = document.getElementById('open-gift-site-btn');
-  const uidChipEl = document.getElementById('uid-copy-chip');
-  const uidValueEl = document.getElementById('uid-value');
   const manualSignBtn = document.getElementById('manual-sign-btn');
   const manualTriggerBtn = document.getElementById('manual-trigger-btn');
   const autoSignToggle = document.getElementById('auto-sign-toggle');
@@ -271,11 +429,10 @@ export async function updateGameView(state) {
     fallbackEl.style.display = 'flex';
   }
 
-  badgeEl.textContent = t('statusChecking', [], lang);
-  badgeEl.className = 'badge';
-  uidChipEl?.classList.add('hidden');
-  if (uidValueEl) uidValueEl.textContent = '--------';
-  state.currentUid = null;
+  const gameAuth = getGameAuthCache(state, targetKey);
+  gameAuth.roleRes = null;
+  gameAuth.signInfo = null;
+  applyPopupAuthView(targetKey, state);
 
   updateDailySignStatusView(targetKey, state);
   updateRedeemStatusView(targetKey, state);
@@ -283,27 +440,11 @@ export async function updateGameView(state) {
   try {
     const res = await getUserGameRoles(config.gameBiz, lang);
     if (state.currentGameKey !== targetKey) return;
-    if (res.success && res.role) {
-      badgeEl.textContent = t('statusOnline', [res.role.nickname], lang);
-      badgeEl.classList.add('online');
-      state.currentUid = String(res.role.game_uid || '');
-      if (state.currentUid && uidValueEl && uidChipEl) {
-        uidValueEl.textContent = state.currentUid;
-        uidChipEl.classList.remove('hidden');
-        uidChipEl.setAttribute('aria-label', `UID ${state.currentUid}`);
-      }
-    } else if (res.retcode === -1 || res.retcode === -2) {
-      badgeEl.textContent = t('statusNoChar', [], lang);
-      badgeEl.classList.add('offline');
-    } else {
-      badgeEl.textContent = res.retcode === -100
-        ? t('statusLoggedOut', [], lang)
-        : `${t('statusLoggedOut', [], lang)} (${res.retcode ?? 'error'})`;
-      badgeEl.classList.add('offline');
-    }
+    gameAuth.roleRes = res;
+    applyPopupAuthView(targetKey, state);
   } catch {
     if (state.currentGameKey !== targetKey) return;
-    badgeEl.textContent = t('statusOffline', [], lang);
-    badgeEl.classList.add('offline');
+    gameAuth.roleRes = { networkError: true };
+    applyPopupAuthView(targetKey, state);
   }
 }

@@ -140,11 +140,17 @@ test('t: レビュー促進バナー関連メッセージの日英一貫性', ()
 test('t: エラーログ・API非JSON応答・ゲームキーエラーの日英翻訳とプレースホルダー置換', () => {
   const keys = [
     'logRoleFetchFailedRedeem',
+    'logRedeemFailed',
     'logRoleFetchFailedSign',
     'logSignClaimFailed',
     'errUnknownGameKey',
     'errDisabledGameKey',
-    'apiNonJsonResponse'
+    'apiNonJsonResponse',
+    'btnLoginRequired',
+    'notifLoginMsgRedeem',
+    'fmtRedeemSingleNotLoggedIn',
+    'fmtRedeemMultiNeedLogin',
+    'fmtRedeemNoNewLoginNote'
   ];
 
   keys.forEach(key => {
@@ -163,6 +169,20 @@ test('t: エラーログ・API非JSON応答・ゲームキーエラーの日英�
     t('logRoleFetchFailedRedeem', ['Genshin Impact', 'Not logged in', -100], 'en'),
     'Genshin Impact: Failed to fetch character info (Not logged in [retcode: -100])'
   );
+  assert.equal(
+    t('logRedeemFailed', ['原神', 'ログインしてください', -1071], 'ja'),
+    '原神: コード引き換え失敗 (ログインしてください [retcode: -1071])'
+  );
+  assert.equal(
+    t('logRedeemFailed', ['Genshin Impact', 'Login expired', -1071], 'en'),
+    'Genshin Impact: Failed to redeem code (Login expired [retcode: -1071])'
+  );
+  assert.equal(t('btnLoginRequired', [], 'ja'), '要ログイン ↗');
+  assert.equal(t('btnLoginRequired', [], 'en'), 'Login ↗');
+  assert.ok(t('notifLoginMsgRedeem', ['原神'], 'ja').includes('公式コード交換サイト'));
+  assert.ok(t('notifLoginMsgRedeem', ['Genshin Impact'], 'en').includes('code redemption site'));
+  assert.ok(t('fmtRedeemNoNewLoginNote', ['要ログイン ↗'], 'ja').includes('要ログイン ↗'));
+  assert.ok(t('fmtRedeemNoNewLoginNote', ['Login ↗'], 'en').includes('Login ↗'));
   assert.equal(
     t('logRoleFetchFailedSign', ['崩壊：スターレイル', 'Err', -1071], 'ja'),
     '崩壊：スターレイル: [ログボ] ロール取得失敗 (Err [retcode: -1071])'

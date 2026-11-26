@@ -71,7 +71,8 @@ globalThis.chrome = {
   }
 };
 
-import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord, getReviewPromptState, updateReviewPromptState, getBackoffState, getRetryState, getDailySignJitterMinutes } from '../src/services/storage-service.js';
+import { acquireExecutionLock, releaseExecutionLock, markCodeStatus, getRedeemedCodes, getCodeRedeemStats, setLastSuccessfulRun, setDailySignRecord, getDailySignRecord, getReviewPromptState, updateReviewPromptState, getBackoffState, getRetryState, getDailySignJitterMinutes } from '../src/services/storage-service.js';
+import { formatRedeemResult } from '../src/utils/message-formatter.js';
 import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
 const {
   setupUninstallUrl,
@@ -1984,6 +1985,241 @@ test('redeemForGame / runAutoRedeemFlow: 未使用コード0件（空または�
     assert.equal(hoyoApiCalls, 0, '全コード確定済みの場合は非公開APIが呼ばれないこと');
     assert.equal(mockCreatedNotifications.length, 0, '未ログイン通知等が誤発火しないこと');
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('runAutoRedeemFlow: ロール取得成功後に交換APIが未ログイン(-100/-1071)を返した場合、ERRORログ・通知・失敗返却されGA二重送信しないこと', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+  const origIsDev = API_CONFIG.IS_DEV;
+  const origMid = API_CONFIG.GA_MEASUREMENT_ID;
+  const origSec = API_CONFIG.GA_API_SECRET;
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+  API_CONFIG.IS_DEV = false;
+  API_CONFIG.GA_MEASUREMENT_ID = 'G-TEST';
+  API_CONFIG.GA_API_SECRET = 'SECRET';
+
+  const gaPayloads = [];
+  const originalFetch = globalThis.fetch;
+
+  await chrome.storage.local.set({
+    app_settings: {
+      optInAccepted: true,
+      autoRedeemEnabled: true,
+      enabledGames: ['GENSHIN', 'STAR_RAIL'],
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      language: 'ja'
+    }
+  });
+
+  try {
+    // 1. 手動実行 (ja): hoyoverse.com ロール未ログイン -> hoyolab.com でロール成功 -> 交換APIが -1071
+    globalThis.fetch = async (url, opts) => {
+      const u = String(url);
+      if (u.includes('google-analytics.com/mp/collect')) {
+        gaPayloads.push(JSON.parse(opts.body));
+        return { ok: true, status: 204 };
+      }
+      if (u.includes('hoyo-codes.seria.moe')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({ codes: [{ code: 'NEEDLOGIN1' }] })
+        };
+      }
+      if (u.includes('getUserGameRolesByCookie')) {
+        if (u.includes('hoyoverse.com')) {
+          return { status: 200, json: async () => ({ retcode: -100, message: 'Not logged in', data: null }) };
+        }
+        return {
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+          })
+        };
+      }
+      if (u.includes('webExchangeCdkey')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ retcode: -1071, message: 'Login expired' })
+        };
+      }
+      return { status: 200, json: async () => ({}), text: async () => '{}' };
+    };
+
+    const manualRes = await runAutoRedeemFlow('MANUAL', 'GENSHIN');
+    assert.equal(manualRes.success, true);
+    assert.equal(manualRes.redeemedCount, 0);
+    assert.equal(manualRes.results.GENSHIN.success, false);
+    assert.equal(manualRes.results.GENSHIN.retcode, -1071);
+    assert.equal(manualRes.results.GENSHIN.redeemedCount, 0);
+
+    const formatted = formatRedeemResult(manualRes, 'ja');
+    assert.equal(formatted.title, 'コード交換失敗');
+    assert.match(formatted.message, /【原神】未ログインです。公式コード交換サイトでログインを行ってください/);
+
+    const logs = mockStorage.local.get('exec_logs') || [];
+    assert.equal(logs.some(l => l.message.includes('引き換え完了 (新規成功: 0件)')), false, '正常完了ログで握りつぶさないこと');
+    assert.ok(
+      logs.some(l => l.type === 'ERROR' && l.message === '原神: コード引き換え失敗 (Login expired [retcode: -1071])'),
+      'ERRORログに交換失敗とretcodeが記録されること'
+    );
+
+    assert.equal(mockCreatedNotifications.length, 1, 'Windows再ログイン通知が作成されること');
+    assert.equal(mockCreatedNotifications[0].id, `${LOGIN_NOTIFICATION_PREFIX}GENSHIN`);
+    assert.match(mockCreatedNotifications[0].opts.message, /公式コード交換サイトで再ログイン/);
+
+    const redeemEvents = gaPayloads.map(p => p.events[0]).filter(e => e.name === 'code_redeem_result');
+    assert.equal(redeemEvents.length, 1, 'GA4イベントが二重送信されず1回のみ送信されること');
+    assert.equal(redeemEvents[0].params.status, 'failed');
+    assert.equal(redeemEvents[0].params.error_reason, 'not_logged_in');
+
+    const redeemed = await getRedeemedCodes('hk4e_global');
+    assert.equal(redeemed.NEEDLOGIN1, undefined, '未ログイン(-1071)時に失敗回数が消費されないこと');
+
+    // 2. 自動巡回 (ALARM, lang=en): 原神が交換APIで -100 でも後続のスタレまで継続実行されること
+    mockStorage.local.set('exec_logs', []);
+    mockStorage.session.clear();
+    mockCreatedNotifications.length = 0;
+    await chrome.storage.local.set({
+      app_settings: {
+        optInAccepted: true,
+        autoRedeemEnabled: true,
+        enabledGames: ['GENSHIN', 'STAR_RAIL'],
+        analyticsConsentReviewed: false,
+        analyticsEnabled: false,
+        language: 'en'
+      }
+    });
+
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('hoyo-codes.seria.moe')) {
+        const code = u.includes('game=hkrpg') ? 'HSRCODE1' : 'GENCODE1';
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({ codes: [{ code }] })
+        };
+      }
+      if (u.includes('getUserGameRolesByCookie')) {
+        const biz = u.includes('hkrpg_global') ? 'hkrpg_global' : 'hk4e_global';
+        return {
+          status: 200,
+          json: async () => ({
+            retcode: 0,
+            message: 'OK',
+            data: { list: [{ game_biz: biz, region: 'os_asia', game_uid: '800123456', nickname: 'Trailblazer', level: 60 }] }
+          })
+        };
+      }
+      if (u.includes('webExchangeCdkey')) {
+        if (u.includes('hk4e_global')) {
+          return { status: 200, text: async () => JSON.stringify({ retcode: -100, message: 'Not logged in' }) };
+        }
+        return { status: 200, text: async () => JSON.stringify({ retcode: 0, message: 'OK' }) };
+      }
+      return { status: 200, json: async () => ({}), text: async () => '{}' };
+    };
+
+    const alarmRes = await runAutoRedeemFlow('ALARM');
+    assert.equal(alarmRes.success, true);
+    assert.equal(alarmRes.redeemedCount, 1, '後続のスタレ1件が引き換え成功すること');
+    assert.equal(alarmRes.results.GENSHIN.success, false);
+    assert.equal(alarmRes.results.GENSHIN.retcode, -100);
+    assert.equal(alarmRes.results.STAR_RAIL.success, true);
+    assert.equal(alarmRes.results.STAR_RAIL.redeemedCount, 1);
+
+    const enLogs = mockStorage.local.get('exec_logs') || [];
+    assert.ok(
+      enLogs.some(l => l.type === 'ERROR' && l.message === 'Genshin Impact: Failed to redeem code (Not logged in [retcode: -100])'),
+      '英語環境では英語のERRORログが記録されること'
+    );
+  } finally {
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
+    API_CONFIG.IS_DEV = origIsDev;
+    API_CONFIG.GA_MEASUREMENT_ID = origMid;
+    API_CONFIG.GA_API_SECRET = origSec;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('redeemForGame: 同種類コード既使用(-2018)時は1回目でEXPIRED確定し実績加算・再試行されないこと', async () => {
+  mockStorage.local.clear();
+  mockStorage.session.clear();
+  mockCreatedNotifications.length = 0;
+
+  const origInterDelay = API_CONFIG.INTER_REQUEST_DELAY_MS;
+  API_CONFIG.INTER_REQUEST_DELAY_MS = 0;
+  let redeemApiCalls = 0;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('hoyo-codes.seria.moe')) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify({ codes: [{ code: 'OKCODE1' }, { code: 'SAMEGROUP1' }] })
+      };
+    }
+    if (u.includes('getUserGameRolesByCookie')) {
+      return {
+        status: 200,
+        json: async () => ({
+          retcode: 0,
+          message: 'OK',
+          data: { list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }] }
+        })
+      };
+    }
+    if (u.includes('webExchangeCdkey')) {
+      redeemApiCalls++;
+      if (u.includes('cdkey=SAMEGROUP1')) {
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ retcode: -2018, message: 'Redemption code of the same type already used' })
+        };
+      }
+      return { status: 200, text: async () => JSON.stringify({ retcode: 0, message: 'OK' }) };
+    }
+    return { status: 200, json: async () => ({}), text: async () => '{}' };
+  };
+
+  try {
+    const res1 = await redeemForGame('GENSHIN', 'ja', 'MANUAL');
+    assert.equal(res1.success, true);
+    assert.equal(res1.redeemedCount, 1);
+    assert.equal(redeemApiCalls, 2);
+
+    const redeemed = await getRedeemedCodes('hk4e_global');
+    assert.equal(redeemed.OKCODE1.s, STATUS_MAP.SUCCESS);
+    assert.equal(redeemed.SAMEGROUP1.s, STATUS_MAP.EXPIRED, '-2018はEXPIRED確定として記録されること');
+
+    const stats = await getCodeRedeemStats('hk4e_global');
+    assert.equal(stats.monthlyCount, 1, '-2018は今月実績に加算されないこと');
+    assert.equal(stats.totalCount, 1, '-2018は通算実績に加算されないこと');
+    assert.equal(stats.activeTotal, 1, '-2018は有効コード母数から除外されること');
+    assert.equal(stats.activeClaimed, 1, '適用済 1/1 になること');
+
+    // 2回目実行時は非公開APIが呼ばれないこと
+    redeemApiCalls = 0;
+    const res2 = await redeemForGame('GENSHIN', 'ja', 'MANUAL');
+    assert.equal(res2.skipped, true);
+    assert.equal(res2.reason, 'NO_PENDING_CODES');
+    assert.equal(redeemApiCalls, 0, '-2018確定済みコードが再試行されないこと');
+  } finally {
+    API_CONFIG.INTER_REQUEST_DELAY_MS = origInterDelay;
     globalThis.fetch = originalFetch;
   }
 });
