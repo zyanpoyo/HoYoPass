@@ -1,57 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const mockStorage = {
-  local: new Map(),
-  session: new Map()
-};
-
-let badgeState = { text: '', color: '' };
-
-globalThis.chrome = {
-  storage: {
-    local: {
-      get: async (keys) => {
-        const res = {};
-        if (Array.isArray(keys)) {
-          keys.forEach(k => { res[k] = mockStorage.local.get(k); });
-        } else if (typeof keys === 'string') {
-          res[keys] = mockStorage.local.get(keys);
-        } else {
-          mockStorage.local.forEach((v, k) => { res[k] = v; });
-        }
-        return res;
-      },
-      set: async (obj) => Object.entries(obj).forEach(([k, v]) => mockStorage.local.set(k, v))
-    },
-    session: {
-      get: async (keys) => {
-        const res = {};
-        if (Array.isArray(keys)) {
-          keys.forEach(k => { res[k] = mockStorage.session.get(k); });
-        } else if (typeof keys === 'string') {
-          res[keys] = mockStorage.session.get(keys);
-        } else {
-          mockStorage.session.forEach((v, k) => { res[k] = v; });
-        }
-        return res;
-      },
-      set: async (obj) => Object.entries(obj).forEach(([k, v]) => mockStorage.session.set(k, v)),
-      remove: async (keys) => {
-        const arr = Array.isArray(keys) ? keys : [keys];
-        arr.forEach(k => mockStorage.session.delete(k));
-      }
-    }
-  },
-  action: {
-    setBadgeText: async (opts) => { badgeState.text = opts?.text ?? ''; },
-    setBadgeBackgroundColor: async (opts) => { badgeState.color = opts?.color ?? ''; }
-  },
-  runtime: {
-    getManifest: () => ({ version: '1.3.5' })
-  }
-};
-
 import {
   toGaGameKey,
   toRedeemTrigger,
@@ -61,8 +10,27 @@ import {
   syncConsentBadge,
   sendGAEvent
 } from '../src/services/analytics-service.js';
-import { getOrCreateGaClientId } from '../src/services/storage-service.js';
+import { createStateStore } from '../src/services/state-store.js';
 import { API_CONFIG } from '../src/config/constants.js';
+import { createInMemoryStorageAdapter } from './helpers/in-memory-storage-adapter.js';
+
+let badgeState = { text: '', color: '' };
+
+globalThis.chrome = {
+  action: {
+    setBadgeText: async (opts) => { badgeState.text = opts?.text ?? ''; },
+    setBadgeBackgroundColor: async (opts) => { badgeState.color = opts?.color ?? ''; }
+  },
+  runtime: {
+    getManifest: () => ({ version: '1.3.5' })
+  }
+};
+
+function createTestStore() {
+  const storage = createInMemoryStorageAdapter();
+  const store = createStateStore({ storage });
+  return { storage, store };
+}
 
 test('toGaGameKey: ゲームキーの正確なマッピング', () => {
   assert.equal(toGaGameKey('GENSHIN'), 'genshin');
@@ -84,10 +52,8 @@ test('toRedeemTrigger & toCheckinTrigger: トリガー契機のマッピング',
 });
 
 test('sanitizeEventParams: 許可リストによる未知キー・危険キーの完全遮断', () => {
-  // 不明なイベント
   assert.equal(sanitizeEventParams('unknown_event', { foo: 'bar' }), null);
 
-  // code_redeem_result: uidやcdkeyやcookieなどの危険なキーが除去されること
   const rawParams = {
     game: 'genshin',
     trigger: 'auto',
@@ -106,7 +72,6 @@ test('sanitizeEventParams: 許可リストによる未知キー・危険キー�
   assert.equal(sanitized.cdkey, undefined);
   assert.equal(sanitized.cookie, undefined);
 
-  // onboarding_complete: boolean値が文字列 'true'/'false' に正規化されること
   const obClean = sanitizeEventParams('onboarding_complete', {
     genshin_enabled: true,
     hsr_enabled: false,
@@ -119,7 +84,6 @@ test('sanitizeEventParams: 許可リストによる未知キー・危険キー�
     zzz_enabled: 'true'
   });
 
-  // code_list_fetch_error: game, http_status, error_type が保持され未知キーが除去されること
   const fetchErrClean = sanitizeEventParams('code_list_fetch_error', {
     game: 'genshin',
     http_status: 503,
@@ -135,82 +99,83 @@ test('sanitizeEventParams: 許可リストによる未知キー・危険キー�
 });
 
 test('getOrCreateGaClientId: UUIDの生成とストレージ永続化', async () => {
-  mockStorage.local.clear();
-  const id1 = await getOrCreateGaClientId();
+  const { store } = createTestStore();
+  const id1 = await store.getOrCreateGaClientId();
   assert.ok(id1);
   assert.match(id1, /^[0-9a-f-]{36}$/i);
 
-  const id2 = await getOrCreateGaClientId();
+  const id2 = await store.getOrCreateGaClientId();
   assert.equal(id1, id2, '同一クライアントIDが再利用されること');
 });
 
 test('getOrCreateSessionId: 30分セッション管理', async () => {
-  mockStorage.session.clear();
+  const { store } = createTestStore();
   const baseTime = 1700000000000;
-  const sid1 = await getOrCreateSessionId(baseTime);
+  const sid1 = await getOrCreateSessionId(baseTime, store);
   assert.equal(sid1, String(baseTime));
 
-  const sid2 = await getOrCreateSessionId(baseTime + 10 * 60 * 1000);
+  const sid2 = await getOrCreateSessionId(baseTime + 10 * 60 * 1000, store);
   assert.equal(sid2, sid1, '有効時間内は同一セッションID');
 
-  // 31分経過
-  const sid3 = await getOrCreateSessionId(baseTime + 41 * 60 * 1000);
+  const sid3 = await getOrCreateSessionId(baseTime + 41 * 60 * 1000, store);
   assert.equal(sid3, String(baseTime + 41 * 60 * 1000));
   assert.notEqual(sid1, sid3, '30分タイムアウト後は新セッションIDが生成されること');
 });
 
 test('syncConsentBadge: 既存ユーザーへの "!" バッジ表示とポリシー改定連動', async () => {
-  mockStorage.local.clear();
+  const { storage, store } = createTestStore();
   badgeState = { text: '', color: '' };
 
-  // 1. 新規ユーザー初期状態 (optInAccepted: false): バッジなし
-  await syncConsentBadge();
+  await syncConsentBadge(store);
   assert.equal(badgeState.text, '');
 
-  // 2. 既存ユーザー (optInAccepted: true, analyticsConsentReviewed: false): "!" バッジ表示
-  mockStorage.local.set('app_settings', {
-    optInAccepted: true,
-    analyticsConsentReviewed: false,
-    analyticsEnabled: false
+  storage.seedLocal({
+    app_settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: false,
+      analyticsEnabled: false
+    }
   });
-  await syncConsentBadge();
+  await syncConsentBadge(store);
   assert.equal(badgeState.text, '!');
   assert.equal(badgeState.color, '#f59e0b');
 
-  // 3. 統計同意完了 & agreedPolicyVersion未保存（既存ユーザー）:
-  //    2026-10-26 に自動補完されるためバッジは非表示
-  mockStorage.local.set('app_settings', {
-    optInAccepted: true,
-    analyticsConsentReviewed: true,
-    analyticsEnabled: true
+  storage.seedLocal({
+    app_settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true
+    }
   });
-  await syncConsentBadge();
+  await syncConsentBadge(store);
   assert.equal(badgeState.text, '', '現行版補完によりバッジは非表示');
 
-  // 4. 旧ポリシーバージョン同意ユーザー: "!" バッジ表示
-  mockStorage.local.set('app_settings', {
-    optInAccepted: true,
-    analyticsConsentReviewed: true,
-    analyticsEnabled: true,
-    agreedPolicyVersion: '2026-10-12'
+  storage.seedLocal({
+    app_settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      agreedPolicyVersion: '2026-10-12'
+    }
   });
-  await syncConsentBadge();
+  await syncConsentBadge(store);
   assert.equal(badgeState.text, '!', '旧版同意ユーザーにはバッジを表示');
   assert.equal(badgeState.color, '#f59e0b');
 
-  // 5. 改定ポリシー同意後: バッジ消去
-  mockStorage.local.set('app_settings', {
-    optInAccepted: true,
-    analyticsConsentReviewed: true,
-    analyticsEnabled: true,
-    agreedPolicyVersion: '2026-10-26'
+  storage.seedLocal({
+    app_settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      agreedPolicyVersion: '2026-10-26'
+    }
   });
-  await syncConsentBadge();
+  await syncConsentBadge(store);
   assert.equal(badgeState.text, '', '最新版同意後はバッジ消去');
 });
 
 test('sendGAEvent: オプトアウト状態での完全遮断', async () => {
-  mockStorage.local.clear();
+  const { storage, store } = createTestStore();
   let fetchCalled = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => {
@@ -219,19 +184,19 @@ test('sendGAEvent: オプトアウト状態での完全遮断', async () => {
   };
 
   try {
-    // 1. 合意未確認時 (初期状態)
-    let res = await sendGAEvent('code_redeem_result', { game: 'genshin' });
+    let res = await sendGAEvent('code_redeem_result', { game: 'genshin' }, { store });
     assert.equal(res.success, false);
     assert.equal(res.reason, 'OPTED_OUT');
     assert.equal(fetchCalled, false);
 
-    // 2. オプトアウト選択時 (analyticsConsentReviewed: true, analyticsEnabled: false)
-    mockStorage.local.set('app_settings', {
-      optInAccepted: true,
-      analyticsConsentReviewed: true,
-      analyticsEnabled: false
+    storage.seedLocal({
+      app_settings: {
+        optInAccepted: true,
+        analyticsConsentReviewed: true,
+        analyticsEnabled: false
+      }
     });
-    res = await sendGAEvent('code_redeem_result', { game: 'genshin' });
+    res = await sendGAEvent('code_redeem_result', { game: 'genshin' }, { store });
     assert.equal(res.success, false);
     assert.equal(res.reason, 'OPTED_OUT');
     assert.equal(fetchCalled, false);
@@ -241,14 +206,15 @@ test('sendGAEvent: オプトアウト状態での完全遮断', async () => {
 });
 
 test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙動', async () => {
-  mockStorage.local.clear();
-  mockStorage.session.clear();
+  const { storage, store } = createTestStore();
 
-  mockStorage.local.set('app_settings', {
-    optInAccepted: true,
-    analyticsConsentReviewed: true,
-    analyticsEnabled: true,
-    language: 'ja'
+  storage.seedLocal({
+    app_settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      analyticsEnabled: true,
+      language: 'ja'
+    }
   });
 
   const capturedRequests = [];
@@ -263,9 +229,8 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
   const origSec = API_CONFIG.GA_API_SECRET;
 
   try {
-    // 1. IS_DEV === true 時はコンソールログのみで fetch されないこと
     API_CONFIG.IS_DEV = true;
-    let res = await sendGAEvent('ui_action', { action_type: 'open_log', game: 'none' });
+    let res = await sendGAEvent('ui_action', { action_type: 'open_log', game: 'none' }, { store });
     assert.equal(res.success, true);
     assert.equal(res.isDev, true);
     assert.equal(res.params.app_version, '1.3.5');
@@ -278,12 +243,11 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
     assert.equal(res.params.user_id, undefined, 'user_idは付与されないこと');
     assert.equal(capturedRequests.length, 0, 'dev環境ではfetchが呼ばれない');
 
-    // 2. IS_DEV === false 時は本番エンドポイントへ単純POST通信
     API_CONFIG.IS_DEV = false;
     API_CONFIG.GA_MEASUREMENT_ID = 'G-TEST123456';
     API_CONFIG.GA_API_SECRET = 'TEST_SECRET';
 
-    res = await sendGAEvent('ui_action', { action_type: 'notification_click', game: 'genshin' });
+    res = await sendGAEvent('ui_action', { action_type: 'notification_click', game: 'genshin' }, { store });
     assert.equal(res.success, true);
     assert.equal(capturedRequests.length, 1);
     const req = capturedRequests[0];
@@ -291,7 +255,6 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
     assert.ok(req.url.includes('api_secret=TEST_SECRET'));
     assert.equal(req.opts.method, 'POST');
     assert.equal(req.opts.credentials, 'omit');
-    // Content-Type ヘッダーが付与されていないこと（CORSプリフライト回避）
     assert.equal(req.opts.headers, undefined);
 
     const parsedBody = JSON.parse(req.opts.body);
@@ -304,9 +267,8 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
     assert.equal(parsedBody.events[0].params.client_id, parsedBody.client_id, 'イベントパラメータにも同一のclient_idが付与されること');
     assert.equal(parsedBody.events[0].params.custom_client_id, parsedBody.client_id, 'イベントパラメータのcustom_client_idにも同一のclient_idが付与されること');
 
-    // 3. 既存ユーザー（既にストレージに ga_client_id がある場合）でも同一の client_id が引き継がれて付与されること
-    mockStorage.local.set('ga_client_id', 'existing-user-uuid-9999');
-    const existingUserRes = await sendGAEvent('ui_action', { action_type: 'open_log', game: 'none' });
+    storage.seedLocal({ ga_client_id: 'existing-user-uuid-9999' });
+    const existingUserRes = await sendGAEvent('ui_action', { action_type: 'open_log', game: 'none' }, { store });
     assert.equal(existingUserRes.success, true);
     assert.equal(existingUserRes.params.client_id, 'existing-user-uuid-9999');
     assert.equal(existingUserRes.params.custom_client_id, 'existing-user-uuid-9999');

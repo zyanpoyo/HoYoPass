@@ -1,11 +1,5 @@
 import { GAMES, API_CONFIG, ALARM_NAMES } from '../config/constants.js';
-import {
-  getDailySignRecord,
-  setDailySignRecord,
-  getHoyoTodayDateString,
-  getCodeRedeemStats,
-  setActiveCodes
-} from '../services/storage-service.js';
+import { defaultStateStore, getHoyoTodayDateString } from '../services/state-store.js';
 import { fetchValidCodes } from '../services/code-fetcher.js';
 import { getUserGameRoles, getDailySignInfo, isNotLoggedIn } from '../services/hoyo-api.js';
 import {
@@ -247,7 +241,7 @@ export async function updateDailySignStatusView(gameKey, state) {
   signBadgeEl.className = 'status-pill';
 
   const today = getHoyoTodayDateString();
-  const cached = await getDailySignRecord(config.gameBiz);
+  const cached = await defaultStateStore.getDailySignRecord(config.gameBiz);
   if (state.currentGameKey !== gameKey) return;
 
   if (cached && cached.date === today && cached.isSigned) {
@@ -265,7 +259,7 @@ export async function updateDailySignStatusView(gameKey, state) {
     applyPopupAuthView(gameKey, state);
 
     if (info.success) {
-      await setDailySignRecord(config.gameBiz, {
+      await defaultStateStore.setDailySignRecord(config.gameBiz, {
         date: info.today || today,
         isSigned: info.isSigned,
         totalSignDay: info.totalSignDay,
@@ -334,7 +328,7 @@ export async function updateRedeemStatusView(gameKey, state) {
   badgeEl.title = nextRunTooltip;
 
   try {
-    const stats = await getCodeRedeemStats(config.gameBiz);
+    const stats = await defaultStateStore.getCodeRedeemStats(config.gameBiz);
     if (state.currentGameKey !== targetKey) return;
 
     if (labelEl) {
@@ -346,7 +340,7 @@ export async function updateRedeemStatusView(gameKey, state) {
         labelEl.textContent = t('redeemStatusLabelDefault', [], lang);
         fetchValidCodes(targetKey).then(async (codes) => {
           if (Array.isArray(codes)) {
-            await setActiveCodes(config.gameBiz, codes);
+            await defaultStateStore.setActiveCodes(config.gameBiz, codes);
             if (state.currentGameKey === targetKey) {
               updateRedeemStatusView(targetKey, state);
             }

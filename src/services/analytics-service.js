@@ -1,5 +1,5 @@
 import { API_CONFIG } from '../config/constants.js';
-import { getSettings, getOrCreateGaClientId, needsPolicyReview } from './storage-service.js';
+import { defaultStateStore, needsPolicyReview } from './state-store.js';
 import { resolveLanguage } from '../utils/i18n.js';
 
 export function toGaGameKey(gameKey) {
@@ -54,36 +54,14 @@ export function sanitizeEventParams(eventName, params = {}) {
   return clean;
 }
 
-export async function getOrCreateSessionId(nowMs = Date.now()) {
-  const now = nowMs;
-  try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-      const data = await chrome.storage.session.get(['ga_session_id', 'ga_last_active']);
-      const sid = data.ga_session_id;
-      const lastActive = Number(data.ga_last_active || 0);
-
-      if (sid && lastActive && (now - lastActive < API_CONFIG.GA_SESSION_TIMEOUT_MS)) {
-        await chrome.storage.session.set({ ga_last_active: now });
-        return String(sid);
-      }
-
-      const newSid = String(now);
-      await chrome.storage.session.set({
-        ga_session_id: newSid,
-        ga_last_active: now
-      });
-      return newSid;
-    }
-  } catch {
-    // ignore
-  }
-  return String(now);
+export async function getOrCreateSessionId(nowMs = Date.now(), store = defaultStateStore) {
+  return store.getOrCreateGaSessionId(nowMs);
 }
 
-export async function syncConsentBadge() {
+export async function syncConsentBadge(store = defaultStateStore) {
   try {
     if (typeof chrome === 'undefined' || !chrome.action?.setBadgeText) return;
-    const settings = await getSettings();
+    const settings = await store.getSettings();
     const needsReview = !settings.analyticsConsentReviewed || needsPolicyReview(settings);
     if (settings.optInAccepted && needsReview) {
       await chrome.action.setBadgeText({ text: '!' });
@@ -98,9 +76,9 @@ export async function syncConsentBadge() {
   }
 }
 
-export async function sendGAEvent(eventName, rawParams = {}) {
+export async function sendGAEvent(eventName, rawParams = {}, { store = defaultStateStore } = {}) {
   try {
-    const settings = await getSettings();
+    const settings = await store.getSettings();
     if (!settings.analyticsConsentReviewed || !settings.analyticsEnabled) {
       return { success: false, reason: 'OPTED_OUT' };
     }
@@ -123,8 +101,8 @@ export async function sendGAEvent(eventName, rawParams = {}) {
     cleanParams.app_version = appVersion;
     cleanParams.engagement_time_msec = 100;
     cleanParams.lang = resolveLanguage(settings.language);
-    cleanParams.session_id = await getOrCreateSessionId();
-    const clientId = await getOrCreateGaClientId();
+    cleanParams.session_id = await store.getOrCreateGaSessionId();
+    const clientId = await store.getOrCreateGaClientId();
     cleanParams.client_id = clientId;
     cleanParams.custom_client_id = clientId;
 

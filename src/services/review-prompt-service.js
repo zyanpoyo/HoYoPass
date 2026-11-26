@@ -1,15 +1,12 @@
 import {
-  STATUS_MAP,
   GAMES,
   REVIEW_PROMPT_CONFIG
 } from '../config/constants.js';
-import { isUnderBackoff } from './storage-service.js';
+import { defaultStateStore } from './state-store.js';
 
 const VALID_REVIEW_STATUSES = ['pending', 'postponed', 'completed', 'dismissed'];
 
-export async function getReviewPromptState(nowMs = Date.now()) {
-  const data = await chrome.storage.local.get('reviewPrompt');
-  const saved = data.reviewPrompt;
+function normalizeReviewPromptState(saved, nowMs) {
   if (!saved || typeof saved !== 'object') {
     return {
       successCount: 0,
@@ -29,104 +26,117 @@ export async function getReviewPromptState(nowMs = Date.now()) {
 }
 
 /**
- * インストールまたはアップデート時の初期化。
- * 既存ユーザー（reviewPrompt 未作成だが過去にコード引換 SUCCESS またはログボ受取実績がある環境）は、
- * 過去実績数を初期 successCount（上限 THRESHOLD_SUCCESS_COUNT）として引き継ぐ。
- * ※ firstInstalledAt は既存ユーザーのアップデート時にはアップデート実行日時となる。
+ * ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定サービスを生成する。
  */
-export async function initReviewPromptState(nowMs = Date.now()) {
-  const data = await chrome.storage.local.get('reviewPrompt');
-  if (data.reviewPrompt && typeof data.reviewPrompt === 'object') {
-    return getReviewPromptState(nowMs);
+export function createReviewPromptService(
+  store = defaultStateStore,
+  { clock = { now: () => Date.now() } } = {}
+) {
+  async function getReviewPromptState(nowMs = clock.now()) {
+    const saved = await store.getReviewPromptRecord();
+    return normalizeReviewPromptState(saved, nowMs);
   }
 
-  let migratedCount = 0;
-  const gameBizList = Object.values(GAMES).map(g => g.gameBiz).filter(Boolean);
-  const keysToFetch = [
-    ...gameBizList.map(biz => `redeemed_${biz}`),
-    ...gameBizList.map(biz => `daily_sign_${biz}`)
-  ];
-  const historyData = await chrome.storage.local.get(keysToFetch);
+  /**
+   * インストールまたはアップデート時の初期化。
+   * 既存ユーザー（reviewPrompt 未作成だが過去にコード引換 SUCCESS またはログボ受取実績がある環境）は、
+   * 過去実績数を初期 successCount（上限 THRESHOLD_SUCCESS_COUNT）として引き継ぐ。
+   * ※ firstInstalledAt は既存ユーザーのアップデート時にはアップデート実行日時となる。
+   */
+  async function initReviewPromptState(nowMs = clock.now()) {
+    const existing = await store.getReviewPromptRecord();
+    if (existing && typeof existing === 'object') {
+      return normalizeReviewPromptState(existing, nowMs);
+    }
 
-  for (const biz of gameBizList) {
-    const redeemed = historyData[`redeemed_${biz}`] || {};
-    for (const entry of Object.values(redeemed)) {
-      if (entry && entry.s === STATUS_MAP.SUCCESS) {
-        migratedCount++;
-      }
-    }
-    const signRec = historyData[`daily_sign_${biz}`];
-    if (signRec && signRec.isSigned === true) {
-      migratedCount++;
-    }
+    const gameBizList = Object.values(GAMES).map(g => g.gameBiz).filter(Boolean);
+    const migratedCount = await store.countHistoricalReviewSuccesses(gameBizList);
+
+    const initial = {
+      successCount: Math.min(migratedCount, REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT),
+      status: 'pending',
+      nextEligibleTimestamp: 0,
+      postponeCount: 0,
+      firstInstalledAt: nowMs
+    };
+    await store.saveReviewPromptRecord(initial);
+    return initial;
   }
 
-  const initial = {
-    successCount: Math.min(migratedCount, REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT),
-    status: 'pending',
-    nextEligibleTimestamp: 0,
-    postponeCount: 0,
-    firstInstalledAt: nowMs
-  };
-  await chrome.storage.local.set({ reviewPrompt: initial });
-  return initial;
-}
+  async function updateReviewPromptState(partial, nowMs = clock.now()) {
+    const current = await getReviewPromptState(nowMs);
+    const updated = { ...current, ...partial };
+    await store.saveReviewPromptRecord(updated);
+    return updated;
+  }
 
-export async function updateReviewPromptState(partial, nowMs = Date.now()) {
-  const current = await getReviewPromptState(nowMs);
-  const updated = { ...current, ...partial };
-  await chrome.storage.local.set({ reviewPrompt: updated });
-  return updated;
-}
+  async function incrementReviewSuccessCount(nowMs = clock.now()) {
+    const current = await getReviewPromptState(nowMs);
+    const updated = {
+      ...current,
+      successCount: current.successCount + 1
+    };
+    await store.saveReviewPromptRecord(updated);
+    return updated;
+  }
 
-export async function incrementReviewSuccessCount(nowMs = Date.now()) {
-  const current = await getReviewPromptState(nowMs);
-  const updated = {
-    ...current,
-    successCount: current.successCount + 1
-  };
-  await chrome.storage.local.set({ reviewPrompt: updated });
-  return updated;
-}
+  async function postponeReviewPrompt(nowMs = clock.now()) {
+    const current = await getReviewPromptState(nowMs);
+    const nextPostponeCount = (current.postponeCount || 0) + 1;
+    const maxPostpones = REVIEW_PROMPT_CONFIG.MAX_POSTPONE_COUNT || 2;
 
-export async function postponeReviewPrompt(nowMs = Date.now()) {
-  const current = await getReviewPromptState(nowMs);
-  const nextPostponeCount = (current.postponeCount || 0) + 1;
-  const maxPostpones = REVIEW_PROMPT_CONFIG.MAX_POSTPONE_COUNT || 2;
+    if (nextPostponeCount >= maxPostpones) {
+      return updateReviewPromptState({
+        status: 'dismissed',
+        postponeCount: nextPostponeCount
+      }, nowMs);
+    }
 
-  if (nextPostponeCount >= maxPostpones) {
     return updateReviewPromptState({
-      status: 'dismissed',
-      postponeCount: nextPostponeCount
+      status: 'postponed',
+      postponeCount: nextPostponeCount,
+      nextEligibleTimestamp: nowMs + REVIEW_PROMPT_CONFIG.POSTPONE_DURATION_MS
     }, nowMs);
   }
 
-  return updateReviewPromptState({
-    status: 'postponed',
-    postponeCount: nextPostponeCount,
-    nextEligibleTimestamp: nowMs + REVIEW_PROMPT_CONFIG.POSTPONE_DURATION_MS
-  }, nowMs);
+  async function shouldShowReviewPrompt(nowMs = clock.now()) {
+    const state = await getReviewPromptState(nowMs);
+
+    if (state.status === 'completed' || state.status === 'dismissed') {
+      return false;
+    }
+
+    if (state.status === 'postponed' && nowMs < state.nextEligibleTimestamp) {
+      return false;
+    }
+
+    if (state.successCount < REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT) {
+      return false;
+    }
+
+    // 直近に致命的エラーがないか確認（レート制限等のバックオフ中は表示しない）
+    if (await store.isUnderBackoff(nowMs)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return {
+    getReviewPromptState,
+    initReviewPromptState,
+    updateReviewPromptState,
+    incrementReviewSuccessCount,
+    postponeReviewPrompt,
+    shouldShowReviewPrompt
+  };
 }
 
-export async function shouldShowReviewPrompt(nowMs = Date.now()) {
-  const state = await getReviewPromptState(nowMs);
+export const defaultReviewPromptService = createReviewPromptService();
 
-  if (state.status === 'completed' || state.status === 'dismissed') {
-    return false;
-  }
-
-  if (state.status === 'postponed' && nowMs < state.nextEligibleTimestamp) {
-    return false;
-  }
-
-  if (state.successCount < REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT) {
-    return false;
-  }
-
-  // 直近に致命的エラーがないか確認（レート制限等のバックオフ中は表示しない）
-  if (await isUnderBackoff(nowMs)) {
-    return false;
-  }
-
-  return true;
-}
+export const getReviewPromptState = (nowMs) => defaultReviewPromptService.getReviewPromptState(nowMs);
+export const initReviewPromptState = (nowMs) => defaultReviewPromptService.initReviewPromptState(nowMs);
+export const updateReviewPromptState = (partial, nowMs) => defaultReviewPromptService.updateReviewPromptState(partial, nowMs);
+export const incrementReviewSuccessCount = (nowMs) => defaultReviewPromptService.incrementReviewSuccessCount(nowMs);
+export const postponeReviewPrompt = (nowMs) => defaultReviewPromptService.postponeReviewPrompt(nowMs);
+export const shouldShowReviewPrompt = (nowMs) => defaultReviewPromptService.shouldShowReviewPrompt(nowMs);

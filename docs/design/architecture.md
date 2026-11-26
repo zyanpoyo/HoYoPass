@@ -140,13 +140,13 @@ src/
 │   └── log-view.js             # ゲーム別実行ログのフィルタリング・プレフィックス整形・リスト描画
 ├── services/
 │   ├── analytics-service.js    # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
+│   ├── chrome-storage-adapter.js # chrome.storage (local/session/onChanged) への単一アクセスシーム
 │   ├── code-fetcher.js         # hoyo-codes APIからのコード一覧取得・ペイロード検証
 │   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、非公開交換API呼び出し、未ログイン判定（isNotLoggedIn）
 │   ├── http-client.js          # ホワイトリスト検証・429/5xx検知付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
-│   ├── rate-limit-service.js   # ジッター、指数バックオフ、短期リトライ上限、自動/手動クールダウン状態管理
 │   ├── review-prompt-service.js# ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定
 │   ├── security.js             # UID・リージョン・交換コード形式の入力バリデーション
-│   └── storage-service.js      # chrome.storageのCRUD操作、UTC+8日付管理、排他ロック（Mutex）管理
+│   └── state-store.js          # 永続状態・UTC+8日付管理・排他ロック（Mutex）・レート制御遷移・変更購読を統合した状態ストア
 └── utils/
     ├── i18n.js                 # 日英多言語辞書（MESSAGES）、言語解決、URL・時刻ローカライズヘルパー
     └── message-formatter.js    # ログボおよび交換コード実行結果のユーザー向けダイアログ文言フォーマッタ
@@ -170,7 +170,7 @@ src/
 - **非公開APIの二段階判定と重複メール仕様**: HoYoverseの交換コードAPIは、Web APIでの受付判定とゲームサーバーでのメール配送判定の二段階で動作します。事前照会APIが存在しないため、過去にゲーム内等で手動交換済みのコードに対して初回実行時に「交換済み重複メール」がゲーム内に届く場合がありますが、これはAPI仕様上の制約であり、一度処理されたコードはローカルに保存されて再送が防止されます。
 
 ### 5.3 ブラウザ起動時・スリープ復帰時の直列キャッチアップ・リトライ・手動クールダウン
-- **ジッター付き待機と直列キャッチアップ**: Chrome起動時 (`chrome.runtime.onStartup`) やスリープ復帰時 (`chrome.idle.onStateChanged` -> `active`) には、**15〜45秒** のランダムな回線安定待機の後に `background-runner.js` のキャッチアップ処理（`runCatchUp`）を実行し、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します（待機時間が20秒を超える場合は、MV3 Service Worker の30秒無活動停止を防ぐため20秒単位で分割待機し、`storage-service.js` の `pingSessionKeepAlive()` による `chrome.storage.session` 軽量読み出しでアイドルタイマーをリセットします）。
+- **ジッター付き待機と直列キャッチアップ**: Chrome起動時 (`chrome.runtime.onStartup`) やスリープ復帰時 (`chrome.idle.onStateChanged` -> `active`) には、**15〜45秒** のランダムな回線安定待機の後に `background-runner.js` のキャッチアップ処理（`runCatchUp`）を実行し、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します（待機時間が20秒を超える場合は、MV3 Service Worker の30秒無活動停止を防ぐため20秒単位で分割待機し、`state-store.js` の `pingSessionKeepAlive()` による `chrome.storage.session` 軽量読み出しでアイドルタイマーをリセットします）。
 - 共通の排他ロック（Mutex）競合を防ぐため、**① ログインボーナス当日未実行チェック → ② 交換コード3時間経過チェック** の順で `await` により直列実行します。
 - **自動試行3時間クールダウン**: 未ログイン（`-100` / `-1071`）や外部コード一覧APIエラー等で失敗した場合でも、起動やアイドル復帰のたびに再実行されないよう自動キャッチアップに **3時間クールダウン** を設けています（ログボ側は HoYo 日付跨ぎで即解除、ユーザーによる手動実行は随時許可）。
 - **短期リトライ上限（最大3回・段階的延長）**: ネットワーク未確立による `Failed to fetch` 等やオフライン検知時は、それぞれ独立した短期リトライアラーム（`hoyo_sign_retry_alarm` / `hoyo_retry_alarm`）で **2分 → 10分 → 30分**（各 `0〜30秒` 揺らぎ付き）の最大3回まで段階的に自動再試行し、上限到達後は次の通常定期実行または手動実行まで停止します。

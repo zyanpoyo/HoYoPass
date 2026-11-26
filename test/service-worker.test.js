@@ -976,7 +976,7 @@ test('ロール取得成功後に交換APIが未ログイン(-100/-1071)を返�
   assert.equal(adapter.getRedeemedCodes('hk4e_global').NEEDLOGIN1, undefined);
 
   // 自動巡回(en): 原神が -100 でも後続スタレまで継続実行されること
-  adapter.logs.length = 0;
+  adapter.clearLogs();
   adapter.createdNotifications.length = 0;
   adapter.setSettings({ language: 'en' });
   adapter.setGateway({
@@ -1028,7 +1028,7 @@ test('同種類コード既使用(-2018)時は1回目でEXPIRED確定し実績�
   assert.equal(redeemed.OKCODE1.s, STATUS_MAP.SUCCESS);
   assert.equal(redeemed.SAMEGROUP1.s, STATUS_MAP.EXPIRED);
 
-  const stats = adapter.getCodeRedeemStats('hk4e_global');
+  const stats = await adapter.getCodeRedeemStats('hk4e_global');
   assert.equal(stats.monthlyCount, 1);
   assert.equal(stats.totalCount, 1);
   assert.equal(stats.activeTotal, 1);
