@@ -37,13 +37,15 @@ flowchart TD
         PR["セキュリティ更新 PR 発行"]
         CI["GitHub Actions: ci.yml<br>(Node 26 / concurrency制御)"]
         Audit["npm audit --audit-level=high"]
+        Lint["npm run lint (構文・改行混在検査)"]
         Secrets["npm run check-secrets"]
-        Test["npm test (Node標準ランナー 106 tests)"]
+        Test["npm test (Node標準ランナー)"]
         Build["npm run build:prod & 成果物検証"]
 
         Dependabot --> PR
         PR --> CI
         CI --> Audit
+        CI --> Lint
         CI --> Secrets
         CI --> Test
         CI --> Build
@@ -114,16 +116,16 @@ updates:
 
 ### 3.2 継続的インテグレーション & 監査 (`.github/workflows/ci.yml`)
 
-PR作成時および `main` ブランチへのプッシュ時に起動し、コード品質・セキュリティ・拡張機能ビルドの妥当性を保証します。
+PR作成時および `master` ブランチへのプッシュ時に起動し、コード品質・セキュリティ・拡張機能ビルドの妥当性を保証します。
 
 ```yaml
 name: CI & Security Audit
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 # 同一ブランチへの連続プッシュ時、古いジョブを即座にキャンセルして無料実行枠（月2,000分）を節約
 concurrency:
@@ -141,10 +143,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js 26 (Matching local environment)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 26
 
@@ -166,11 +168,15 @@ jobs:
             echo "No lockfile to audit. Skipping npm audit."
           fi
 
+      # 構文チェックおよび改行混在チェック（依存ゼロ）
+      - name: Run lint
+        run: npm run lint
+
       # リポジトリ内のシークレット・APIトークン混入検査
       - name: Check secrets
         run: npm run check-secrets
 
-      # ユニットテスト（Node.js標準テストランナー 106テスト）
+      # ユニットテスト（Node.js標準テストランナーで実行）
       - name: Run unit tests
         run: npm test
 
@@ -201,7 +207,7 @@ Chrome拡張機能特有のクライアント配布フローです。自前でCD
 sequenceDiagram
     autonumber
     actor Dev as 開発者
-    participant Repo as GitHub (main)
+    participant Repo as GitHub (master)
     participant CWS as Chrome Web Store
     participant Chrome as ユーザーのGoogle Chrome
     
