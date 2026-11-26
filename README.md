@@ -87,7 +87,7 @@ Chrome ウェブストアを経由せず、ソースコードから直接ビル�
 - 免責事項およびプライバシーポリシーをご確認の上、「**同意して利用を開始する**」をクリックします（自動でログボ受取・コード引き換えの両方が有効になります）。
 
 ### Step 2: 公式サイトまたはHoYoLABでログイン
-- ブラウザ上で、HoYoLABまたは各ゲームの公式交換サイトに普段通りログインしておきます（デュアルドメイン対応のため、どちらでログインしていても動作します）。
+- ブラウザ上で、各ゲームの公式コード交換サイト（`.hoyoverse.com`）またはHoYoLABに普段通りログインしておきます（※**交換コード自動引き換えを利用する場合は、公式コード交換サイト側でのログインが必要**です。公式コード交換サイトにログインしていれば、デイリーログインボーナスもあわせて動作します）。
   - **原神**: [公式ログボページ](https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481) / [公式コード交換サイト](https://genshin.hoyoverse.com/ja/gift)
   - **崩壊：スターレイル**: [公式ログボページ](https://act.hoyolab.com/bbs/event/signin/hkrpg/index.html?act_id=e202303301540311) / [公式コード交換サイト](https://hsr.hoyoverse.com/gift)
   - **ゼンレスゾーンゼロ**: [公式ログボページ](https://act.hoyolab.com/bbs/event/signin/zzz/index.html?act_id=e202406031448091) / [公式コード交換サイト](https://zenless.hoyoverse.com/redemption/gift)
@@ -236,7 +236,7 @@ Chrome Web Store 申請用の配布パッケージは以下のコマンドで一
 npm run package
 ```
 
-- **出力先**: `dist/hoyopass-v1.3.4.zip`
+- **出力先**: `dist/hoyopass-v1.3.5.zip`
 
 ---
 

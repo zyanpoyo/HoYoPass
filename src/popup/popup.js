@@ -1,5 +1,6 @@
 import { GAMES, API_CONFIG, PRIVACY_POLICY_VERSION } from '../config/constants.js';
 import { getSettings, updateSettings } from '../services/storage-service.js';
+import { isNotLoggedIn } from '../services/hoyo-api.js';
 import { formatRedeemResult, formatSignResult } from '../utils/message-formatter.js';
 import { resolveLanguage, getGameLocalized, getPrivacyPolicyUrl, getGuideUrl, t } from '../utils/i18n.js';
 import { toGaGameKey, syncConsentBadge } from '../services/analytics-service.js';
@@ -15,6 +16,8 @@ import {
 } from './modals.js';
 import {
   applyI18nToDom,
+  applyPopupAuthView,
+  resolveManualRedeemFormatOptions,
   updateDailySignStatusView,
   updateRedeemStatusView,
   updateGameView
@@ -24,7 +27,8 @@ import { renderLogs } from './log-view.js';
 const state = {
   currentGameKey: 'GENSHIN',
   currentUid: null,
-  currentLang: 'ja'
+  currentLang: 'ja',
+  authStateByGame: {}
 };
 let uidCopyResetTimer = null;
 
@@ -66,14 +70,16 @@ function renderGameTabs(enabledGames) {
 function bindManualActionButton(buttonEl, messageType, formatResultFn, fallbackTitleKey, onComplete) {
   if (!buttonEl) return;
   buttonEl.addEventListener('click', async () => {
+    const targetGameKey = state.currentGameKey;
+    let actionResp = null;
     buttonEl.disabled = true;
     buttonEl.classList.add('is-loading');
     try {
-      const resp = await chrome.runtime.sendMessage({
+      actionResp = await chrome.runtime.sendMessage({
         type: messageType,
-        gameKey: state.currentGameKey
+        gameKey: targetGameKey
       });
-      const { title, message, detail } = formatResultFn(resp, state.currentLang);
+      const { title, message, detail } = formatResultFn(actionResp, state.currentLang, targetGameKey);
       await showAlertModal(title, message, detail);
     } catch (err) {
       await showAlertModal(
@@ -84,7 +90,7 @@ function bindManualActionButton(buttonEl, messageType, formatResultFn, fallbackT
     } finally {
       buttonEl.disabled = false;
       buttonEl.classList.remove('is-loading');
-      await onComplete();
+      await onComplete(actionResp, targetGameKey);
       await renderLogs(state.currentGameKey, state.currentLang);
     }
   });
@@ -196,6 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   autoRedeemToggle?.addEventListener('change', async (e) => {
     await updateSettings({ autoRedeemEnabled: e.target.checked });
+    applyPopupAuthView(state.currentGameKey, state);
     await updateRedeemStatusView(state.currentGameKey, state);
   });
 
@@ -204,15 +211,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     'TRIGGER_MANUAL_SIGN',
     formatSignResult,
     'signCardTitle',
-    () => updateDailySignStatusView(state.currentGameKey, state)
+    (_resp, targetGameKey) => updateDailySignStatusView(targetGameKey, state)
   );
 
   bindManualActionButton(
     manualTriggerBtn,
     'TRIGGER_MANUAL_REDEEM',
-    formatRedeemResult,
+    (resp, lang, targetGameKey) => {
+      const cache = state.authStateByGame?.[targetGameKey];
+      const options = resolveManualRedeemFormatOptions({
+        roleRes: cache?.roleRes,
+        signInfo: cache?.signInfo,
+        autoRedeemEnabled: autoRedeemToggle ? autoRedeemToggle.checked : false
+      });
+      return formatRedeemResult(resp, lang, options);
+    },
     'redeemCardTitle',
-    () => updateRedeemStatusView(state.currentGameKey, state)
+    async (resp, targetGameKey) => {
+      const gameRes = resp?.results?.[targetGameKey];
+      const roleCache = state.authStateByGame?.[targetGameKey]?.roleRes;
+      if (roleCache && gameRes) {
+        if (isNotLoggedIn(gameRes.retcode)) {
+          roleCache.hoyoverseNotLoggedIn = true;
+          applyPopupAuthView(targetGameKey, state);
+        } else if (gameRes.success && !gameRes.skipped) {
+          roleCache.hoyoverseNotLoggedIn = false;
+          applyPopupAuthView(targetGameKey, state);
+        }
+      }
+      await updateRedeemStatusView(targetGameKey, state);
+    }
   );
 
   openCheckinSiteBtn?.addEventListener('click', () => {

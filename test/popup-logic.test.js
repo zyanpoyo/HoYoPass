@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isLogForGame, buildLatestLogSummary, stripGamePrefix } from '../src/popup/log-view.js';
 import { setupCheckboxMinimumValidation } from '../src/popup/modals.js';
+import { resolvePopupAuthState, resolveManualRedeemFormatOptions } from '../src/popup/status-view.js';
 
 test('isLogForGame: gameKey プロパティ優先判定とレガシー文字列フォールバック', () => {
   assert.equal(isLogForGame(null, 'GENSHIN'), false);
@@ -94,4 +95,134 @@ test('setupCheckboxMinimumValidation: 最後の1つのチェックボックス�
   cb3.triggerChange();
   assert.equal(cb1.disabled, false);
   assert.equal(cb3.disabled, false);
+});
+
+test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き換えON/OFFに応じた表示判定', () => {
+  const sampleRole = { game_uid: '800123456', nickname: '蛍' };
+
+  // 1. 初期ロード中
+  assert.deepEqual(
+    resolvePopupAuthState({ roleRes: null, signInfo: null, autoRedeemEnabled: true }),
+    { headerStatus: 'checking', needsSignLogin: false, needsRedeemLogin: false }
+  );
+
+  // 2. .hoyoverse.com ログイン済み（両機能利用可能）
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: false },
+      signInfo: { success: true },
+      autoRedeemEnabled: true
+    }),
+    { headerStatus: 'online', needsSignLogin: false, needsRedeemLogin: false }
+  );
+
+  // 3. .hoyolab.com のみログイン・.hoyoverse.com 未ログイン + 自動引き換え ON -> ヘッダ未ログイン + 交換カードのみ要ログイン
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
+      signInfo: { success: true },
+      autoRedeemEnabled: true
+    }),
+    { headerStatus: 'logged_out', needsSignLogin: false, needsRedeemLogin: true }
+  );
+
+  // 4. .hoyolab.com のみログイン・.hoyoverse.com 未ログイン + 自動引き換え OFF（ログボ専用配慮）-> ログイン中のまま
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
+      signInfo: { success: true },
+      autoRedeemEnabled: false
+    }),
+    { headerStatus: 'online', needsSignLogin: false, needsRedeemLogin: false }
+  );
+
+  // 5. 両方ログアウト + 自動引き換え ON -> 両カード要ログイン
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: false, retcode: -100, hoyoverseNotLoggedIn: true },
+      signInfo: { success: false, retcode: -1071 },
+      autoRedeemEnabled: true
+    }),
+    { headerStatus: 'logged_out', needsSignLogin: true, needsRedeemLogin: true }
+  );
+
+  // 6. 両方ログアウト + 自動引き換え OFF -> ログボカードのみ要ログイン
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: false, retcode: -100, hoyoverseNotLoggedIn: true },
+      signInfo: { success: false, retcode: -1071 },
+      autoRedeemEnabled: false
+    }),
+    { headerStatus: 'logged_out', needsSignLogin: true, needsRedeemLogin: false }
+  );
+
+  // 7. キャラ不在 / 一時APIエラー / ネットワークエラー時は偽陽性の要ログインを出さない
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: false, retcode: -1 },
+      signInfo: null,
+      autoRedeemEnabled: true
+    }),
+    { headerStatus: 'no_char', needsSignLogin: false, needsRedeemLogin: false }
+  );
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { success: false, retcode: -9999 },
+      signInfo: null,
+      autoRedeemEnabled: true
+    }),
+    { headerStatus: 'api_error', needsSignLogin: false, needsRedeemLogin: false }
+  );
+  assert.deepEqual(
+    resolvePopupAuthState({
+      roleRes: { networkError: true },
+      signInfo: null,
+      autoRedeemEnabled: true
+    }),
+    { headerStatus: 'offline', needsSignLogin: false, needsRedeemLogin: false }
+  );
+});
+
+test('resolveManualRedeemFormatOptions: 手動引き換え結果モーダルの未ログイン補足判定', () => {
+  const sampleRole = { game_uid: '800123456', nickname: '蛍' };
+
+  assert.deepEqual(resolveManualRedeemFormatOptions({ roleRes: null }), {});
+  assert.deepEqual(resolveManualRedeemFormatOptions({ roleRes: { networkError: true } }), {});
+  assert.deepEqual(resolveManualRedeemFormatOptions({ roleRes: { success: false, retcode: -1 } }), {});
+  assert.deepEqual(
+    resolveManualRedeemFormatOptions({
+      roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: false },
+      autoRedeemEnabled: true
+    }),
+    {}
+  );
+
+  // hoyoverseNotLoggedIn + 自動引き換え ON -> 要ログイン ↗ 案内
+  assert.deepEqual(
+    resolveManualRedeemFormatOptions({
+      roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
+      signInfo: { success: true },
+      autoRedeemEnabled: true
+    }),
+    { redeemNotLoggedIn: true, needsRedeemLogin: true }
+  );
+
+  // hoyoverseNotLoggedIn + 自動引き換え OFF -> 公式 ↗ 案内
+  assert.deepEqual(
+    resolveManualRedeemFormatOptions({
+      roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
+      signInfo: { success: true },
+      autoRedeemEnabled: false
+    }),
+    { redeemNotLoggedIn: true, needsRedeemLogin: false }
+  );
+
+  // 両方未ログイン (-100) + 自動引き換え ON
+  assert.deepEqual(
+    resolveManualRedeemFormatOptions({
+      roleRes: { success: false, retcode: -100 },
+      autoRedeemEnabled: true
+    }),
+    { redeemNotLoggedIn: true, needsRedeemLogin: true }
+  );
 });

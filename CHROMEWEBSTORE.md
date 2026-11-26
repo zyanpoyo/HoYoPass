@@ -52,7 +52,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.4 — 未使用コード事前判定による非公開API通信の削減、および注意喚起・免責表記の強化
+バージョン 1.3.5 — 公式コード交換サイト未ログイン検知と誘導UI・通知の改善、および同種コード既使用(-2018)への最適化
 
 **Category** [REQUIRED]
 Productivity
@@ -110,7 +110,7 @@ HoYoPass is built with a privacy-first, zero-credential-collection design:
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.4 — Reduced private API calls by checking for unclaimed codes upfront, and strengthened Terms of Service risk notices.
+Version 1.3.5 — Improved detection and re-login guidance for official code redemption site sessions, plus one-pass handling for -2018.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -207,7 +207,8 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.3.4 | 2026-11-24 | 未使用コード事前判定による非公開API通信の削減、ストア説明文・UI・ドキュメントの注意喚起および免責表記の強化 | Ready |
+| 1.3.5 | 2026-11-26 | 交換コードAPI未ログイン(-100/-1071)検知・Windows通知・ポップアップ「要ログイン ↗」導線・未適用0件時モーダル補足・同種コード既使用(-2018)対応 | Ready |
+| 1.3.4 | 2026-11-24 | 未使用コード事前判定による非公開API通信の削減、ストア説明文・UI・ドキュメントの注意喚起および免責表記の強化 | Released |
 | 1.3.3 | 2026-11-23 | リクエスト分散（ジッター）・指数バックオフ・リトライ上限・手動クールダウンの導入、MV3待機保護・非JSON応答防御による通信耐性および安定性の向上 | Released |
 | 1.3.2 | 2026-11-13 | Chrome ウェブストア掲載情報・拡張機能説明文の拡充（日英SEO・機能明記）、バックグラウンド自動受取・スリープ復帰時キャッチアップ処理の安定性向上 | Released |
 | 1.3.1 | 2026-11-01 | ストアレビュー促進機能（インラインバナー形式、成功体験累積トリガー、延期・非表示管理）の追加、開発版テスト用ワンクリックリセット機構の導入 | Released |

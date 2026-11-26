@@ -185,6 +185,62 @@ test('formatRedeemResult: 単一ゲーム結果 (0件)', () => {
   assert.equal(res.detail, null);
 });
 
+test('formatRedeemResult: 単一ゲーム結果 (0件 + 公式コード交換サイト未ログイン注意書き)', () => {
+  const noPendingResp = {
+    success: true,
+    redeemedCount: 0,
+    results: {
+      GENSHIN: { success: true, skipped: true, reason: 'NO_PENDING_CODES', redeemedCount: 0, gameName: '原神' }
+    }
+  };
+
+  // 要ログイン ↗ 表示中 (自動引き換え ON)
+  const withLoginBtn = formatRedeemResult(noPendingResp, 'ja', {
+    redeemNotLoggedIn: true,
+    needsRedeemLogin: true
+  });
+  assert.equal(withLoginBtn.title, 'コード交換完了');
+  assert.match(withLoginBtn.message, /【原神】利用可能な新しい引き換えコードはありませんでした/);
+  assert.match(withLoginBtn.message, /公式コード交換サイトが未ログイン状態/);
+  assert.match(withLoginBtn.message, /「要ログイン ↗」/);
+  assert.equal(withLoginBtn.detail, null);
+
+  // 公式 ↗ 表示中 (自動引き換え OFF)
+  const withOfficialBtn = formatRedeemResult(noPendingResp, 'ja', {
+    redeemNotLoggedIn: true,
+    needsRedeemLogin: false
+  });
+  assert.match(withOfficialBtn.message, /「公式 ↗」/);
+
+  // 英語 (lang=en)
+  const enWithLoginBtn = formatRedeemResult({
+    success: true,
+    redeemedCount: 0,
+    results: {
+      GENSHIN: { success: true, skipped: true, reason: 'NO_PENDING_CODES', redeemedCount: 0, gameName: 'Genshin Impact' }
+    }
+  }, 'en', {
+    redeemNotLoggedIn: true,
+    needsRedeemLogin: true
+  });
+  assert.match(enWithLoginBtn.message, /logged out of the official code redemption site/);
+  assert.match(enWithLoginBtn.message, /"Login ↗"/);
+
+  // オプション false 時は注意書きなし
+  const loggedInRes = formatRedeemResult(noPendingResp, 'ja', { redeemNotLoggedIn: false });
+  assert.equal(loggedInRes.message, '【原神】利用可能な新しい引き換えコードはありませんでした。');
+
+  // 新規成功あり時は注意書きなし
+  const successRes = formatRedeemResult({
+    success: true,
+    redeemedCount: 1,
+    results: {
+      GENSHIN: { success: true, skipped: false, redeemedCount: 1, gameName: '原神' }
+    }
+  }, 'ja', { redeemNotLoggedIn: true, needsRedeemLogin: true });
+  assert.equal(successRes.message, '【原神】1件のコードを引き換えました。\nゲーム内メールをご確認ください。');
+});
+
 test('formatRedeemResult: 単一ゲーム結果 (未プレイ)', () => {
   const res = formatRedeemResult({
     success: true,
@@ -208,6 +264,7 @@ test('formatRedeemResult: 単一ゲーム結果 (未ログイン)', () => {
   });
   assert.equal(res.title, 'コード交換失敗');
   assert.match(res.message, /【原神】未ログインです/);
+  assert.match(res.message, /公式コード交換サイトでログインを行ってください/);
   assert.equal(res.detail, 'Login expired');
 });
 

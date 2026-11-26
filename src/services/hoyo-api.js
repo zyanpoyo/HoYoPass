@@ -48,6 +48,7 @@ async function parseJsonResponse(resp) {
 
 export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
   let lastData = null;
+  let hoyoverseNotLoggedIn = false;
 
   for (const host of TAKUMI_HOSTS) {
     const url = `${host}/binding/api/getUserGameRolesByCookie?game_biz=${gameBiz}`;
@@ -59,7 +60,8 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
         retcode: -backoffInfo.httpStatus,
         ...backoffInfo,
         message: `HTTP ${backoffInfo.httpStatus}`,
-        role: null
+        role: null,
+        hoyoverseNotLoggedIn
       };
     }
     const parsed = await parseJsonResponse(resp);
@@ -79,32 +81,38 @@ export async function getUserGameRoles(gameBiz = 'hk4e_global', lang = 'ja') {
       const rawList = data.data?.list || [];
       if (!rawList.length) {
         console.warn(`[getUserGameRoles] No roles in data.list for ${gameBiz}:`, data.data);
-        return { success: false, retcode: -1, message: t('apiNoChar', [], lang), role: null };
+        return { success: false, retcode: -1, message: t('apiNoChar', [], lang), role: null, hoyoverseNotLoggedIn };
       }
 
       const validRoles = rawList.filter(r => isValidUid(r.game_uid) && isValidRegion(r.region));
       if (!validRoles.length) {
         console.warn(`[getUserGameRoles] Roles filtered out by constraints:`, rawList);
         const regions = rawList.map(r => r.region).join(',');
-        return { success: false, retcode: -2, message: t('apiInvalidUidRegion', [regions], lang), role: null };
+        return { success: false, retcode: -2, message: t('apiInvalidUidRegion', [regions], lang), role: null, hoyoverseNotLoggedIn };
       }
 
       const selectedRole = validRoles.find(r => r.is_chosen === true) ||
         validRoles.reduce((max, curr) => (curr.level > max.level ? curr : max), validRoles[0]);
 
-      return { success: true, retcode: 0, role: selectedRole, allRoles: validRoles };
+      return { success: true, retcode: 0, role: selectedRole, allRoles: validRoles, hoyoverseNotLoggedIn };
     }
 
-    if (!isNotLoggedIn(data.retcode)) {
-      break;
+    if (isNotLoggedIn(data.retcode)) {
+      if (host.includes('.hoyoverse.com')) {
+        hoyoverseNotLoggedIn = true;
+      }
+      continue;
     }
+
+    break;
   }
 
   return {
     success: false,
     retcode: lastData?.retcode ?? -100,
     message: lastData?.message || `API error (${lastData?.retcode})`,
-    role: null
+    role: null,
+    hoyoverseNotLoggedIn
   };
 }
 

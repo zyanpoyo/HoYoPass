@@ -52,7 +52,7 @@ function formatBackoffDetail(resp, rawDetail, lang) {
     : t('fmtBackoffDetail', [], lang);
 }
 
-function formatSingleGameRedeem(gameKey, res, lang) {
+function formatSingleGameRedeem(gameKey, res, lang, options = {}) {
   const name = resolveGameDisplayName(gameKey, res, lang);
 
   if (res.skipped && res.reason === 'NO_CHARACTER') {
@@ -78,11 +78,17 @@ function formatSingleGameRedeem(gameKey, res, lang) {
   }
 
   const gameCount = res.redeemedCount || 0;
+  let message = gameCount > 0
+    ? t('fmtRedeemSingleSuccess', [name, gameCount], lang)
+    : t('fmtRedeemSingleNoNew', [name], lang);
+  if (gameCount === 0 && res.skipped && res.reason === 'NO_PENDING_CODES' && options?.redeemNotLoggedIn) {
+    const linkLabel = t(options.needsRedeemLogin ? 'btnLoginRequired' : 'btnOfficial', [], lang);
+    message += `\n\n${t('fmtRedeemNoNewLoginNote', [linkLabel], lang)}`;
+  }
+
   return {
     title: t(gameCount > 0 ? 'fmtRedeemTitleSuccess' : 'fmtRedeemTitleComplete', [], lang),
-    message: gameCount > 0
-      ? t('fmtRedeemSingleSuccess', [name, gameCount], lang)
-      : t('fmtRedeemSingleNoNew', [name], lang),
+    message,
     detail: null
   };
 }
@@ -138,9 +144,10 @@ function formatMultiGameRedeem(results, totalCount, lang) {
  *
  * @param {object} [resp] - 実行結果レスポンス
  * @param {'ja'|'en'} [lang='ja'] - 表示言語
+ * @param {object} [options={}] - 表示補足オプション
  * @returns {{ title: string, message: string, detail: string | null }}
  */
-export function formatRedeemResult(resp, lang = 'ja') {
+export function formatRedeemResult(resp, lang = 'ja', options = {}) {
   if (!resp) {
     return {
       title: t('fmtRedeemTitleFailed', [], lang),
@@ -154,7 +161,7 @@ export function formatRedeemResult(resp, lang = 'ja') {
     if (resp.results && typeof resp.results === 'object') {
       const resultKeys = Object.keys(resp.results);
       if (resultKeys.length === 1) {
-        return formatSingleGameRedeem(resultKeys[0], resp.results[resultKeys[0]], lang);
+        return formatSingleGameRedeem(resultKeys[0], resp.results[resultKeys[0]], lang, options);
       }
       return formatMultiGameRedeem(resp.results, count, lang);
     }

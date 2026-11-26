@@ -1,6 +1,6 @@
 {
   "name": "hoyopass",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "HoYoPass - ログボ＆交換コード自動受取 for 原神/スタレ/ZZZ",
   "type": "module",
   "scripts": {

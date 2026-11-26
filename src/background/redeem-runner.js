@@ -61,6 +61,8 @@ function classifyRedeemRetcode(retcode, res = {}) {
       return { codeStatus: 'ALREADY_CLAIMED', gaStatus: 'already_claimed', errorReason: 'none', shouldBreak: false, skipMarkStatus: false };
     case -2001:
       return { codeStatus: 'EXPIRED', gaStatus: 'expired', errorReason: 'none', shouldBreak: false, skipMarkStatus: false };
+    case -2018:
+      return { codeStatus: 'EXPIRED', gaStatus: 'already_claimed', errorReason: 'none', shouldBreak: false, skipMarkStatus: false };
     case -2016:
       return { codeStatus: null, skipMarkStatus: true, gaStatus: 'cooldown', errorReason: 'cooldown', shouldBreak: true, triggerBackoff: true };
     default:
@@ -167,6 +169,7 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
 
   let redeemedCount = 0;
   let backoffTriggered = false;
+  let notLoggedInRes = null;
 
   for (const cdkey of pendingCodes) {
     const entry = redeemed[cdkey];
@@ -202,6 +205,9 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
     });
 
     const outcome = classifyRedeemRetcode(res.retcode, res);
+    if (!res?.shouldBackoff && isNotLoggedIn(res.retcode)) {
+      notLoggedInRes = res;
+    }
     if (outcome.triggerBackoff) {
       const backoff = await recordBackoffFailure({ retryAfterMs: res.retryAfterMs });
       backoffTriggered = true;
@@ -244,6 +250,24 @@ export async function redeemForGame(gameKey, lang = 'ja', triggerSource = 'ALARM
       gameKey,
       gameName
     };
+  }
+
+  if (notLoggedInRes) {
+    const failureRes = await reportGameFailure({
+      category: 'CODE',
+      gaEvent: 'code_redeem_result',
+      gameKey,
+      gameName,
+      trigger,
+      lang,
+      retcode: notLoggedInRes.retcode,
+      errorMessage: t('logRedeemFailed', [gameName, notLoggedInRes.message, notLoggedInRes.retcode], lang),
+      fallbackErrorReason: 'unknown',
+      shouldSendGa: false,
+      notifPrefix: LOGIN_NOTIFICATION_PREFIX,
+      notifMsgKey: 'notifLoginMsgRedeem'
+    });
+    return { ...failureRes, redeemedCount };
   }
 
   await addExecutionLog({

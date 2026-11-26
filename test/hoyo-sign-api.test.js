@@ -220,7 +220,41 @@ test('getUserGameRoles: hoyoverse.comが未ログイン(-100)の場合にhoyolab
     const res = await getUserGameRoles('hk4e_global');
     assert.equal(res.success, true);
     assert.equal(res.role.nickname, '蛍');
+    assert.equal(res.hoyoverseNotLoggedIn, true, 'hoyoverse.comが-100の場合はフラグがtrueになること');
     assert.equal(calledUrls.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getUserGameRoles: hoyoverse.com直接成功時・両方未ログイン時の hoyoverseNotLoggedIn フラグ判定', async () => {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    // 1. 1ホスト目(hoyoverse.com)で直接成功 -> false
+    globalThis.fetch = async () => ({
+      status: 200,
+      json: async () => ({
+        retcode: 0,
+        message: 'OK',
+        data: {
+          list: [{ game_biz: 'hk4e_global', region: 'os_asia', game_uid: '800123456', nickname: '蛍', level: 60 }]
+        }
+      })
+    });
+    const directRes = await getUserGameRoles('hk4e_global');
+    assert.equal(directRes.success, true);
+    assert.equal(directRes.hoyoverseNotLoggedIn, false);
+
+    // 2. 両ホストとも -1071 -> success: false かつ hoyoverseNotLoggedIn: true
+    globalThis.fetch = async () => ({
+      status: 200,
+      json: async () => ({ retcode: -1071, message: 'Login expired', data: null })
+    });
+    const bothOutRes = await getUserGameRoles('hk4e_global');
+    assert.equal(bothOutRes.success, false);
+    assert.equal(bothOutRes.retcode, -1071);
+    assert.equal(bothOutRes.hoyoverseNotLoggedIn, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -333,6 +367,7 @@ test('getUserGameRoles: 1ホスト目が非JSON応答(HTML等)の場合に2ホ�
     const res = await getUserGameRoles('hk4e_global');
     assert.equal(res.success, true);
     assert.equal(res.role.game_uid, '800123456');
+    assert.equal(res.hoyoverseNotLoggedIn, false, '非JSON応答時は未ログイン誤検知しないこと');
     assert.equal(calledUrls.length, 2, '1ホスト目が非JSONなら2ホスト目へフォールバックすること');
     assert.ok(calledUrls[0].includes('api-os-takumi.hoyoverse.com'));
     assert.ok(calledUrls[1].includes('api-os-takumi.hoyolab.com'));

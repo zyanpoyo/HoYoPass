@@ -1086,3 +1086,20 @@ input:focus-visible + .slider {
   background-color: #475569;
   color: #ffffff;
 }
+
+/* 要ログイン状態の公式リンク強調 */
+.btn-site-link.needs-login {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.btn-site-link.needs-login:hover,
+.btn-site-link.needs-login:focus-visible {
+  color: #fecaca;
+  background-color: rgba(239, 68, 68, 0.26);
+  border-color: rgba(248, 113, 113, 0.6);
+}
