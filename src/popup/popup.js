@@ -1,5 +1,5 @@
 import { GAMES, API_CONFIG, PRIVACY_POLICY_VERSION } from '../config/constants.js';
-import { getSettings, updateSettings } from '../services/storage-service.js';
+import { defaultStateStore } from '../services/state-store.js';
 import { isNotLoggedIn } from '../services/hoyo-api.js';
 import { formatRedeemResult, formatSignResult } from '../utils/message-formatter.js';
 import { resolveLanguage, getGameLocalized, getPrivacyPolicyUrl, getGuideUrl, t } from '../utils/i18n.js';
@@ -59,7 +59,7 @@ function renderGameTabs(enabledGames) {
       if (gKey === state.currentGameKey) return;
       state.currentGameKey = gKey;
       gameTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.game === state.currentGameKey));
-      await updateSettings({ activeGameKey: state.currentGameKey });
+      await defaultStateStore.updateSettings({ activeGameKey: state.currentGameKey });
       updateGameView(state);
       renderLogs(state.currentGameKey, state.currentLang);
     });
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     trackGAEvent
   });
 
-  const settings = await getSettings();
+  const settings = await defaultStateStore.getSettings();
   state.currentGameKey = settings.activeGameKey || 'GENSHIN';
   state.currentLang = resolveLanguage(settings.language);
   const initialEnabledGames = settings.enabledGames || Object.keys(GAMES);
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const isAnalyticsEnabled = optinAnalyticsCb ? optinAnalyticsCb.checked : true;
 
-    await updateSettings({
+    await defaultStateStore.updateSettings({
       optInAccepted: true,
       autoSignEnabled: true,
       autoRedeemEnabled: true,
@@ -197,11 +197,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   autoSignToggle?.addEventListener('change', async (e) => {
-    await updateSettings({ autoSignEnabled: e.target.checked });
+    await defaultStateStore.updateSettings({ autoSignEnabled: e.target.checked });
   });
 
   autoRedeemToggle?.addEventListener('change', async (e) => {
-    await updateSettings({ autoRedeemEnabled: e.target.checked });
+    await defaultStateStore.updateSettings({ autoRedeemEnabled: e.target.checked });
     applyPopupAuthView(state.currentGameKey, state);
     await updateRedeemStatusView(state.currentGameKey, state);
   });
@@ -333,21 +333,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderLogs(state.currentGameKey, state.currentLang);
   await refreshReviewPromptBanner();
 
-  if (chrome.storage?.onChanged) {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== 'local') return;
-      if (changes.exec_logs) {
-        renderLogs(state.currentGameKey, state.currentLang);
+  defaultStateStore.subscribeChanges((event) => {
+    if (event.logsChanged) {
+      renderLogs(state.currentGameKey, state.currentLang);
+    }
+    const relevantBiz = GAMES[state.currentGameKey]?.gameBiz;
+    if (relevantBiz) {
+      if (event.redeemChangedBiz.includes(relevantBiz)) {
+        updateRedeemStatusView(state.currentGameKey, state);
       }
-      const relevantBiz = GAMES[state.currentGameKey]?.gameBiz;
-      if (relevantBiz) {
-        if (changes[`redeemed_${relevantBiz}`] || changes[`active_codes_${relevantBiz}`]) {
-          updateRedeemStatusView(state.currentGameKey, state);
-        }
-        if (changes[`daily_sign_${relevantBiz}`]) {
-          updateDailySignStatusView(state.currentGameKey, state);
-        }
+      if (event.signChangedBiz.includes(relevantBiz)) {
+        updateDailySignStatusView(state.currentGameKey, state);
       }
-    });
-  }
+    }
+  });
 });

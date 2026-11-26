@@ -1,4 +1,5 @@
 import { GAMES } from '../config/constants.js';
+import { defaultStateStore } from '../services/state-store.js';
 import { formatLogTimestamp } from '../utils/message-formatter.js';
 import { getGameLocalized, t } from '../utils/i18n.js';
 
@@ -59,8 +60,7 @@ export async function renderLogs(currentGameKey, currentLang) {
   const summaryEl = document.getElementById('latest-log-summary');
   if (!container) return;
 
-  const data = await chrome.storage.local.get('exec_logs');
-  const allLogs = data.exec_logs || [];
+  const allLogs = await defaultStateStore.getExecutionLogs();
   const logs = allLogs.filter(log => isLogForGame(log, currentGameKey));
 
   if (summaryEl) {

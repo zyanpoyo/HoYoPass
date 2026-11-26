@@ -1,5 +1,5 @@
 import { GAMES, API_CONFIG, PRIVACY_POLICY_VERSION, REVIEW_PROMPT_CONFIG } from '../config/constants.js';
-import { getSettings, updateSettings, needsPolicyReview } from '../services/storage-service.js';
+import { defaultStateStore, needsPolicyReview } from '../services/state-store.js';
 import {
   shouldShowReviewPrompt,
   updateReviewPromptState,
@@ -88,7 +88,7 @@ export function showAlertModal(title, message, detail = null) {
 export async function checkPolicyReviewModal(currentLang) {
   const policyUpdateModal = document.getElementById('policy-update-modal');
   const policyUpdateDesc = document.getElementById('policy-update-desc');
-  const cur = await getSettings();
+  const cur = await defaultStateStore.getSettings();
 
   if (cur.optInAccepted && cur.analyticsConsentReviewed && needsPolicyReview(cur)) {
     if (policyUpdateDesc) {
@@ -181,7 +181,7 @@ export function initConsentModals({ getCurrentLang }) {
 
   if (analyticsConsentAcceptBtn) {
     analyticsConsentAcceptBtn.addEventListener('click', async () => {
-      await updateSettings({
+      await defaultStateStore.updateSettings({
         analyticsEnabled: true,
         analyticsConsentReviewed: true,
         agreedPolicyVersion: PRIVACY_POLICY_VERSION
@@ -194,7 +194,7 @@ export function initConsentModals({ getCurrentLang }) {
 
   if (analyticsConsentDeclineBtn) {
     analyticsConsentDeclineBtn.addEventListener('click', async () => {
-      await updateSettings({
+      await defaultStateStore.updateSettings({
         analyticsEnabled: false,
         analyticsConsentReviewed: true
       });
@@ -206,7 +206,7 @@ export function initConsentModals({ getCurrentLang }) {
 
   if (policyUpdateAcceptBtn) {
     policyUpdateAcceptBtn.addEventListener('click', async () => {
-      await updateSettings({
+      await defaultStateStore.updateSettings({
         agreedPolicyVersion: PRIVACY_POLICY_VERSION
       });
       await syncConsentBadge();
@@ -227,7 +227,7 @@ export function initSettingsModal({ state, trackGAEvent, onSettingsApplied }) {
   const syncFilterValidation = setupCheckboxMinimumValidation(filterCheckboxes);
 
   const openFilterModal = async () => {
-    const curSettings = await getSettings();
+    const curSettings = await defaultStateStore.getSettings();
     const currentEnabled = curSettings.enabledGames || Object.keys(GAMES);
     filterCheckboxes.forEach(cb => {
       cb.checked = currentEnabled.includes(cb.value);
@@ -268,7 +268,7 @@ export function initSettingsModal({ state, trackGAEvent, onSettingsApplied }) {
       const chosenLangSetting = selectedLangRadio ? selectedLangRadio.value : 'auto';
       const chosenAnalytics = settingsAnalyticsCb ? settingsAnalyticsCb.checked : true;
 
-      await updateSettings({
+      await defaultStateStore.updateSettings({
         enabledGames: validSelectedGames,
         activeGameKey: state.currentGameKey,
         language: chosenLangSetting,

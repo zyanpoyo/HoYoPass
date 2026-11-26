@@ -1,7 +1,10 @@
 import { GAMES, ALARM_NAMES, STATUS_MAP, UNINSTALL_URL } from '../config/constants.js';
 import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
-import { getHoyoTodayDateString } from '../services/storage-service.js';
-import { computeJitteredDelayMs } from '../services/rate-limit-service.js';
+import {
+  getHoyoTodayDateString,
+  getNextHoyoDailySignTimestamp,
+  computeJitteredDelayMs
+} from '../services/state-store.js';
 import { isNetworkException, isTimeoutError } from '../services/http-client.js';
 import { isNotLoggedIn } from '../services/hoyo-api.js';
 import { toGaGameKey, toRedeemTrigger, toCheckinTrigger } from '../services/analytics-service.js';
@@ -85,22 +88,6 @@ function resolveEnabledGames(settings) {
     : Object.keys(GAMES);
 }
 
-function getNextDailySignTimestamp(nowMs, jitterMinutes = 0) {
-  const utc8OffsetMs = 8 * 60 * 60 * 1000;
-  const utc8Date = new Date(nowMs + utc8OffsetMs);
-  const targetUtc8 = Date.UTC(
-    utc8Date.getUTCFullYear(),
-    utc8Date.getUTCMonth(),
-    utc8Date.getUTCDate(),
-    0, 5, 0, 0
-  ) + jitterMinutes * 60 * 1000;
-  let nextWhen = targetUtc8 - utc8OffsetMs;
-  if (nextWhen <= nowMs) {
-    nextWhen += 24 * 60 * 60 * 1000;
-  }
-  return nextWhen;
-}
-
 function classifyFetchError(fetchErr) {
   const msg = typeof fetchErr?.message === 'string' ? fetchErr.message : '';
   const match = msg.match(/HTTP_ERROR_(\d+)/);
@@ -179,7 +166,7 @@ export function createBackgroundRunner(adapter) {
     const existing = await alarms.get(ALARM_NAMES.DAILY_SIGN);
     if (created || !existing || existing.periodInMinutes !== 1440) {
       await alarms.create(ALARM_NAMES.DAILY_SIGN, {
-        when: getNextDailySignTimestamp(clock.now(), minutes),
+        when: getNextHoyoDailySignTimestamp(clock.now(), minutes),
         periodInMinutes: 1440
       });
     }
@@ -556,7 +543,8 @@ export function createBackgroundRunner(adapter) {
     });
 
     if (!options.forceCheck) {
-      if (await store.isDailySignedToday(gameConfig.gameBiz)) {
+      const skipReason = await store.getDailySignSkipReason(gameConfig.gameBiz);
+      if (skipReason === 'ALREADY_SIGNED_TODAY') {
         return {
           success: true,
           skipped: true,
@@ -566,7 +554,7 @@ export function createBackgroundRunner(adapter) {
           gameName
         };
       }
-      if (await store.isDailySignAutoSkippedToday(gameConfig.gameBiz)) {
+      if (skipReason === 'CAPTCHA_BLOCKED_TODAY') {
         return {
           success: true,
           skipped: true,
@@ -798,10 +786,13 @@ export function createBackgroundRunner(adapter) {
       }
 
       if (triggerSource === 'MANUAL' && targetGameKey) {
-        await store.recordManualCooldown(spec.category, targetGameKey);
-        await store.resetRetryState(kind);
+        await store.recordFlowStart(kind, {
+          isManual: true,
+          category: spec.category,
+          gameKey: targetGameKey
+        });
       } else if (!targetGameKey) {
-        await store.setLastAttemptTimestamp(kind);
+        await store.recordFlowStart(kind, { isManual: false });
       }
 
       const gameKeys = targetGameKey ? [targetGameKey] : enabledGames;
@@ -863,14 +854,12 @@ export function createBackgroundRunner(adapter) {
         };
       }
 
-      await store.resetBackoffLevel();
-
+      await store.recordFlowSuccess(kind, {
+        isManual: Boolean(targetGameKey),
+        recordSuccessTimestamp: spec.recordSuccessTimestamp
+      });
       if (!targetGameKey) {
-        if (spec.recordSuccessTimestamp) {
-          await store.setLastSuccessfulRun(clock.now());
-        }
         await alarms.clear(spec.retryAlarmName);
-        await store.resetRetryState(kind);
       }
 
       return {
