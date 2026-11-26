@@ -26,6 +26,7 @@ import {
   clearManualCooldowns
 } from './rate-limit-service.js';
 
+const LOCK_STATE_KEY = 'lock_state';
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const STORAGE_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -50,8 +51,8 @@ export {
 };
 
 export async function acquireExecutionLock(triggerSource) {
-  const session = await chrome.storage.session.get('lock_state');
-  const lock = session.lock_state;
+  const session = await chrome.storage.session.get(LOCK_STATE_KEY);
+  const lock = session[LOCK_STATE_KEY];
   const now = Date.now();
 
   if (lock && lock.running && now - lock.startedAt < LOCK_TIMEOUT_MS) {
@@ -59,13 +60,26 @@ export async function acquireExecutionLock(triggerSource) {
   }
 
   await chrome.storage.session.set({
-    lock_state: { running: true, startedAt: now, trigger: triggerSource }
+    [LOCK_STATE_KEY]: { running: true, startedAt: now, trigger: triggerSource }
   });
   return true;
 }
 
 export async function releaseExecutionLock() {
-  await chrome.storage.session.remove('lock_state');
+  await chrome.storage.session.remove(LOCK_STATE_KEY);
+}
+
+/**
+ * MV3 Service Worker のアイドル停止を防ぐため、session ストレージへ軽量アクセスを行う。
+ */
+export async function pingSessionKeepAlive() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.session?.get) {
+      await chrome.storage.session.get(LOCK_STATE_KEY);
+    }
+  } catch {
+    // keepalive ping の失敗でキャッチアップ本体を止めない
+  }
 }
 
 export function needsPolicyReview(settings, current = PRIVACY_POLICY_VERSION) {

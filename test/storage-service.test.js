@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const mockStorage = {
-  local: new Map()
+  local: new Map(),
+  session: new Map()
 };
 
 globalThis.chrome = {
@@ -20,11 +21,21 @@ globalThis.chrome = {
         return res;
       },
       set: async (obj) => Object.entries(obj).forEach(([k, v]) => mockStorage.local.set(k, v))
+    },
+    session: {
+      get: async (key) => ({ [key]: mockStorage.session.get(key) }),
+      set: async (obj) => Object.entries(obj).forEach(([k, v]) => mockStorage.session.set(k, v)),
+      remove: async (key) => mockStorage.session.delete(key)
     }
   }
 };
 
 import {
+  acquireExecutionLock,
+  releaseExecutionLock,
+  pingSessionKeepAlive,
+  markCodeStatus,
+  getRedeemedCodes,
   addExecutionLog,
   getLastSuccessfulRun,
   setLastSuccessfulRun,
@@ -505,4 +516,56 @@ test('updateReviewPromptState: completed および dismissed による恒久非�
   await updateReviewPromptState({ status: 'dismissed' }, nowMs);
   assert.equal(await shouldShowReviewPrompt(nowMs), false);
   assert.equal(await shouldShowReviewPrompt(nowMs + 365 * 24 * 60 * 60 * 1000), false, '1年後も非表示');
+});
+
+test('排他ロック: 獲得と解放', async () => {
+  mockStorage.session.clear();
+  const lock1 = await acquireExecutionLock('TEST');
+  assert.equal(lock1, true);
+
+  const lock2 = await acquireExecutionLock('TEST2');
+  assert.equal(lock2, false, 'すでに実行中ならロック獲得失敗');
+
+  await releaseExecutionLock();
+  const lock3 = await acquireExecutionLock('TEST3');
+  assert.equal(lock3, true, '解放後はロック獲得可能');
+  await releaseExecutionLock();
+});
+
+test('pingSessionKeepAlive: session.get(lock_state) を呼び出し例外時も安全に完了すること', async () => {
+  const originalSessionGet = chrome.storage.session.get;
+  const sessionGetKeys = [];
+
+  try {
+    chrome.storage.session.get = async (key) => {
+      sessionGetKeys.push(key);
+      return originalSessionGet(key);
+    };
+    await pingSessionKeepAlive();
+    assert.deepEqual(sessionGetKeys, ['lock_state']);
+
+    chrome.storage.session.get = async () => {
+      throw new Error('storage session error');
+    };
+    await assert.doesNotReject(() => pingSessionKeepAlive());
+  } finally {
+    chrome.storage.session.get = originalSessionGet;
+  }
+});
+
+test('コードステータス記録: 短縮キー保存とリトライ', async () => {
+  mockStorage.local.clear();
+  await markCodeStatus('hk4e_global', 'TESTCODE1', 'SUCCESS');
+  let codes = await getRedeemedCodes('hk4e_global');
+  assert.equal(codes.TESTCODE1.s, STATUS_MAP.SUCCESS);
+
+  await markCodeStatus('hk4e_global', 'ERRCODE', 'RETRY');
+  codes = await getRedeemedCodes('hk4e_global');
+  assert.equal(codes.ERRCODE.s, STATUS_MAP.PENDING_RETRY);
+  assert.equal(codes.ERRCODE.r, 1);
+
+  await markCodeStatus('hk4e_global', 'ERRCODE', 'RETRY');
+  await markCodeStatus('hk4e_global', 'ERRCODE', 'RETRY');
+  codes = await getRedeemedCodes('hk4e_global');
+  assert.equal(codes.ERRCODE.s, STATUS_MAP.FAILED, '3回失敗でFAILED確定');
 });
