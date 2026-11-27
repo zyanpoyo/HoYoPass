@@ -1,8 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isLogForGame, buildLatestLogSummary, stripGamePrefix } from '../src/popup/log-view.js';
-import { setupCheckboxMinimumValidation } from '../src/popup/modals.js';
-import { resolvePopupAuthState, resolveManualRedeemFormatOptions } from '../src/popup/status-view.js';
+import {
+  GAMES,
+  ALARM_NAMES,
+  MESSAGE_TYPES,
+  PRIVACY_POLICY_VERSION,
+  REVIEW_PROMPT_CONFIG,
+  STATUS_MAP
+} from '../src/config/constants.js';
+import { API_STATUS } from '../src/services/api-gateway.js';
+import { getHoyoTodayDateString } from '../src/services/state-store.js';
+import { createBackgroundRunner } from '../src/background/background-runner.js';
+import { createBackgroundTestAdapter } from './helpers/background-test-adapter.js';
+import {
+  createPopupController,
+  isLogForGame,
+  buildLatestLogSummary,
+  stripGamePrefix,
+  resolvePopupAuthState,
+  resolveManualRedeemFormatOptions
+} from '../src/popup/popup-controller.js';
+import { setupCheckboxMinimumValidation } from '../src/popup/popup-dom-adapter.js';
+import { createPopupTestAdapter } from './helpers/popup-test-adapter.js';
+
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 test('isLogForGame: gameKey プロパティ優先判定とレガシー文字列フォールバック', () => {
   assert.equal(isLogForGame(null, 'GENSHIN'), false);
@@ -79,18 +108,15 @@ test('setupCheckboxMinimumValidation: 最後の1つのチェックボックス�
 
   setupCheckboxMinimumValidation([cb1, cb2, cb3]);
 
-  // 2つチェック時はすべて操作可能
   assert.equal(cb1.disabled, false);
   assert.equal(cb2.disabled, false);
   assert.equal(cb3.disabled, false);
 
-  // cb2 のチェックを外して残り1つ(cb1のみ)にすると cb1 が disabled になる
   cb2.checked = false;
   cb2.triggerChange();
   assert.equal(cb1.disabled, true);
   assert.equal(cb2.disabled, false);
 
-  // cb3 にチェックを入れて2つに戻すと disabled 解除
   cb3.checked = true;
   cb3.triggerChange();
   assert.equal(cb1.disabled, false);
@@ -100,13 +126,11 @@ test('setupCheckboxMinimumValidation: 最後の1つのチェックボックス�
 test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き換えON/OFFに応じた表示判定', () => {
   const sampleRole = { game_uid: '800123456', nickname: '蛍' };
 
-  // 1. 初期ロード中
   assert.deepEqual(
     resolvePopupAuthState({ roleRes: null, signInfo: null, autoRedeemEnabled: true }),
     { headerStatus: 'checking', needsSignLogin: false, needsRedeemLogin: false }
   );
 
-  // 2. .hoyoverse.com ログイン済み（両機能利用可能）
   assert.deepEqual(
     resolvePopupAuthState({
       roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: false },
@@ -116,7 +140,6 @@ test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き
     { headerStatus: 'online', needsSignLogin: false, needsRedeemLogin: false }
   );
 
-  // 3. .hoyolab.com のみログイン・.hoyoverse.com 未ログイン + 自動引き換え ON -> ヘッダ未ログイン + 交換カードのみ要ログイン
   assert.deepEqual(
     resolvePopupAuthState({
       roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
@@ -126,7 +149,6 @@ test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き
     { headerStatus: 'logged_out', needsSignLogin: false, needsRedeemLogin: true }
   );
 
-  // 4. .hoyolab.com のみログイン・.hoyoverse.com 未ログイン + 自動引き換え OFF（ログボ専用配慮）-> ログイン中のまま
   assert.deepEqual(
     resolvePopupAuthState({
       roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
@@ -136,7 +158,6 @@ test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き
     { headerStatus: 'online', needsSignLogin: false, needsRedeemLogin: false }
   );
 
-  // 5. 両方ログアウト + 自動引き換え ON -> 両カード要ログイン
   assert.deepEqual(
     resolvePopupAuthState({
       roleRes: { success: false, retcode: -100, hoyoverseNotLoggedIn: true },
@@ -146,7 +167,6 @@ test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き
     { headerStatus: 'logged_out', needsSignLogin: true, needsRedeemLogin: true }
   );
 
-  // 6. 両方ログアウト + 自動引き換え OFF -> ログボカードのみ要ログイン
   assert.deepEqual(
     resolvePopupAuthState({
       roleRes: { success: false, retcode: -100, hoyoverseNotLoggedIn: true },
@@ -156,7 +176,6 @@ test('resolvePopupAuthState: hoyoverse/hoyolab ログイン状態と自動引き
     { headerStatus: 'logged_out', needsSignLogin: true, needsRedeemLogin: false }
   );
 
-  // 7. キャラ不在 / 一時APIエラー / ネットワークエラー時は偽陽性の要ログインを出さない
   assert.deepEqual(
     resolvePopupAuthState({
       roleRes: { success: false, retcode: -1 },
@@ -197,7 +216,6 @@ test('resolveManualRedeemFormatOptions: 手動引き換え結果モーダルの�
     {}
   );
 
-  // hoyoverseNotLoggedIn + 自動引き換え ON -> 要ログイン ↗ 案内
   assert.deepEqual(
     resolveManualRedeemFormatOptions({
       roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
@@ -207,7 +225,6 @@ test('resolveManualRedeemFormatOptions: 手動引き換え結果モーダルの�
     { redeemNotLoggedIn: true, needsRedeemLogin: true }
   );
 
-  // hoyoverseNotLoggedIn + 自動引き換え OFF -> 公式 ↗ 案内
   assert.deepEqual(
     resolveManualRedeemFormatOptions({
       roleRes: { success: true, role: sampleRole, hoyoverseNotLoggedIn: true },
@@ -217,7 +234,6 @@ test('resolveManualRedeemFormatOptions: 手動引き換え結果モーダルの�
     { redeemNotLoggedIn: true, needsRedeemLogin: false }
   );
 
-  // 両方未ログイン (-100) + 自動引き換え ON
   assert.deepEqual(
     resolveManualRedeemFormatOptions({
       roleRes: { success: false, retcode: -100 },
@@ -225,4 +241,508 @@ test('resolveManualRedeemFormatOptions: 手動引き換え結果モーダルの�
     }),
     { redeemNotLoggedIn: true, needsRedeemLogin: true }
   );
+});
+
+test('PopupController: 初期ロードで単一取得のみ実行され、自己書込エコーによる再取得ループが起きないこと', async () => {
+  const adapter = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    },
+    gateway: {
+      getUserGameRoles: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        role: { game_uid: '800123456', nickname: '蛍' },
+        hoyoverseNotLoggedIn: false
+      }),
+      getDailySignInfo: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        isSigned: true,
+        totalSignDay: 12,
+        today: getHoyoTodayDateString(Date.parse('2026-10-17T03:00:00Z'))
+      }),
+      fetchValidCodes: async () => ['CODE001', 'CODE002']
+    }
+  });
+  adapter.seedRedeemedCodes(GAMES.GENSHIN.gameBiz, {
+    CODE001: { s: STATUS_MAP.SUCCESS, t: Math.floor(Date.parse('2026-10-17T03:00:00Z') / 1000) }
+  });
+
+  const controller = createPopupController(adapter);
+  const snap = await controller.init();
+  await controller.whenIdle();
+
+  const finalSnap = controller.getSnapshot();
+  assert.equal(adapter.gatewayCalls.getUserGameRoles.length, 1);
+  assert.equal(adapter.gatewayCalls.getDailySignInfo.length, 1);
+  assert.equal(adapter.gatewayCalls.fetchValidCodes.length, 1);
+  assert.equal(snap.auth.headerStatus, 'online');
+  assert.equal(finalSnap.auth.uid, '800123456');
+  assert.equal(finalSnap.signStatus.pillClass, 'status-pill signed');
+  assert.equal(finalSnap.redeemStatus.labelText, '有効コード 1/2 適用済');
+  assert.equal(finalSnap.redeemStatus.badgeText, '今月 1件 / 通算 1件');
+
+  controller.dispose();
+});
+
+test('PopupController: モーダル優先順位と閉鎖後のレビュー促進バナー再評価', async () => {
+  // 1. 初回未オプトイン -> optin モーダル表示中はレビューバナー抑止 -> acceptOptIn 後に表示
+  const adapter1 = createPopupTestAdapter();
+  adapter1.seedReviewPrompt({
+    successCount: REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT,
+    status: 'pending'
+  });
+
+  const c1 = createPopupController(adapter1);
+  const s1 = await c1.init();
+  assert.equal(s1.blockingModal, 'optin');
+  assert.equal(s1.reviewBannerVisible, false);
+
+  await c1.acceptOptIn({ selectedGames: ['STAR_RAIL'], analyticsEnabled: false });
+  await c1.whenIdle();
+
+  const afterOptIn = c1.getSnapshot();
+  assert.equal(afterOptIn.blockingModal, null);
+  assert.equal(afterOptIn.activeGameKey, 'STAR_RAIL');
+  assert.deepEqual(afterOptIn.enabledGames, ['STAR_RAIL']);
+  assert.equal(afterOptIn.autoSignEnabled, true);
+  assert.equal(afterOptIn.autoRedeemEnabled, true);
+  assert.equal(afterOptIn.reviewBannerVisible, true);
+  assert.ok(adapter1.syncConsentBadgeCalls >= 2);
+  assert.ok(adapter1.sentMessages.some(m => m.type === MESSAGE_TYPES.TRIGGER_INITIAL_CATCH_UP));
+  assert.ok(adapter1.sentMessages.some(m => m.type === MESSAGE_TYPES.TRACK_GA_EVENT && m.eventName === 'onboarding_complete'));
+  c1.dispose();
+
+  // 2. analytics_consent 未回答かつ旧ポリシー版 -> 拒否後に policy_update -> 同意後にレビューバナー表示
+  const adapter2 = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: false,
+      agreedPolicyVersion: '2025-01-01'
+    }
+  });
+  adapter2.seedReviewPrompt({
+    successCount: REVIEW_PROMPT_CONFIG.THRESHOLD_SUCCESS_COUNT,
+    status: 'pending'
+  });
+
+  const c2 = createPopupController(adapter2);
+  await c2.init();
+  assert.equal(c2.getSnapshot().blockingModal, 'analytics_consent');
+  assert.equal(c2.getSnapshot().reviewBannerVisible, false);
+
+  await c2.decideAnalyticsConsent(false);
+  assert.equal(c2.getSnapshot().blockingModal, 'policy_update');
+  assert.equal(c2.getSnapshot().reviewBannerVisible, false);
+
+  await c2.acceptPolicyUpdate();
+  assert.equal(c2.getSnapshot().blockingModal, null);
+  assert.equal(c2.getSnapshot().reviewBannerVisible, true);
+  c2.dispose();
+});
+
+test('PopupController: 未ログイン判定(-100/-1071)統一と autoRedeemEnabled 切替連動', async () => {
+  const adapter = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      autoSignEnabled: true,
+      autoRedeemEnabled: true
+    },
+    gateway: {
+      getUserGameRoles: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        role: { game_uid: '800123456', nickname: '蛍' },
+        hoyoverseNotLoggedIn: true
+      }),
+      getDailySignInfo: async () => ({
+        success: false,
+        status: API_STATUS.API_ERROR,
+        retcode: -1071
+      })
+    }
+  });
+
+  const controller = createPopupController(adapter);
+  const snap = await controller.init();
+  assert.equal(snap.auth.headerStatus, 'logged_out');
+  assert.equal(snap.auth.needsSignLogin, true);
+  assert.equal(snap.auth.needsRedeemLogin, true);
+  assert.equal(snap.auth.signLinkText, '要ログイン ↗');
+  assert.equal(snap.auth.redeemLinkText, '要ログイン ↗');
+  assert.equal(snap.signStatus.text, '未ログイン');
+
+  await controller.setAutoRedeemEnabled(false);
+  const afterOff = controller.getSnapshot();
+  assert.equal(afterOff.auth.needsSignLogin, true);
+  assert.equal(afterOff.auth.needsRedeemLogin, false);
+  assert.equal(afterOff.auth.redeemLinkText, '公式 ↗');
+
+  controller.dispose();
+});
+
+test('PopupController: タブ高速往復(A->B->A)時の遅延レスポンス上書きを防ぐこと', async () => {
+  const firstGenshinStarted = createDeferred();
+  const firstGenshinRole = createDeferred();
+  const secondGenshinRole = createDeferred();
+  let genshinCount = 0;
+
+  const adapter = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      activeGameKey: 'GENSHIN'
+    },
+    gateway: {
+      getUserGameRoles: async (gameBiz) => {
+        if (gameBiz === GAMES.GENSHIN.gameBiz) {
+          genshinCount++;
+          if (genshinCount === 1) {
+            firstGenshinStarted.resolve();
+            return firstGenshinRole.promise;
+          }
+          return secondGenshinRole.promise;
+        }
+        return {
+          success: true,
+          status: API_STATUS.OK,
+          retcode: 0,
+          role: { game_uid: '700000001', nickname: '星' },
+          hoyoverseNotLoggedIn: false
+        };
+      }
+    }
+  });
+
+  const controller = createPopupController(adapter);
+  const initPromise = controller.init();
+  await firstGenshinStarted.promise;
+
+  // GENSHIN(1回目) が未完了のまま STAR_RAIL -> GENSHIN(2回目) へ切替
+  await controller.selectGame('STAR_RAIL');
+  const backToGenshin = controller.selectGame('GENSHIN');
+
+  // 2回目の GENSHIN が先に完了（正常UID）
+  secondGenshinRole.resolve({
+    success: true,
+    status: API_STATUS.OK,
+    retcode: 0,
+    role: { game_uid: '888888888', nickname: '最新蛍' },
+    hoyoverseNotLoggedIn: false
+  });
+  await backToGenshin;
+
+  // 1回目の古い GENSHIN 応答（未ログイン）が遅れて到着しても上書きされないこと
+  firstGenshinRole.resolve({
+    success: false,
+    status: API_STATUS.NOT_LOGGED_IN,
+    retcode: -100,
+    role: null
+  });
+  await initPromise;
+  await controller.whenIdle();
+
+  assert.equal(genshinCount, 2);
+  const snap = controller.getSnapshot();
+  assert.equal(snap.activeGameKey, 'GENSHIN');
+  assert.equal(snap.auth.headerStatus, 'online');
+  assert.equal(snap.auth.uid, '888888888');
+  assert.equal(snap.auth.badgeText, 'ログイン中: 最新蛍');
+
+  controller.dispose();
+});
+
+test('PopupController: 設定モーダル保存で有効ゲーム退避・英語切替・GA送信が行われること', async () => {
+  const adapter = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      activeGameKey: 'GENSHIN',
+      enabledGames: ['GENSHIN', 'STAR_RAIL', 'ZZZ'],
+      language: 'ja',
+      analyticsEnabled: true
+    },
+    gateway: {
+      getUserGameRoles: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        role: { game_uid: '900111222', nickname: 'Belle' },
+        hoyoverseNotLoggedIn: false
+      })
+    }
+  });
+
+  const controller = createPopupController(adapter);
+  await controller.init();
+  await controller.openSettings();
+  assert.equal(controller.getSnapshot().settingsModal.open, true);
+
+  await controller.saveSettings({
+    selectedGames: ['ZZZ'],
+    language: 'en',
+    analyticsEnabled: false
+  });
+
+  const snap = controller.getSnapshot();
+  assert.equal(snap.settingsModal.open, false);
+  assert.equal(snap.lang, 'en');
+  assert.equal(snap.activeGameKey, 'ZZZ');
+  assert.deepEqual(snap.enabledGames, ['ZZZ']);
+  assert.equal(snap.game.name, 'Zenless Zone Zero');
+  assert.equal(snap.auth.badgeText, 'Logged in: Belle');
+  assert.ok(adapter.sentMessages.some(m => (
+    m.type === MESSAGE_TYPES.TRACK_GA_EVENT &&
+    m.eventName === 'ui_action' &&
+    m.params?.action_type === 'change_settings'
+  )));
+
+  controller.dispose();
+});
+
+test('PopupController: 手動ログボ・手動コード交換のローディング/アラート/認証キャッシュ即時更新と例外処理', async () => {
+  const redeemDeferred = createDeferred();
+  const adapter = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      activeGameKey: 'GENSHIN',
+      autoRedeemEnabled: true
+    },
+    gateway: {
+      getUserGameRoles: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        role: { game_uid: '800123456', nickname: '蛍' },
+        hoyoverseNotLoggedIn: false
+      })
+    }
+  });
+
+  const controller = createPopupController(adapter);
+  await controller.init();
+
+  // 手動コード交換（-1071 返却 -> 即時 hoyoverseNotLoggedIn = true 更新＆アラート表示）
+  adapter.setMessageHandler(async (msg) => {
+    if (msg.type === MESSAGE_TYPES.TRIGGER_MANUAL_REDEEM) {
+      return redeemDeferred.promise;
+    }
+    return { success: true };
+  });
+
+  const manualRedeemPromise = controller.triggerManualRedeem();
+  assert.equal(controller.getSnapshot().manualRedeemLoading, true);
+
+  redeemDeferred.resolve({
+    success: true,
+    redeemedCount: 0,
+    results: {
+      GENSHIN: { success: false, status: API_STATUS.NOT_LOGGED_IN, retcode: -1071, reason: 'LOGIN_REQUIRED' }
+    }
+  });
+  await manualRedeemPromise;
+
+  const afterRedeemErr = controller.getSnapshot();
+  assert.equal(afterRedeemErr.manualRedeemLoading, false);
+  assert.ok(afterRedeemErr.alertModal);
+  assert.equal(afterRedeemErr.auth.headerStatus, 'logged_out');
+  assert.equal(afterRedeemErr.auth.needsRedeemLogin, true);
+
+  controller.dismissAlert();
+  assert.equal(controller.getSnapshot().alertModal, null);
+
+  // 再実行で非スキップ成功 -> hoyoverseNotLoggedIn = false へ復帰
+  adapter.setMessageHandler(async () => ({
+    success: true,
+    redeemedCount: 1,
+    results: {
+      GENSHIN: { success: true, skipped: false, redeemedCount: 1 }
+    }
+  }));
+  await controller.triggerManualRedeem();
+  assert.equal(controller.getSnapshot().auth.headerStatus, 'online');
+  assert.equal(controller.getSnapshot().auth.needsRedeemLogin, false);
+
+  // 手動ログボで例外発生時 -> フォールバックアラート＋ローディング解除
+  adapter.setMessageHandler(async () => {
+    throw new Error('Port disconnected');
+  });
+  await controller.triggerManualSign();
+  const afterSignErr = controller.getSnapshot();
+  assert.equal(afterSignErr.manualSignLoading, false);
+  assert.equal(afterSignErr.alertModal.title, 'デイリーログインボーナス');
+  assert.equal(afterSignErr.alertModal.message, 'Port disconnected');
+
+  controller.dispose();
+});
+
+test('PopupController: アラームツールチップ（停止中・予定時刻あり・未登録）をタイムゾーン非依存で生成すること', async () => {
+  const scheduledTime = Date.parse('2026-10-17T06:45:00Z');
+  const expectedDate = new Date(scheduledTime);
+  const expectedHHMM = `${String(expectedDate.getHours()).padStart(2, '0')}:${String(expectedDate.getMinutes()).padStart(2, '0')}`;
+
+  const adapter = createPopupTestAdapter({
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      autoRedeemEnabled: false
+    }
+  });
+  adapter.seedActiveCodes(GAMES.GENSHIN.gameBiz, []);
+
+  const controller = createPopupController(adapter);
+  await controller.init();
+  assert.equal(controller.getSnapshot().redeemStatus.tooltip, '定期自動引き換え: 停止中');
+
+  adapter.setAlarm(ALARM_NAMES.AUTO_REDEEM, { scheduledTime });
+  await controller.setAutoRedeemEnabled(true);
+  assert.equal(controller.getSnapshot().redeemStatus.tooltip, `次回自動実行予定: ${expectedHHMM}`);
+
+  adapter.setAlarm(ALARM_NAMES.AUTO_REDEEM, null);
+  await controller.setAutoRedeemEnabled(false);
+  await controller.setAutoRedeemEnabled(true);
+  assert.equal(controller.getSnapshot().redeemStatus.tooltip, '定期自動引き換え: 稼働中 (3時間毎)');
+
+  controller.dispose();
+});
+
+test('PopupController: 外部ストレージ変更購読で自動更新され、dispose()後は更新されないこと', async () => {
+  const nowMs = Date.parse('2026-10-17T03:00:00Z');
+  const todayStr = getHoyoTodayDateString(nowMs);
+  const adapter = createPopupTestAdapter({
+    initialNowMs: nowMs,
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      activeGameKey: 'GENSHIN'
+    },
+    gateway: {
+      getDailySignInfo: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        isSigned: false,
+        totalSignDay: 4,
+        today: todayStr
+      })
+    }
+  });
+  adapter.seedActiveCodes(GAMES.GENSHIN.gameBiz, ['CODE_A']);
+
+  const controller = createPopupController(adapter);
+  await controller.init();
+  const signCallsBefore = adapter.gatewayCalls.getDailySignInfo.length;
+
+  // 外部（Background 等）がログ・ログボ記録・引き換え記録を書き込む
+  await adapter.addExecutionLog({
+    type: 'INFO',
+    category: 'REDEEM',
+    gameKey: 'GENSHIN',
+    message: '原神: 引き換え完了 (新規成功: 1件)'
+  });
+  await adapter.store.setDailySignRecord(GAMES.GENSHIN.gameBiz, {
+    date: todayStr,
+    isSigned: true,
+    totalSignDay: 5,
+    skippedNoChar: false
+  });
+  await adapter.markCodeStatus(GAMES.GENSHIN.gameBiz, 'CODE_A', 'SUCCESS');
+  await controller.whenIdle();
+
+  const updated = controller.getSnapshot();
+  assert.equal(updated.logs.items.length, 1);
+  assert.equal(updated.signStatus.pillClass, 'status-pill signed');
+  assert.equal(updated.redeemStatus.labelText, '有効コード 1/1 適用済');
+  // 外部 sign 変更時にリモート再照会ループが起きていないこと
+  assert.equal(adapter.gatewayCalls.getDailySignInfo.length, signCallsBefore);
+
+  controller.dispose();
+
+  await adapter.addExecutionLog({
+    type: 'ERROR',
+    category: 'REDEEM',
+    gameKey: 'GENSHIN',
+    message: '原神: dispose後のログ'
+  });
+  await controller.whenIdle();
+  assert.equal(controller.getSnapshot().logs.items.length, 1);
+});
+
+test('PopupController: 公式サイト遷移・UIDコピー・ログ展開・レビューバナー・DEVリセットとメッセージ契約整合', async () => {
+  const adapter = createPopupTestAdapter({
+    config: { IS_DEV: true },
+    settings: {
+      optInAccepted: true,
+      analyticsConsentReviewed: true,
+      agreedPolicyVersion: PRIVACY_POLICY_VERSION,
+      activeGameKey: 'GENSHIN'
+    },
+    gateway: {
+      getUserGameRoles: async () => ({
+        success: true,
+        status: API_STATUS.OK,
+        retcode: 0,
+        role: { game_uid: '800999888', nickname: '旅人' },
+        hoyoverseNotLoggedIn: false
+      })
+    }
+  });
+
+  const controller = createPopupController(adapter);
+  await controller.init();
+
+  const copyRes = await controller.copyUid();
+  assert.deepEqual(copyRes, { copied: true });
+  assert.deepEqual(adapter.copiedTexts, ['800999888']);
+
+  controller.openCheckinSite();
+  controller.openGiftSite();
+  controller.openGuide();
+  controller.openPrivacyPolicy();
+  controller.recordLogsOpened();
+  assert.equal(adapter.openedUrls.length, 4);
+
+  // DEVリセット -> 表示 -> あとで -> 再度リセット -> 書く
+  await controller.resetReviewPromptForDev();
+  assert.equal(controller.getSnapshot().reviewBannerVisible, true);
+
+  await controller.handleReviewLater();
+  assert.equal(controller.getSnapshot().reviewBannerVisible, false);
+  assert.equal(adapter.getReviewPromptState().status, 'postponed');
+
+  await controller.resetReviewPromptForDev();
+  assert.equal(controller.getSnapshot().reviewBannerVisible, true);
+  await controller.handleReviewWrite();
+  assert.equal(adapter.getReviewPromptState().status, 'completed');
+  assert.ok(adapter.openedUrls.includes(REVIEW_PROMPT_CONFIG.REVIEW_URL));
+
+  controller.dispose();
+
+  // MESSAGE_TYPES が background-runner.js の handleMessage と一致すること
+  const bgAdapter = createBackgroundTestAdapter();
+  const runner = createBackgroundRunner(bgAdapter);
+  for (const type of Object.values(MESSAGE_TYPES)) {
+    const dispatched = runner.handleMessage(
+      { type, gameKey: 'GENSHIN', eventName: 'ui_action', params: { action_type: 'open_log', game: 'none' } },
+      { id: bgAdapter.runtime.id }
+    );
+    assert.equal(dispatched.handled, true, `${type} が background-runner で受理されること`);
+    await dispatched.promise;
+  }
 });
