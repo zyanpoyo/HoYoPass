@@ -52,7 +52,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.6 — 内部アーキテクチャのモジュール深化（Background・状態管理・API通信・Popup・ゲーム定義カタログの一元化）による安定性・保守性の向上
+バージョン 1.3.6 — 軽微なバグを修正しました
 
 **Category** [REQUIRED]
 Productivity
@@ -110,7 +110,7 @@ HoYoPass is built with a privacy-first, zero-credential-collection design:
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.6 — Internal architecture improvements (deep modules for background runner, state store, API gateway, popup controller, and unified game catalog) for better stability and maintainability.
+Version 1.3.6 — Fixed minor bugs.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
