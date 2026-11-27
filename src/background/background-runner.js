@@ -1,4 +1,4 @@
-import { GAMES, ALARM_NAMES, STATUS_MAP, UNINSTALL_URL } from '../config/constants.js';
+import { GAMES, ALARM_NAMES, MESSAGE_TYPES, STATUS_MAP, UNINSTALL_URL } from '../config/constants.js';
 import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
 import {
   getHoyoTodayDateString,
@@ -1025,10 +1025,10 @@ export function createBackgroundRunner(adapter) {
     }
 
     const handlers = {
-      TRIGGER_MANUAL_REDEEM: () => runFlow('REDEEM', 'MANUAL', message.gameKey),
-      TRIGGER_MANUAL_SIGN: () => runFlow('SIGN', 'MANUAL', message.gameKey),
-      TRIGGER_INITIAL_CATCH_UP: () => runCatchUp('INITIAL_RUN', { skipDelay: true }),
-      TRACK_GA_EVENT: () => gateway.sendGAEvent(message.eventName, message.params)
+      [MESSAGE_TYPES.TRIGGER_MANUAL_REDEEM]: () => runFlow('REDEEM', 'MANUAL', message.gameKey),
+      [MESSAGE_TYPES.TRIGGER_MANUAL_SIGN]: () => runFlow('SIGN', 'MANUAL', message.gameKey),
+      [MESSAGE_TYPES.TRIGGER_INITIAL_CATCH_UP]: () => runCatchUp('INITIAL_RUN', { skipDelay: true }),
+      [MESSAGE_TYPES.TRACK_GA_EVENT]: () => gateway.sendGAEvent(message.eventName, message.params)
     };
 
     const handler = handlers[message.type];
