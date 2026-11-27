@@ -1,7 +1,5 @@
-import {
-  GAMES,
-  REVIEW_PROMPT_CONFIG
-} from '../config/constants.js';
+import { REVIEW_PROMPT_CONFIG } from '../config/constants.js';
+import { GAMES } from '../config/games.js';
 import { defaultStateStore } from './state-store.js';
 
 const VALID_REVIEW_STATUSES = ['pending', 'postponed', 'completed', 'dismissed'];

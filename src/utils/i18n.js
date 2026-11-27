@@ -1,4 +1,5 @@
-import { GAMES, DOCS_URLS } from '../config/constants.js';
+import { DOCS_URLS } from '../config/constants.js';
+import { getLocalizedGame } from '../config/games.js';
 
 export const SUPPORTED_LANGUAGES = ['auto', 'ja', 'en'];
 
@@ -78,43 +79,7 @@ export function formatDailySignTimeLocal() {
  * @param {'ja'|'en'} [lang]
  */
 export function getGameLocalized(gameKey, lang = 'ja') {
-  const isEn = lang === 'en';
-  const base = GAMES[gameKey] || {};
-
-  switch (gameKey) {
-    case 'GENSHIN':
-      return {
-        ...base,
-        name: isEn ? 'Genshin Impact' : '原神',
-        shortName: isEn ? 'GI' : '原',
-        tabLabel: isEn ? 'Genshin' : '原神',
-        giftSiteUrl: isEn ? 'https://genshin.hoyoverse.com/en/gift' : 'https://genshin.hoyoverse.com/ja/gift'
-      };
-    case 'STAR_RAIL':
-      return {
-        ...base,
-        name: isEn ? 'Honkai: Star Rail' : '崩壊：スターレイル',
-        shortName: isEn ? 'HSR' : '星',
-        tabLabel: isEn ? 'Star Rail' : 'スタレ',
-        giftSiteUrl: base.giftSiteUrl || 'https://hsr.hoyoverse.com/gift'
-      };
-    case 'ZZZ':
-      return {
-        ...base,
-        name: isEn ? 'Zenless Zone Zero' : 'ゼンレスゾーンゼロ',
-        shortName: 'ZZZ',
-        tabLabel: 'ZZZ',
-        giftSiteUrl: base.giftSiteUrl || 'https://zenless.hoyoverse.com/redemption/gift'
-      };
-    default:
-      return {
-        ...base,
-        name: base.name || gameKey,
-        shortName: base.shortName || gameKey,
-        tabLabel: base.tabLabel || gameKey,
-        giftSiteUrl: base.giftSiteUrl || ''
-      };
-  }
+  return getLocalizedGame(gameKey, lang);
 }
 
 /**

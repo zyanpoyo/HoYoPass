@@ -1,11 +1,17 @@
 import {
-  GAMES,
   API_CONFIG,
   ALARM_NAMES,
   MESSAGE_TYPES,
   PRIVACY_POLICY_VERSION,
   REVIEW_PROMPT_CONFIG
 } from '../config/constants.js';
+import {
+  GAMES,
+  DEFAULT_ENABLED_GAMES,
+  DEFAULT_GAME_KEY,
+  getGameAllLocalizedNames,
+  buildOnboardingEnabledParams
+} from '../config/games.js';
 import { getHoyoTodayDateString, needsPolicyReview } from '../services/state-store.js';
 import { API_STATUS, isNotLoggedIn } from '../services/api-gateway.js';
 import { formatRedeemResult, formatSignResult, formatLogTimestamp } from '../utils/message-formatter.js';
@@ -43,22 +49,16 @@ export function isLogForGame(log, gameKey) {
     return log.gameKey === gameKey;
   }
   const msg = log.message || '';
-  const jaName = GAMES[gameKey]?.name;
-  const enName = getGameLocalized(gameKey, 'en')?.name;
-
-  if ((jaName && msg.includes(jaName)) || (enName && msg.includes(enName))) {
+  const ownNames = getGameAllLocalizedNames(gameKey);
+  if (ownNames.some(name => msg.includes(name))) {
     return true;
   }
 
-  const otherNames = [];
-  Object.keys(GAMES).forEach((k) => {
-    if (k !== gameKey) {
-      otherNames.push(GAMES[k]?.name);
-      otherNames.push(getGameLocalized(k, 'en')?.name);
-    }
-  });
+  const otherNames = DEFAULT_ENABLED_GAMES
+    .filter(k => k !== gameKey)
+    .flatMap(k => getGameAllLocalizedNames(k));
 
-  return !otherNames.some(name => name && msg.includes(name));
+  return !otherNames.some(name => msg.includes(name));
 }
 
 /**
@@ -83,14 +83,12 @@ export function buildLatestLogSummary(latestLog, lang = 'ja') {
  * ログ本文先頭に付与された日英ゲーム名プレフィックスを取り除く。
  */
 export function stripGamePrefix(rawMessage, gameKey) {
-  let cleanMsg = rawMessage || '';
-  const jaPrefix = `${GAMES[gameKey]?.name}: `;
-  const enPrefix = `${getGameLocalized(gameKey, 'en')?.name}: `;
-
-  if (cleanMsg.startsWith(jaPrefix)) {
-    cleanMsg = cleanMsg.slice(jaPrefix.length);
-  } else if (cleanMsg.startsWith(enPrefix)) {
-    cleanMsg = cleanMsg.slice(enPrefix.length);
+  const cleanMsg = rawMessage || '';
+  for (const name of getGameAllLocalizedNames(gameKey)) {
+    const prefix = `${name}: `;
+    if (cleanMsg.startsWith(prefix)) {
+      return cleanMsg.slice(prefix.length);
+    }
   }
   return cleanMsg;
 }
@@ -248,7 +246,7 @@ export function createPopupController(adapter) {
   } = adapter;
 
   let enabledGames = Object.keys(GAMES);
-  let currentGameKey = enabledGames[0] || 'GENSHIN';
+  let currentGameKey = enabledGames[0] || DEFAULT_GAME_KEY;
   let languageSetting = 'auto';
   let currentLang = resolveLanguage('auto', runtime?.uiLanguage || '');
   let autoSignEnabled = false;
@@ -374,7 +372,7 @@ export function createPopupController(adapter) {
   }
 
   function getSnapshot() {
-    const gameConfig = GAMES[currentGameKey] || GAMES.GENSHIN;
+    const gameConfig = GAMES[currentGameKey] || GAMES[DEFAULT_GAME_KEY];
     const localized = getGameLocalized(currentGameKey, currentLang);
     const intervalStr = formatIntervalLabel(config.REDEEM_INTERVAL_MINUTES, currentLang);
 
@@ -780,9 +778,7 @@ export function createPopupController(adapter) {
     ]);
 
     trackGAEvent('onboarding_complete', {
-      genshin_enabled: chosenGames.includes('GENSHIN'),
-      hsr_enabled: chosenGames.includes('STAR_RAIL'),
-      zzz_enabled: chosenGames.includes('ZZZ'),
+      ...buildOnboardingEnabledParams(chosenGames),
       lang: currentLang
     });
 

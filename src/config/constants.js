@@ -32,9 +32,7 @@ export const API_CONFIG = {
   MAX_EXECUTION_LOGS: 50, // ポップアップ・ストレージ保持ログ件数
   IS_DEV: FLAVOR_CONFIG?.config?.IS_DEV ?? false,
   FLAVOR_UI: FLAVOR_CONFIG?.ui ?? {
-    badgeText: '',
-    intervalLabel: '定期自動引き換え (3時間毎)',
-    signIntervalLabel: '自動受け取り (毎日 01:05頃)'
+    badgeText: ''
   }
 };
 
@@ -59,71 +57,6 @@ export const STATUS_MAP = {
   INVALID: 3,
   FAILED: 4,
   PENDING_RETRY: 5
-};
-
-export const DEFAULT_ENABLED_GAMES = ['GENSHIN', 'STAR_RAIL', 'ZZZ'];
-
-export const GAMES = {
-  GENSHIN: {
-    name: '原神',
-    shortName: '原',
-    tabLabel: '原神',
-    iconPath: '/assets/icons/genshin.png',
-    gameBiz: 'hk4e_global',
-    exchangeHost: 'https://sg-hk4e-api.hoyoverse.com',
-    exchangePath: '/common/apicdkey/api/webExchangeCdkey',
-    hoyoCodesParam: 'genshin',
-    giftSiteUrl: 'https://genshin.hoyoverse.com/ja/gift',
-    actId: 'e202102251931481',
-    signGameHeader: 'hk4e',
-    signHosts: [
-      'https://sg-hk4e-api.hoyolab.com',
-      'https://sg-hk4e-api.hoyoverse.com'
-    ],
-    infoPath: '/event/sol/info',
-    signPath: '/event/sol/sign',
-    checkInSiteUrl: 'https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481'
-  },
-  STAR_RAIL: {
-    name: '崩壊：スターレイル',
-    shortName: '星',
-    tabLabel: 'スタレ',
-    iconPath: '/assets/icons/starrail.png',
-    gameBiz: 'hkrpg_global',
-    exchangeHost: 'https://sg-hkrpg-api.hoyoverse.com',
-    exchangePath: '/common/apicdkey/api/webExchangeCdkey',
-    hoyoCodesParam: 'hkrpg',
-    giftSiteUrl: 'https://hsr.hoyoverse.com/gift',
-    actId: 'e202303301540311',
-    signGameHeader: 'hkrpg',
-    signHosts: [
-      'https://sg-public-api.hoyolab.com',
-      'https://sg-public-api.hoyoverse.com'
-    ],
-    infoPath: '/event/luna/os/info',
-    signPath: '/event/luna/os/sign',
-    checkInSiteUrl: 'https://act.hoyolab.com/bbs/event/signin/hkrpg/index.html?act_id=e202303301540311'
-  },
-  ZZZ: {
-    name: 'ゼンレスゾーンゼロ',
-    shortName: '絶',
-    tabLabel: 'ZZZ',
-    iconPath: '/assets/icons/zzz.png',
-    gameBiz: 'nap_global',
-    exchangeHost: 'https://public-operation-nap.hoyoverse.com',
-    exchangePath: '/common/apicdkey/api/webExchangeCdkey',
-    hoyoCodesParam: 'nap',
-    giftSiteUrl: 'https://zenless.hoyoverse.com/redemption/gift',
-    actId: 'e202406031448091',
-    signGameHeader: 'zzz',
-    signHosts: [
-      'https://sg-act-nap-api.hoyolab.com',
-      'https://sg-act-nap-api.hoyoverse.com'
-    ],
-    infoPath: '/event/luna/zzz/os/info',
-    signPath: '/event/luna/zzz/os/sign',
-    checkInSiteUrl: 'https://act.hoyolab.com/bbs/event/signin/zzz/index.html?act_id=e202406031448091'
-  }
 };
 
 export const ALLOWED_REGIONS = [

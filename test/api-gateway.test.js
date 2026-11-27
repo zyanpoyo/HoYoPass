@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GAMES, DOCS_URLS } from '../src/config/constants.js';
+import { DOCS_URLS } from '../src/config/constants.js';
+import { GAMES } from '../src/config/games.js';
 import {
   API_STATUS,
   ERROR_KIND,

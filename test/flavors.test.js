@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildFlavor } from '../scripts/build.js';
 import { FLAVORS } from '../src/config/flavors.js';
+import { API_CONFIG } from '../src/config/constants.js';
 
 test('FLAVORS: 定義整合性チェック', () => {
   assert.ok(FLAVORS.dev, 'dev フレーバーが存在すること');
@@ -14,12 +15,17 @@ test('FLAVORS: 定義整合性チェック', () => {
   assert.equal(FLAVORS.dev.config.CATCH_UP_DELAY_MS, 15_000, 'devはディレイ15秒');
   assert.equal(FLAVORS.dev.config.IS_DEV, true, 'devはIS_DEV: true');
   assert.equal(FLAVORS.dev.manifest.nameSuffix, ' [DEV]');
+  assert.deepEqual(FLAVORS.dev.ui, { badgeText: 'DEV' }, '未使用ラベルを持たないこと');
 
   // prod
   assert.equal(FLAVORS.prod.config.REDEEM_INTERVAL_MINUTES, 180, 'prodは180分(3時間)周期');
   assert.equal(FLAVORS.prod.config.CATCH_UP_DELAY_MS, 15_000, 'prodはディレイ15秒');
   assert.equal(FLAVORS.prod.config.IS_DEV, false, 'prodはIS_DEV: false');
   assert.equal(FLAVORS.prod.manifest.nameSuffix, '');
+  assert.deepEqual(FLAVORS.prod.ui, { badgeText: '' }, '未使用ラベルを持たないこと');
+
+  assert.equal(Object.hasOwn(API_CONFIG.FLAVOR_UI, 'intervalLabel'), false);
+  assert.equal(Object.hasOwn(API_CONFIG.FLAVOR_UI, 'signIntervalLabel'), false);
 });
 
 test('buildFlavor(dev): dist/dev への出力検証', () => {
@@ -46,6 +52,8 @@ test('buildFlavor(dev): dist/dev への出力検証', () => {
   assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 180/);
   assert.match(envContent, /"CATCH_UP_DELAY_MS": 15000/);
   assert.match(envContent, /"IS_DEV": true/);
+  assert.equal(envContent.includes('intervalLabel'), false);
+  assert.equal(envContent.includes('signIntervalLabel'), false);
 
   // 静的ファイル
   assert.ok(fs.existsSync(path.join(devDir, 'icons/icon128.png')), 'icons がコピーされていること');
@@ -77,6 +85,8 @@ test('buildFlavor(prod): dist/prod への出力検証', () => {
   assert.match(envContent, /"REDEEM_INTERVAL_MINUTES": 180/);
   assert.match(envContent, /"CATCH_UP_DELAY_MS": 15000/);
   assert.match(envContent, /"IS_DEV": false/);
+  assert.equal(envContent.includes('intervalLabel'), false);
+  assert.equal(envContent.includes('signIntervalLabel'), false);
 });
 
 test('messages.json: name が 75 文字以内、description が 132 文字以内であること (Chrome Web Store 制限)', () => {

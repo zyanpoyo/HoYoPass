@@ -14,8 +14,7 @@ export const FLAVOR_CONFIG = {
     IS_DEV: false
   },
   ui: {
-    badgeText: '',
-    intervalLabel: '定期自動引き換え (3時間毎)'
+    badgeText: ''
   }
 };
 export const GA_MEASUREMENT_ID = '';

@@ -128,9 +128,10 @@ src/
 │   ├── chrome-adapter.js       # MV3 ランタイム API・各種サービス接続用アダプターおよびイベントリスナー配線
 │   └── service-worker.js       # MV3 Service Worker エントリポイント（アダプター生成と同期リスナー配線のみ）
 ├── config/
-│   ├── constants.js            # API定数、ゲーム固有エンドポイント設定（ログボ・コード）、URL定義
+│   ├── constants.js            # API定数、リージョン・レビュー促進・ポリシーバージョン・ドキュメントURL定義
 │   ├── env.js                  # ビルド時自動生成されるフレーバー・GA4環境変数定義
-│   └── flavors.js              # dev / prod ビルドフレーバー別のアラーム周期・ラベル設定
+│   ├── flavors.js              # dev / prod ビルドフレーバー別のアラーム周期・バッジ設定
+│   └── games.js                # ゲーム定義カタログの単一ソース（多言語名称・URL・GAキー・APIホスト・派生参照ヘルパー）
 ├── popup/
 │   ├── popup.html              # 統合2カード型ポップアップUIマークアップ
 │   ├── popup.css               # スタイリング（ダークモード基調、2カード構成、モーダル・バナー）

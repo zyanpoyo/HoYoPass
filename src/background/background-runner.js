@@ -1,4 +1,5 @@
-import { GAMES, ALARM_NAMES, MESSAGE_TYPES, STATUS_MAP, UNINSTALL_URL } from '../config/constants.js';
+import { ALARM_NAMES, MESSAGE_TYPES, STATUS_MAP, UNINSTALL_URL } from '../config/constants.js';
+import { GAMES } from '../config/games.js';
 import { resolveLanguage, getGameLocalized, t } from '../utils/i18n.js';
 import {
   getHoyoTodayDateString,

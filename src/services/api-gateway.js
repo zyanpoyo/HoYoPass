@@ -1,4 +1,5 @@
-import { API_CONFIG, GAMES, ALLOWED_REGIONS } from '../config/constants.js';
+import { API_CONFIG, ALLOWED_REGIONS } from '../config/constants.js';
+import { GAMES, DEFAULT_GAME_KEY } from '../config/games.js';
 import { getExchangeApiLang, getSignApiLang } from '../utils/i18n.js';
 
 const TAKUMI_HOSTS = [
@@ -366,7 +367,7 @@ export function createApiGateway({
     return { done: false, lastFailure };
   }
 
-  async function fetchValidCodes(gameKey = 'GENSHIN') {
+  async function fetchValidCodes(gameKey = DEFAULT_GAME_KEY) {
     const param = GAMES[gameKey]?.hoyoCodesParam || gameKey.toLowerCase();
     const url = `${PUBLIC_CODE_API_ORIGIN}/codes?game=${encodeURIComponent(param)}`;
     const response = await publicFetch(url);
@@ -437,7 +438,7 @@ export function createApiGateway({
     return [...new Set(validCodes)];
   }
 
-  async function getUserGameRoles(gameBiz = 'hk4e_global') {
+  async function getUserGameRoles(gameBiz = GAMES[DEFAULT_GAME_KEY].gameBiz) {
     let hoyoverseNotLoggedIn = false;
 
     const outcome = await requestHoyoJson({
