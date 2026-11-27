@@ -6,7 +6,8 @@ import { bindChromeListeners } from '../src/background/chrome-adapter.js';
 import { createBackgroundTestAdapter } from './helpers/background-test-adapter.js';
 import { formatRedeemResult } from '../src/utils/message-formatter.js';
 import { API_STATUS, ERROR_KIND, GatewayError } from '../src/services/api-gateway.js';
-import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
+import { STATUS_MAP, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
+import { GAMES } from '../src/config/games.js';
 
 const LOGIN_NOTIFICATION_PREFIX = 'login_required_';
 const SIGN_LOGIN_NOTIFICATION_PREFIX = 'sign_login_required_';

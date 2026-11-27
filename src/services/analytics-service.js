@@ -1,18 +1,10 @@
 import { API_CONFIG } from '../config/constants.js';
+import { getGameGaKey, getOnboardingEnabledParamKeys } from '../config/games.js';
 import { defaultStateStore, needsPolicyReview } from './state-store.js';
 import { resolveLanguage } from '../utils/i18n.js';
 
 export function toGaGameKey(gameKey) {
-  switch (gameKey) {
-    case 'GENSHIN':
-      return 'genshin';
-    case 'STAR_RAIL':
-      return 'hsr';
-    case 'ZZZ':
-      return 'zzz';
-    default:
-      return 'none';
-  }
+  return getGameGaKey(gameKey);
 }
 
 export function toRedeemTrigger(triggerSource) {
@@ -29,7 +21,7 @@ export function toCheckinTrigger(triggerSource) {
 const ALLOWED_EVENT_PARAMS = {
   code_redeem_result: ['game', 'trigger', 'status', 'error_reason'],
   daily_checkin_result: ['game', 'trigger', 'status', 'error_reason'],
-  onboarding_complete: ['genshin_enabled', 'hsr_enabled', 'zzz_enabled'],
+  onboarding_complete: getOnboardingEnabledParamKeys(),
   ui_action: ['action_type', 'game'],
   code_list_fetch_error: ['game', 'http_status', 'error_type']
 };
@@ -89,7 +81,7 @@ export async function sendGAEvent(eventName, rawParams = {}, { store = defaultSt
     }
 
     // 共通パラメータの付与
-    let appVersion = '1.3.5';
+    let appVersion = '1.3.6';
     try {
       if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
         appVersion = chrome.runtime.getManifest()?.version || appVersion;

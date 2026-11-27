@@ -1,4 +1,5 @@
-import { API_CONFIG, GAMES, DEFAULT_ENABLED_GAMES } from '../../src/config/constants.js';
+import { API_CONFIG } from '../../src/config/constants.js';
+import { GAMES, DEFAULT_ENABLED_GAMES, DEFAULT_GAME_KEY } from '../../src/config/games.js';
 import { API_STATUS } from '../../src/services/api-gateway.js';
 import { createStateStore } from '../../src/services/state-store.js';
 import { createReviewPromptService } from '../../src/services/review-prompt-service.js';
@@ -9,7 +10,7 @@ function createDefaultSettings() {
     optInAccepted: false,
     autoRedeemEnabled: false,
     autoSignEnabled: false,
-    activeGameKey: 'GENSHIN',
+    activeGameKey: DEFAULT_GAME_KEY,
     enabledGames: [...DEFAULT_ENABLED_GAMES],
     language: 'auto',
     analyticsConsentReviewed: false,

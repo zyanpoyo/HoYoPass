@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  GAMES,
   ALARM_NAMES,
   MESSAGE_TYPES,
   PRIVACY_POLICY_VERSION,
   REVIEW_PROMPT_CONFIG,
   STATUS_MAP
 } from '../src/config/constants.js';
+import { GAMES } from '../src/config/games.js';
 import { API_STATUS } from '../src/services/api-gateway.js';
 import { getHoyoTodayDateString } from '../src/services/state-store.js';
 import { createBackgroundRunner } from '../src/background/background-runner.js';

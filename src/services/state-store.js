@@ -1,11 +1,14 @@
 import {
   API_CONFIG,
   STATUS_MAP,
-  GAMES,
-  DEFAULT_ENABLED_GAMES,
   PRIVACY_POLICY_VERSION,
   LEGACY_POLICY_VERSION
 } from '../config/constants.js';
+import {
+  GAMES,
+  DEFAULT_ENABLED_GAMES,
+  DEFAULT_GAME_KEY
+} from '../config/games.js';
 import { createChromeStorageAdapter } from './chrome-storage-adapter.js';
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -182,7 +185,7 @@ export function createStateStore({
         optInAccepted: false,
         autoRedeemEnabled: false,
         autoSignEnabled: false,
-        activeGameKey: 'GENSHIN',
+        activeGameKey: DEFAULT_GAME_KEY,
         enabledGames: [...defaultGames],
         language: 'auto',
         analyticsConsentReviewed: false,

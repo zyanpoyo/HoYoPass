@@ -12,9 +12,7 @@ export const FLAVORS = {
       IS_DEV: true
     },
     ui: {
-      badgeText: 'DEV',
-      intervalLabel: '定期自動引き換え (開発版: 3時間毎)',
-      signIntervalLabel: '自動受け取り (毎日 01:05頃)'
+      badgeText: 'DEV'
     }
   },
   prod: {
@@ -30,9 +28,7 @@ export const FLAVORS = {
       IS_DEV: false
     },
     ui: {
-      badgeText: '',
-      intervalLabel: '定期自動引き換え (3時間毎)',
-      signIntervalLabel: '自動受け取り (毎日 01:05頃)'
+      badgeText: ''
     }
   }
 };
