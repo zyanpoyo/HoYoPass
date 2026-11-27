@@ -81,7 +81,7 @@ export async function sendGAEvent(eventName, rawParams = {}, { store = defaultSt
     }
 
     // 共通パラメータの付与
-    let appVersion = '1.3.5';
+    let appVersion = '1.3.6';
     try {
       if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
         appVersion = chrome.runtime.getManifest()?.version || appVersion;

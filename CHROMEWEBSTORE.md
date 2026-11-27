@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — HoYoPass
 
-> Last Updated: 2026-11-24
+> Last Updated: 2026-11-27
 
 ## Store Listing (Japanese / 日本語)
 
@@ -52,7 +52,7 @@ HoYoverse各ゲーム（原神、崩壊：スターレイル、ゼンレスゾ�
 【サポート & お問い合わせ】
 不具合報告や機能要望は、Chrome ウェブストアの本拡張機能ページ（サポートタブ）よりご連絡ください。
 
-バージョン 1.3.5 — 公式コード交換サイト未ログイン検知と誘導UI・通知の改善、および同種コード既使用(-2018)への最適化
+バージョン 1.3.6 — 内部アーキテクチャのモジュール深化（Background・状態管理・API通信・Popup・ゲーム定義カタログの一元化）による安定性・保守性の向上
 
 **Category** [REQUIRED]
 Productivity
@@ -110,7 +110,7 @@ HoYoPass is built with a privacy-first, zero-credential-collection design:
 [Support]
 Please submit any questions or bug reports through the Support tab on the Chrome Web Store page.
 
-Version 1.3.5 — Improved detection and re-login guidance for official code redemption site sessions, plus one-pass handling for -2018.
+Version 1.3.6 — Internal architecture improvements (deep modules for background runner, state store, API gateway, popup controller, and unified game catalog) for better stability and maintainability.
 
 **Single Purpose** [REQUIRED]
 Automatically claims HoYoverse daily check-in rewards and redeems public gift codes to assist players in acquiring in-game items.
@@ -207,6 +207,7 @@ https://hoyopass.pages.dev/ (English: https://hoyopass.pages.dev/index_en)
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
+| 1.3.6 | 2026-11-27 | 内部アーキテクチャのモジュール深化（Background・永続状態ストア・API通信・Popup・ゲーム定義カタログの一元化）および未使用フレーバー設定の整理 | Ready |
 | 1.3.5 | 2026-11-26 | 交換コードAPI未ログイン(-100/-1071)検知・Windows通知・ポップアップ「要ログイン ↗」導線・未適用0件時モーダル補足・同種コード既使用(-2018)対応 | Ready |
 | 1.3.4 | 2026-11-24 | 未使用コード事前判定による非公開API通信の削減、ストア説明文・UI・ドキュメントの注意喚起および免責表記の強化 | Released |
 | 1.3.3 | 2026-11-23 | リクエスト分散（ジッター）・指数バックオフ・リトライ上限・手動クールダウンの導入、MV3待機保護・非JSON応答防御による通信耐性および安定性の向上 | Released |

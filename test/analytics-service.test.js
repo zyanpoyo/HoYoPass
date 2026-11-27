@@ -22,7 +22,7 @@ globalThis.chrome = {
     setBadgeBackgroundColor: async (opts) => { badgeState.color = opts?.color ?? ''; }
   },
   runtime: {
-    getManifest: () => ({ version: '1.3.5' })
+    getManifest: () => ({ version: '1.3.6' })
   }
 };
 
@@ -233,7 +233,7 @@ test('sendGAEvent: 共通パラメータ付与および開発/本番送信の挙
     let res = await sendGAEvent('ui_action', { action_type: 'open_log', game: 'none' }, { store });
     assert.equal(res.success, true);
     assert.equal(res.isDev, true);
-    assert.equal(res.params.app_version, '1.3.5');
+    assert.equal(res.params.app_version, '1.3.6');
     assert.equal(res.params.lang, 'ja');
     assert.equal(res.params.engagement_time_msec, 100);
     assert.ok(res.params.session_id);
