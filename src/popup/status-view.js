@@ -1,7 +1,6 @@
 import { GAMES, API_CONFIG, ALARM_NAMES } from '../config/constants.js';
 import { defaultStateStore, getHoyoTodayDateString } from '../services/state-store.js';
-import { fetchValidCodes } from '../services/code-fetcher.js';
-import { getUserGameRoles, getDailySignInfo, isNotLoggedIn } from '../services/hoyo-api.js';
+import { API_STATUS, defaultApiGateway, isNotLoggedIn } from '../services/api-gateway.js';
 import {
   getGameLocalized,
   formatDailySignTimeLocal,
@@ -95,7 +94,9 @@ function updateSiteLinkButton(btnEl, needsLogin, lang) {
  */
 export function resolvePopupAuthState({ roleRes = null, signInfo = null, autoRedeemEnabled = false } = {}) {
   const redeemEnabled = Boolean(autoRedeemEnabled);
-  const signNotLoggedIn = Boolean(signInfo && !signInfo.success && isNotLoggedIn(signInfo.retcode));
+  const signNotLoggedIn = Boolean(
+    signInfo && !signInfo.success && (signInfo.status === API_STATUS.NOT_LOGGED_IN || isNotLoggedIn(signInfo.retcode))
+  );
 
   if (!roleRes) {
     return {
@@ -122,7 +123,12 @@ export function resolvePopupAuthState({ roleRes = null, signInfo = null, autoRed
     };
   }
 
-  if (roleRes.retcode === -1 || roleRes.retcode === -2) {
+  if (
+    roleRes.status === API_STATUS.NO_CHARACTER ||
+    roleRes.status === API_STATUS.INVALID_ROLE ||
+    roleRes.retcode === -1 ||
+    roleRes.retcode === -2
+  ) {
     return {
       headerStatus: 'no_char',
       needsSignLogin: signNotLoggedIn,
@@ -130,7 +136,7 @@ export function resolvePopupAuthState({ roleRes = null, signInfo = null, autoRed
     };
   }
 
-  if (isNotLoggedIn(roleRes.retcode)) {
+  if (roleRes.status === API_STATUS.NOT_LOGGED_IN || isNotLoggedIn(roleRes.retcode)) {
     return {
       headerStatus: 'logged_out',
       needsSignLogin: signInfo?.success ? false : true,
@@ -154,7 +160,7 @@ export function resolveManualRedeemFormatOptions({ roleRes = null, signInfo = nu
   }
   const redeemNotLoggedIn = Boolean(
     roleRes.hoyoverseNotLoggedIn ||
-    (!roleRes.success && isNotLoggedIn(roleRes.retcode))
+    (!roleRes.success && (roleRes.status === API_STATUS.NOT_LOGGED_IN || isNotLoggedIn(roleRes.retcode)))
   );
   if (!redeemNotLoggedIn) {
     return {};
@@ -251,7 +257,7 @@ export async function updateDailySignStatusView(gameKey, state) {
   }
 
   try {
-    const info = await getDailySignInfo(config, lang);
+    const info = await defaultApiGateway.getDailySignInfo(config, lang);
     if (state.currentGameKey !== gameKey) return;
 
     const gameAuth = getGameAuthCache(state, gameKey);
@@ -274,7 +280,8 @@ export async function updateDailySignStatusView(gameKey, state) {
         signBadgeEl.className = 'status-pill unsigned';
       }
     } else if (!cached || cached.date !== today || !cached.isSigned) {
-      signBadgeEl.textContent = isNotLoggedIn(info.retcode) ? t('statusLoggedOut', [], lang) : t('signStatusSkipped', [], lang);
+      const notLoggedIn = info.status === API_STATUS.NOT_LOGGED_IN || isNotLoggedIn(info.retcode);
+      signBadgeEl.textContent = notLoggedIn ? t('statusLoggedOut', [], lang) : t('signStatusSkipped', [], lang);
       signBadgeEl.className = 'status-pill skipped';
     }
   } catch {
@@ -338,7 +345,7 @@ export async function updateRedeemStatusView(gameKey, state) {
           : t('redeemStatusLabelActive', [stats.activeClaimed, stats.activeTotal], lang);
       } else {
         labelEl.textContent = t('redeemStatusLabelDefault', [], lang);
-        fetchValidCodes(targetKey).then(async (codes) => {
+        defaultApiGateway.fetchValidCodes(targetKey).then(async (codes) => {
           if (Array.isArray(codes)) {
             await defaultStateStore.setActiveCodes(config.gameBiz, codes);
             if (state.currentGameKey === targetKey) {
@@ -432,7 +439,7 @@ export async function updateGameView(state) {
   updateRedeemStatusView(targetKey, state);
 
   try {
-    const res = await getUserGameRoles(config.gameBiz, lang);
+    const res = await defaultApiGateway.getUserGameRoles(config.gameBiz);
     if (state.currentGameKey !== targetKey) return;
     gameAuth.roleRes = res;
     applyPopupAuthView(targetKey, state);

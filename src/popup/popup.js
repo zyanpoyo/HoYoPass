@@ -1,6 +1,6 @@
 import { GAMES, API_CONFIG, PRIVACY_POLICY_VERSION } from '../config/constants.js';
 import { defaultStateStore } from '../services/state-store.js';
-import { isNotLoggedIn } from '../services/hoyo-api.js';
+import { API_STATUS, isNotLoggedIn } from '../services/api-gateway.js';
 import { formatRedeemResult, formatSignResult } from '../utils/message-formatter.js';
 import { resolveLanguage, getGameLocalized, getPrivacyPolicyUrl, getGuideUrl, t } from '../utils/i18n.js';
 import { toGaGameKey, syncConsentBadge } from '../services/analytics-service.js';
@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const gameRes = resp?.results?.[targetGameKey];
       const roleCache = state.authStateByGame?.[targetGameKey]?.roleRes;
       if (roleCache && gameRes) {
-        if (isNotLoggedIn(gameRes.retcode)) {
+        if (gameRes.status === API_STATUS.NOT_LOGGED_IN || isNotLoggedIn(gameRes.retcode)) {
           roleCache.hoyoverseNotLoggedIn = true;
           applyPopupAuthView(targetGameKey, state);
         } else if (gameRes.success && !gameRes.skipped) {
