@@ -90,29 +90,29 @@ HoYoLABの公式デイリーチェックインページ（`act.hoyolab.com`）�
   - `x-rpc-signgame`: 特にゼンレスゾーンゼロ（`/event/luna/zzz/os/sign`）では、`x-rpc-signgame: zzz` ヘッダーがない場合、未ログイン時であっても `{"retcode":-100,"message":"请从游戏内打开参与活动"}` で拒否されるため、全タイトルで必須ヘッダーとして付与しています。
 - **CAPTCHA（リスク検証）検知**:
   - `sign` エンドポイントは HTTP 200 かつ `retcode: 0` であっても、`data.is_risk === true` または `data.gt_result?.is_risk === true`（あるいは `retcode === 1034`）としてGeetest CAPTCHA検証を要求する場合があります。
-  - `isCaptchaRisk()` によりこれを検知した際は「受取済」として誤記録せず、ユーザーへ公式チェックインページでの手動認証を促す通知を発行します。
-- **実装箇所**: [`src/services/hoyo-api.js`](../../src/services/hoyo-api.js) (`getDailySignInfo`, `claimDailyBonus`, `isCaptchaRisk`)
+  - 内部の `isCaptchaRisk()` によりこれを検知した際は「受取済」として誤記録せず、構造化ステータス `API_STATUS.CAPTCHA_REQUIRED` として返却し、ユーザーへ公式チェックインページでの手動認証を促す通知を発行します。
+- **実装箇所**: [`src/services/api-gateway.js`](../../src/services/api-gateway.js) (`getDailySignInfo`, `claimDailyBonus`)
 
 ### 3.2 hoyo-codes API（公開交換コード一覧取得）
 - **GitHubリポジトリ**: [seriaati/hoyo-codes (GitHub)](https://github.com/seriaati/hoyo-codes)（ライセンス: GPL-3.0）
 - **Web API ホスト**: `https://hoyo-codes.seria.moe`
 - **利用エンドポイント**: `GET https://hoyo-codes.seria.moe/codes?game={genshin|hkrpg|nap}`
 - **概要**: 原神（`genshin`）、崩壊：スターレイル（`hkrpg`）、ゼンレスゾーンゼロ（`nap`）のアクティブなギフト交換コードを自動収集・検証してJSON形式で配信しているオープンソースREST APIです。
-- **実装箇所**: [`src/services/code-fetcher.js`](../../src/services/code-fetcher.js)
+- **実装箇所**: [`src/services/api-gateway.js`](../../src/services/api-gateway.js) (`fetchValidCodes`)
 - **ライセンス適合性**: 独立したREST APIの呼び出し（HTTP GET）のみであり、GPL-3.0のコピーレフトはクライアント側に伝播しません。詳細な法的分析は [ライセンス適合性調査レポート (docs/legal/license_compliance_report.md)](../legal/license_compliance_report.md) を参照してください。
-- **セキュリティ & 防御機構**: `publicFetch`（Cookie送信完全遮断、`no-referrer`）経由で通信を行い、受信ペイロードサイズ上限（256KB）および新規コード取得件数上限（50件）のバリデーションを実施しています。
+- **セキュリティ & 防御機構**: `publicFetch`（Cookie送信完全遮断、`no-referrer`）経由で通信を行い、`Content-Type` 検証・受信ペイロードサイズ上限（256KB）・新規コード取得件数上限（50件）・コード形式バリデーションを実施しています。
 
 ### 3.3 HoYoverse 内部Web API（ロール照会 & コード引き換え）
 - **ロール照会API（Takumi API）**:
   - エンドポイント: `GET https://api-os-takumi.hoyoverse.com/binding/api/getUserGameRolesByCookie?game_biz={gameBiz}`（フォールバック: `https://api-os-takumi.hoyolab.com/binding/api/getUserGameRolesByCookie`）
   - 概要: ログイン中セッションCookieに紐づくゲーム内キャラクター一覧（UID、サーバー、ニックネーム）を取得。
-  - 実装箇所: [`src/services/hoyo-api.js`](../../src/services/hoyo-api.js) (`getUserGameRoles`)
+  - 実装箇所: [`src/services/api-gateway.js`](../../src/services/api-gateway.js) (`getUserGameRoles`)
 - **コード引き換えAPI（WebExchangeCdkey API）**:
   - 原神: `GET https://sg-hk4e-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey`
   - 崩壊：スターレイル: `GET https://sg-hkrpg-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey`
   - ゼンレスゾーンゼロ: `GET https://public-operation-nap.hoyoverse.com/common/apicdkey/api/webExchangeCdkey` / `https://sg-act-nap-api.hoyoverse.com/common/apicdkey/api/webExchangeCdkey`
   - 概要: 指定したUID・リージョン・交換コードでアイテム交換を実行。
-  - 実装箇所: [`src/services/hoyo-api.js`](../../src/services/hoyo-api.js) (`redeemCode`)
+  - 実装箇所: [`src/services/api-gateway.js`](../../src/services/api-gateway.js) (`redeemCode`)
 - **関連オープンソース・コミュニティGitHubリポジトリ（仕様リファレンス）**:
   - [torikushiii/hoyoverse-api (GitHub)](https://github.com/torikushiii/hoyoverse-api) - HoYoverse各タイトルのAPI・コード情報をまとめたオープンソースプロジェクト
   - [thesadru/genshin.py (GitHub)](https://github.com/thesadru/genshin.py) - HoYoverse Web API（Takumi API / ログボAPI / 交換API等）の包括的なオープンソースAPIラッパー
@@ -140,16 +140,13 @@ src/
 │   └── log-view.js             # ゲーム別実行ログのフィルタリング・プレフィックス整形・リスト描画
 ├── services/
 │   ├── analytics-service.js    # GA4 Measurement Protocolによる匿名イベント送信・サニタイズ・セッション管理
+│   ├── api-gateway.js          # 許可ホスト自動導出・入力検証・デュアルホストフォールバック・429/5xx検知・構造化エラー分類を統合した外部通信モジュール
 │   ├── chrome-storage-adapter.js # chrome.storage (local/session/onChanged) への単一アクセスシーム
-│   ├── code-fetcher.js         # hoyo-codes APIからのコード一覧取得・ペイロード検証
-│   ├── hoyo-api.js             # デュアルホスト対応ロール取得、ログボAPI（info/sign）、非公開交換API呼び出し、未ログイン判定（isNotLoggedIn）
-│   ├── http-client.js          # ホワイトリスト検証・429/5xx検知付きセキュアHTTPクライアント（hoyoFetch / publicFetch）
 │   ├── review-prompt-service.js# ストアレビュー促進バナーの状態管理・実績マイグレーション・表示判定
-│   ├── security.js             # UID・リージョン・交換コード形式の入力バリデーション
 │   └── state-store.js          # 永続状態・UTC+8日付管理・排他ロック（Mutex）・レート制御遷移・変更購読を統合した状態ストア
 └── utils/
     ├── i18n.js                 # 日英多言語辞書（MESSAGES）、言語解決、URL・時刻ローカライズヘルパー
-    └── message-formatter.js    # ログボおよび交換コード実行結果のユーザー向けダイアログ文言フォーマッタ
+    └── message-formatter.js    # 構造化 API_STATUS / 実行結果のユーザー向け日英ダイアログ・詳細文言フォーマッタ
 ```
 
 ---

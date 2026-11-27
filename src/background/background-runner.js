@@ -5,8 +5,8 @@ import {
   getNextHoyoDailySignTimestamp,
   computeJitteredDelayMs
 } from '../services/state-store.js';
-import { isNetworkException, isTimeoutError } from '../services/http-client.js';
-import { isNotLoggedIn } from '../services/hoyo-api.js';
+import { API_STATUS, ERROR_KIND, classifyGatewayError, isNotLoggedIn } from '../services/api-gateway.js';
+import { formatApiFailureDetail } from '../utils/message-formatter.js';
 import { toGaGameKey, toRedeemTrigger, toCheckinTrigger } from '../services/analytics-service.js';
 
 const NOTIFICATION_PREFIXES = {
@@ -86,18 +86,6 @@ function resolveEnabledGames(settings) {
   return (settings && Array.isArray(settings.enabledGames) && settings.enabledGames.length > 0)
     ? settings.enabledGames
     : Object.keys(GAMES);
-}
-
-function classifyFetchError(fetchErr) {
-  const msg = typeof fetchErr?.message === 'string' ? fetchErr.message : '';
-  const match = msg.match(/HTTP_ERROR_(\d+)/);
-  const httpStatus = match ? parseInt(match[1], 10) : 0;
-  const isTimeout = isTimeoutError(fetchErr);
-  const isParseErr = fetchErr instanceof SyntaxError || msg.includes('JSON');
-  const errorType = isTimeout
-    ? 'timeout'
-    : (httpStatus > 0 ? 'http_error' : (isParseErr ? 'parse_error' : 'network_error'));
-  return { httpStatus, errorType };
 }
 
 function classifyRedeemRetcode(retcode) {
@@ -260,6 +248,7 @@ export function createBackgroundRunner(adapter) {
       success: false,
       skipped: false,
       backoffTriggered: true,
+      status: res.status ?? (res.isRateLimited ? API_STATUS.RATE_LIMITED : API_STATUS.SERVER_ERROR),
       httpStatus: res.httpStatus,
       retcode: res.retcode,
       reason: boMsg,
@@ -275,6 +264,7 @@ export function createBackgroundRunner(adapter) {
     gameName,
     trigger,
     lang,
+    status,
     retcode,
     errorMessage,
     fallbackErrorReason = 'api_error',
@@ -282,7 +272,7 @@ export function createBackgroundRunner(adapter) {
     notifPrefix,
     notifMsgKey
   }) {
-    const notLoggedIn = isNotLoggedIn(retcode);
+    const notLoggedIn = status === API_STATUS.NOT_LOGGED_IN || isNotLoggedIn(retcode);
     if (shouldSendGa) {
       await gateway.sendGAEvent(gaEvent, {
         game: toGaGameKey(gameKey),
@@ -311,6 +301,7 @@ export function createBackgroundRunner(adapter) {
     return {
       success: false,
       skipped: false,
+      status: status ?? (notLoggedIn ? API_STATUS.NOT_LOGGED_IN : API_STATUS.API_ERROR),
       reason: errorMessage,
       retcode,
       gameKey,
@@ -332,11 +323,11 @@ export function createBackgroundRunner(adapter) {
       activeCodes = await gateway.fetchValidCodes(gameKey);
       await store.setActiveCodes(gameConfig.gameBiz, activeCodes);
     } catch (fetchErr) {
-      const { httpStatus, errorType } = classifyFetchError(fetchErr);
+      const { httpStatus, gaErrorType } = classifyGatewayError(fetchErr);
       await gateway.sendGAEvent('code_list_fetch_error', {
         game: toGaGameKey(gameKey),
         http_status: httpStatus,
-        error_type: errorType,
+        error_type: gaErrorType,
         lang
       });
       throw fetchErr;
@@ -367,7 +358,7 @@ export function createBackgroundRunner(adapter) {
       };
     }
 
-    const roleRes = await gateway.getUserGameRoles(gameConfig.gameBiz, lang);
+    const roleRes = await gateway.getUserGameRoles(gameConfig.gameBiz);
     if (!roleRes.success) {
       if (roleRes.shouldBackoff) {
         return handleHttpBackoff({
@@ -380,14 +371,26 @@ export function createBackgroundRunner(adapter) {
           res: roleRes
         });
       }
-      if (roleRes.retcode === -1 || roleRes.retcode === -2) {
+      if (
+        roleRes.status === API_STATUS.NO_CHARACTER ||
+        roleRes.status === API_STATUS.INVALID_ROLE ||
+        roleRes.retcode === -1 ||
+        roleRes.retcode === -2
+      ) {
         await store.addExecutionLog({
           type: 'INFO',
           category: 'CODE',
           gameKey,
           message: t('logNoCharSkip', [gameName], lang)
         });
-        return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName };
+        return {
+          success: true,
+          skipped: true,
+          status: roleRes.status ?? API_STATUS.NO_CHARACTER,
+          reason: 'NO_CHARACTER',
+          gameKey,
+          gameName
+        };
       }
 
       return reportGameFailure({
@@ -397,8 +400,9 @@ export function createBackgroundRunner(adapter) {
         gameName,
         trigger,
         lang,
+        status: roleRes.status,
         retcode: roleRes.retcode,
-        errorMessage: t('logRoleFetchFailedRedeem', [gameName, roleRes.message, roleRes.retcode], lang),
+        errorMessage: t('logRoleFetchFailedRedeem', [gameName, formatApiFailureDetail(roleRes, lang), roleRes.retcode], lang),
         fallbackErrorReason: 'unknown',
         shouldSendGa: true,
         notifPrefix: NOTIFICATION_PREFIXES.REDEEM_LOGIN,
@@ -504,8 +508,9 @@ export function createBackgroundRunner(adapter) {
         gameName,
         trigger,
         lang,
+        status: notLoggedInRes.status ?? API_STATUS.NOT_LOGGED_IN,
         retcode: notLoggedInRes.retcode,
-        errorMessage: t('logRedeemFailed', [gameName, notLoggedInRes.message, notLoggedInRes.retcode], lang),
+        errorMessage: t('logRedeemFailed', [gameName, formatApiFailureDetail(notLoggedInRes, lang), notLoggedInRes.retcode], lang),
         fallbackErrorReason: 'unknown',
         shouldSendGa: false,
         notifPrefix: NOTIFICATION_PREFIXES.REDEEM_LOGIN,
@@ -566,12 +571,17 @@ export function createBackgroundRunner(adapter) {
       }
     }
 
-    const roleRes = await gateway.getUserGameRoles(gameConfig.gameBiz, lang);
+    const roleRes = await gateway.getUserGameRoles(gameConfig.gameBiz);
     if (!roleRes.success) {
       if (roleRes.shouldBackoff) {
         return abortWithBackoff(roleRes);
       }
-      if (roleRes.retcode === -1 || roleRes.retcode === -2) {
+      if (
+        roleRes.status === API_STATUS.NO_CHARACTER ||
+        roleRes.status === API_STATUS.INVALID_ROLE ||
+        roleRes.retcode === -1 ||
+        roleRes.retcode === -2
+      ) {
         await store.setDailySignRecord(gameConfig.gameBiz, {
           date: getHoyoTodayDateString(clock.now()),
           isSigned: false,
@@ -583,7 +593,14 @@ export function createBackgroundRunner(adapter) {
           gameKey,
           message: t('logNoCharSkipSign', [gameName], lang)
         });
-        return { success: true, skipped: true, reason: 'NO_CHARACTER', gameKey, gameName };
+        return {
+          success: true,
+          skipped: true,
+          status: roleRes.status ?? API_STATUS.NO_CHARACTER,
+          reason: 'NO_CHARACTER',
+          gameKey,
+          gameName
+        };
       }
 
       return reportGameFailure({
@@ -593,8 +610,9 @@ export function createBackgroundRunner(adapter) {
         gameName,
         trigger,
         lang,
+        status: roleRes.status,
         retcode: roleRes.retcode,
-        errorMessage: t('logRoleFetchFailedSign', [gameName, roleRes.message, roleRes.retcode], lang),
+        errorMessage: t('logRoleFetchFailedSign', [gameName, formatApiFailureDetail(roleRes, lang), roleRes.retcode], lang),
         fallbackErrorReason: 'api_error',
         notifPrefix: NOTIFICATION_PREFIXES.SIGN_LOGIN,
         notifMsgKey: 'notifLoginMsgSign'
@@ -644,7 +662,7 @@ export function createBackgroundRunner(adapter) {
       return abortWithBackoff(claimRes);
     }
 
-    if (claimRes.isRisk) {
+    if (claimRes.isRisk || claimRes.status === API_STATUS.CAPTCHA_REQUIRED) {
       await store.setDailySignRecord(gameConfig.gameBiz, {
         date: todayStr,
         isSigned: false,
@@ -668,9 +686,10 @@ export function createBackgroundRunner(adapter) {
       return {
         success: false,
         skipped: false,
+        status: API_STATUS.CAPTCHA_REQUIRED,
         isRisk: true,
         retcode: claimRes.retcode,
-        reason: claimRes.message,
+        reason: formatApiFailureDetail(claimRes, lang),
         gameKey,
         gameName
       };
@@ -721,8 +740,9 @@ export function createBackgroundRunner(adapter) {
       gameName,
       trigger,
       lang,
+      status: claimRes.status,
       retcode: claimRes.retcode,
-      errorMessage: t('logSignClaimFailed', [gameName, claimRes.message, claimRes.retcode], lang),
+      errorMessage: t('logSignClaimFailed', [gameName, formatApiFailureDetail(claimRes, lang), claimRes.retcode], lang),
       fallbackErrorReason: 'api_error',
       notifPrefix: NOTIFICATION_PREFIXES.SIGN_LOGIN,
       notifMsgKey: 'notifLoginMsgSign'
@@ -869,15 +889,14 @@ export function createBackgroundRunner(adapter) {
         targetGameKey: targetGameKey || null
       };
     } catch (err) {
-      if (spec.notifyStorageWriteFailure && err?.message?.startsWith('STORAGE_WRITE_FAILURE')) {
+      const { kind: errorKind, isRetryable: isNetErr } = classifyGatewayError(err);
+      if (spec.notifyStorageWriteFailure && (errorKind === ERROR_KIND.STORAGE_ERROR || err?.message?.startsWith('STORAGE_WRITE_FAILURE'))) {
         await createBasicNotification(
           null,
           t('notifStorageErrorTitle', [], lang),
           t('notifStorageErrorMsg', [], lang)
         );
       }
-
-      const isNetErr = isNetworkException(err);
       let retryExhausted = false;
       if (isNetErr) {
         const retryRes = await scheduleRetryAlarm(kind);

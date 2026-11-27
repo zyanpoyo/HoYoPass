@@ -4,6 +4,7 @@ import {
   DEFAULT_ENABLED_GAMES,
   REVIEW_PROMPT_CONFIG
 } from '../../src/config/constants.js';
+import { API_STATUS } from '../../src/services/api-gateway.js';
 import { createStateStore } from '../../src/services/state-store.js';
 import { createReviewPromptService } from '../../src/services/review-prompt-service.js';
 import { createInMemoryStorageAdapter } from './in-memory-storage-adapter.js';
@@ -117,25 +118,28 @@ export function createBackgroundTestAdapter(options = {}) {
     fetchValidCodes: async () => [],
     getUserGameRoles: async () => ({
       success: false,
+      status: API_STATUS.NO_CHARACTER,
       retcode: -1,
-      message: 'No character',
+      apiMessage: '',
       role: null,
       hoyoverseNotLoggedIn: false
     }),
-    redeemCode: async ({ cdkey }) => ({ retcode: 0, message: 'OK', cdkey }),
+    redeemCode: async ({ cdkey }) => ({ success: true, status: API_STATUS.OK, retcode: 0, apiMessage: 'OK', cdkey }),
     getDailySignInfo: async () => ({
       success: true,
+      status: API_STATUS.OK,
       retcode: 0,
       isSigned: false,
       totalSignDay: 0,
       today: null,
-      message: 'OK'
+      apiMessage: 'OK'
     }),
     claimDailyBonus: async () => ({
       success: true,
+      status: API_STATUS.OK,
       retcode: 0,
       alreadySigned: false,
-      message: 'OK'
+      apiMessage: 'OK'
     }),
     sendGAEvent: async (eventName, params) => {
       gaEvents.push({ eventName, params });

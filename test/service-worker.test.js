@@ -5,6 +5,7 @@ import { createBackgroundRunner } from '../src/background/background-runner.js';
 import { bindChromeListeners } from '../src/background/chrome-adapter.js';
 import { createBackgroundTestAdapter } from './helpers/background-test-adapter.js';
 import { formatRedeemResult } from '../src/utils/message-formatter.js';
+import { API_STATUS, ERROR_KIND, GatewayError } from '../src/services/api-gateway.js';
 import { STATUS_MAP, GAMES, ALARM_NAMES, API_CONFIG, UNINSTALL_URL } from '../src/config/constants.js';
 
 const LOGIN_NOTIFICATION_PREFIX = 'login_required_';
@@ -735,7 +736,8 @@ test('コード一覧取得エラー分類 (GA4) と TimeoutError 時の短期�
   const cases = [
     { err: realTimeoutErr, expectedHttp: 0, expectedType: 'timeout', expectedReason: 'NETWORK_RETRY_SCHEDULED' },
     { err: new DOMException('aborted', 'AbortError'), expectedHttp: 0, expectedType: 'timeout', expectedReason: 'NETWORK_RETRY_SCHEDULED' },
-    { err: new Error('HTTP_ERROR_503'), expectedHttp: 503, expectedType: 'http_error', expectedReason: 'EXCEPTION' },
+    { err: new GatewayError(ERROR_KIND.HTTP_ERROR, 'HTTP 503', { httpStatus: 503 }), expectedHttp: 503, expectedType: 'http_error', expectedReason: 'EXCEPTION' },
+    { err: new GatewayError(ERROR_KIND.SECURITY_ERROR, 'Payload too large', { code: 'PAYLOAD_TOO_LARGE' }), expectedHttp: 0, expectedType: 'parse_error', expectedReason: 'EXCEPTION' },
     { err: new SyntaxError('Unexpected token <'), expectedHttp: 0, expectedType: 'parse_error', expectedReason: 'EXCEPTION' },
     { err: new TypeError('Failed to fetch'), expectedHttp: 0, expectedType: 'network_error', expectedReason: 'NETWORK_RETRY_SCHEDULED' }
   ];
@@ -796,7 +798,15 @@ test('非JSON応答(-9999): 1ゲーム目で発生しても全体停止せず後
       fetchValidCodes: async (gameKey) => [gameKey === 'STAR_RAIL' ? 'HSRCODE1' : 'ZZZCODE1'],
       getUserGameRoles: async (gameBiz) => {
         if (gameBiz === 'hk4e_global') {
-          return { success: false, retcode: -9999, message: 'HTTP 200 - 非JSON応答 (<html>WAF)', role: null };
+          return {
+            success: false,
+            status: API_STATUS.NON_JSON,
+            retcode: -9999,
+            httpStatus: 200,
+            rawSnippet: '<html>WAF',
+            apiMessage: '',
+            role: null
+          };
         }
         return createSampleRole(gameBiz);
       },
@@ -808,7 +818,9 @@ test('非JSON応答(-9999): 1ゲーム目で発生しても全体停止せず後
   assert.equal(flowRes.success, true);
   assert.equal(flowRes.redeemedCount, 2);
   assert.equal(flowRes.results.GENSHIN.success, false);
+  assert.equal(flowRes.results.GENSHIN.status, API_STATUS.NON_JSON);
   assert.equal(flowRes.results.GENSHIN.retcode, -9999);
+  assert.ok(redeemAdapter.logs.some(l => l.message.includes('HTTP 200 - 非JSON応答 (<html>WAF)')));
   assert.equal(flowRes.results.STAR_RAIL.redeemedCount, 1);
   assert.equal(flowRes.results.ZZZ.redeemedCount, 1);
 
@@ -818,7 +830,15 @@ test('非JSON応答(-9999): 1ゲーム目で発生しても全体停止せず後
     gateway: {
       getUserGameRoles: async (gameBiz) => {
         if (gameBiz === 'hk4e_global') {
-          return { success: false, retcode: -9999, message: 'HTTP 200 - 非JSON応答 (<html>WAF)', role: null };
+          return {
+            success: false,
+            status: API_STATUS.NON_JSON,
+            retcode: -9999,
+            httpStatus: 200,
+            rawSnippet: '<html>WAF',
+            apiMessage: '',
+            role: null
+          };
         }
         return createSampleRole(gameBiz);
       },

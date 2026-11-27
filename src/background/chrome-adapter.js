@@ -2,8 +2,7 @@ import { API_CONFIG } from '../config/constants.js';
 import { defaultStateStore } from '../services/state-store.js';
 import { defaultReviewPromptService } from '../services/review-prompt-service.js';
 import { syncConsentBadge, sendGAEvent } from '../services/analytics-service.js';
-import { fetchValidCodes } from '../services/code-fetcher.js';
-import { getUserGameRoles, redeemCode, getDailySignInfo, claimDailyBonus } from '../services/hoyo-api.js';
+import { defaultApiGateway } from '../services/api-gateway.js';
 
 /**
  * Chrome MV3 ランタイム API と各種サービスを Background Runner の単一シームへ接続する本番アダプター。
@@ -79,11 +78,11 @@ export function createChromeBackgroundAdapter(chromeApi = chrome) {
       incrementReviewSuccessCount: defaultReviewPromptService.incrementReviewSuccessCount
     },
     gateway: {
-      fetchValidCodes,
-      getUserGameRoles,
-      redeemCode,
-      getDailySignInfo,
-      claimDailyBonus,
+      fetchValidCodes: defaultApiGateway.fetchValidCodes,
+      getUserGameRoles: defaultApiGateway.getUserGameRoles,
+      redeemCode: defaultApiGateway.redeemCode,
+      getDailySignInfo: defaultApiGateway.getDailySignInfo,
+      claimDailyBonus: defaultApiGateway.claimDailyBonus,
       sendGAEvent
     }
   };

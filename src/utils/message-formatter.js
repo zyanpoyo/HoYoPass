@@ -1,30 +1,62 @@
 import { getGameLocalized, t } from './i18n.js';
-import { isNotLoggedIn } from '../services/hoyo-api.js';
+import { API_STATUS, isNotLoggedIn } from '../services/api-gateway.js';
 
 function resolveGameDisplayName(gameKey, res, lang) {
   const localizedGame = getGameLocalized(gameKey, lang);
   return lang === 'en' ? localizedGame.name : (res?.gameName || localizedGame.name || gameKey);
 }
 
+/**
+ * 構造化された API 失敗結果を日英ユーザー向け詳細文言へ変換する
+ *
+ * @param {object} [res] - ApiGateway または互換モックの応答オブジェクト
+ * @param {'ja'|'en'} [lang='ja'] - 表示言語
+ * @returns {string}
+ */
+export function formatApiFailureDetail(res, lang = 'ja') {
+  if (!res) {
+    return t('fmtNoDetails', [], lang);
+  }
+
+  switch (res.status) {
+    case API_STATUS.NON_JSON:
+      return t('apiNonJsonResponse', [res.httpStatus ?? 'unknown', res.rawSnippet ?? ''], lang);
+    case API_STATUS.NO_CHARACTER:
+      return t('apiNoChar', [], lang);
+    case API_STATUS.INVALID_ROLE:
+      return t('apiInvalidUidRegion', [(res.invalidRegions || []).join(',')], lang);
+    case API_STATUS.INVALID_CONFIG:
+      return t('apiInvalidGameConfig', [], lang);
+    case API_STATUS.CAPTCHA_REQUIRED:
+      return t('apiCaptchaRequired', [], lang);
+    case API_STATUS.ALREADY_SIGNED:
+      return res.apiMessage || res.message || t('apiAlreadySignedToday', [], lang);
+    case API_STATUS.NOT_LOGGED_IN:
+      return res.apiMessage || res.message || t('apiPleaseLogin', [], lang);
+    case API_STATUS.RATE_LIMITED:
+    case API_STATUS.SERVER_ERROR:
+      return res.apiMessage || res.message || (res.httpStatus ? `HTTP ${res.httpStatus}` : t('fmtNoDetails', [], lang));
+    default:
+      return res.apiMessage ||
+        res.message ||
+        (res.retcode !== undefined ? `API error (${res.retcode})` : t('fmtNoDetails', [], lang));
+  }
+}
+
 function isLoginErrorResult(res) {
   if (!res) return false;
-  const reason = res.reason || '';
-  return isNotLoggedIn(res.retcode) ||
-    reason === 'LOGIN_REQUIRED' ||
-    reason.includes('-100') ||
-    reason.includes('-1071') ||
-    reason.includes('Login expired') ||
-    reason.includes('Not logged in');
+  return res.status === API_STATUS.NOT_LOGGED_IN ||
+    res.reason === 'LOGIN_REQUIRED' ||
+    isNotLoggedIn(res.retcode);
 }
 
 function isNoCharacterError(res) {
   if (!res) return false;
-  const reason = res.reason || '';
-  return res.retcode === -1 ||
-    res.retcode === -2 ||
-    reason.includes('キャラクターが見つかりません') ||
-    reason.includes('No character') ||
-    reason.includes('Invalid UID or Region');
+  return res.status === API_STATUS.NO_CHARACTER ||
+    res.status === API_STATUS.INVALID_ROLE ||
+    res.reason === 'NO_CHARACTER' ||
+    res.retcode === -1 ||
+    res.retcode === -2;
 }
 
 function extractRawDetail(resp, lang) {
@@ -101,9 +133,9 @@ function formatMultiGameRedeem(results, totalCount, lang) {
   for (const [key, res] of Object.entries(results)) {
     const name = resolveGameDisplayName(key, res, lang);
 
-    if (res.skipped && res.reason === 'NO_CHARACTER') {
+    if (res.skipped && isNoCharacterError(res)) {
       summaryLines.push(t('fmtItemSkippedNoChar', [name], lang));
-    } else if (isNotLoggedIn(res.retcode) || res.reason === 'LOGIN_REQUIRED') {
+    } else if (isLoginErrorResult(res)) {
       summaryLines.push(t('fmtItemNotLoggedIn', [name], lang));
       hasLoginError = true;
       anyPlayed = true;
@@ -249,14 +281,14 @@ export function formatLogTimestamp(timestamp) {
 function formatSingleGameSign(gameKey, res, lang) {
   const name = resolveGameDisplayName(gameKey, res, lang);
 
-  if (res.skipped && res.reason === 'NO_CHARACTER') {
+  if (res.skipped && isNoCharacterError(res)) {
     return {
       title: t('fmtSignTitleStatus', [], lang),
       message: t('fmtSingleNoCharMsg', [name], lang),
       detail: null
     };
   }
-  if (res.isRisk) {
+  if (res.status === API_STATUS.CAPTCHA_REQUIRED || res.isRisk) {
     return {
       title: t('fmtSignTitleVerify', [], lang),
       message: t('fmtSignSingleCaptcha', [name], lang),
@@ -301,12 +333,12 @@ function formatMultiGameSign(results, signedCount, lang) {
   for (const [key, res] of Object.entries(results)) {
     const name = resolveGameDisplayName(key, res, lang);
 
-    if (res.skipped && res.reason === 'NO_CHARACTER') {
+    if (res.skipped && isNoCharacterError(res)) {
       summaryLines.push(t('fmtItemSkippedNoChar', [name], lang));
-    } else if (res.isRisk) {
+    } else if (res.status === API_STATUS.CAPTCHA_REQUIRED || res.isRisk) {
       summaryLines.push(t('fmtSignItemCaptcha', [name], lang));
       hasError = true;
-    } else if (isNotLoggedIn(res.retcode) || res.reason === 'LOGIN_REQUIRED') {
+    } else if (isLoginErrorResult(res)) {
       summaryLines.push(t('fmtItemNotLoggedIn', [name], lang));
       hasError = true;
     } else if (res.success) {

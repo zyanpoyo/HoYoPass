@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatRedeemResult, formatSignResult, formatLogTimestamp } from '../src/utils/message-formatter.js';
+import { API_STATUS } from '../src/services/api-gateway.js';
+import {
+  formatApiFailureDetail,
+  formatRedeemResult,
+  formatSignResult,
+  formatLogTimestamp
+} from '../src/utils/message-formatter.js';
 
 
 test('formatRedeemResult: 空または不正なレスポンス', () => {
@@ -36,15 +42,49 @@ test('formatRedeemResult: 未ログイン (retcode: -100)', () => {
   assert.equal(res.detail, rawMsg, '生エラーメッセージが詳細原因として保持される');
 });
 
-test('formatRedeemResult: 未ログイン (retcode: -1071 / メッセージ内検知)', () => {
+test('formatRedeemResult: 未ログイン (retcode: -1071 / 構造化status判定)', () => {
   const rawMsg = 'スターレイル: ロール取得失敗 (Login expired [retcode: -1071])';
   const res = formatRedeemResult({
     success: false,
+    status: API_STATUS.NOT_LOGGED_IN,
+    retcode: -1071,
     reason: rawMsg
   });
   assert.equal(res.title, 'コード交換失敗');
   assert.equal(res.message, '未ログインです。ログインを行ってください。');
   assert.equal(res.detail, rawMsg);
+});
+
+test('formatRedeemResult: 文字列部分一致ではなく構造化status/retcodeのみで分類されること', () => {
+  const misleadingReason = 'APIエラー: Login expired / Not logged in / キャラクターが見つかりません (-100)';
+  const res = formatRedeemResult({
+    success: false,
+    status: API_STATUS.API_ERROR,
+    retcode: -999,
+    reason: misleadingReason
+  });
+  assert.equal(res.title, 'コード交換失敗');
+  assert.equal(res.message, '引き換え処理に失敗しました。時間をおいて再度お試しください。');
+  assert.equal(res.detail, misleadingReason);
+});
+
+test('formatApiFailureDetail: 構造化 API_STATUS を日英ローカライズ文字列へ変換すること', () => {
+  assert.equal(
+    formatApiFailureDetail({ status: API_STATUS.NON_JSON, httpStatus: 403, rawSnippet: '<html>Forbidden' }, 'ja'),
+    'HTTP 403 - 非JSON応答 (<html>Forbidden)'
+  );
+  assert.equal(
+    formatApiFailureDetail({ status: API_STATUS.NON_JSON, httpStatus: 403, rawSnippet: '<html>Forbidden' }, 'en'),
+    'HTTP 403 - Non-JSON response (<html>Forbidden)'
+  );
+  assert.equal(
+    formatApiFailureDetail({ status: API_STATUS.INVALID_ROLE, invalidRegions: ['bad_reg'] }, 'en'),
+    'Invalid UID or Region (bad_reg)'
+  );
+  assert.equal(
+    formatApiFailureDetail({ status: API_STATUS.CAPTCHA_REQUIRED }, 'ja'),
+    'セキュリティ認証(CAPTCHA)が必要です。公式ページから手動で受け取ってください。'
+  );
 });
 
 test('formatRedeemResult: キャラクター不在 (retcode: -1)', () => {
