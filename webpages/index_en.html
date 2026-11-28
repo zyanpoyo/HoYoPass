@@ -20,6 +20,7 @@
       </a>
       <nav class="site-nav">
         <a href="index_en.html" class="nav-link active">Guide</a>
+        <a href="#support" class="nav-link">Support</a>
         <a href="privacy_en.html" class="nav-link">Privacy Policy</a>
         <a href="https://github.com/zyanpoyo/HoYoPass" class="nav-link" target="_blank" rel="noopener noreferrer">Source Code ↗</a>
         <a href="index.html" class="nav-link lang-switch-link" hreflang="ja">日本語</a>
@@ -196,14 +197,30 @@
         </details>
 
         <details class="faq-item">
-          <summary class="faq-question">Why did I receive an in-game mail saying "This code has already been redeemed"?</summary>
+          <summary class="faq-question">Why do I receive in-game mail saying "Code has already been redeemed" or "Multiple redemptions of a used code"?</summary>
           <div class="faq-answer">
             <p>
-              On your first run, HoYoPass scans all currently active public gift codes. If you had previously redeemed some codes manually, the game server may send a standard notification mail stating that the code was already used.
+              On your first run, HoYoPass checks all currently active public gift codes. If you previously redeemed any of them manually, the game server may send a notification mail stating that the code was already used. This is normal API behavior and has no negative impact on your account. Once processed, each code is saved locally so the same browser will not submit it again.
             </p>
-            <p style="margin-top: 0.5rem;">
-              This is standard behavior from the private game API and does not cause any harm to your account. Once verified, those codes are recorded locally and won't be re-submitted.
+            <p style="margin-top: 0.75rem;">
+              <strong>If you continue receiving these emails repeatedly after the first run, one of the following is likely the cause:</strong>
             </p>
+            <ul style="margin-top: 0.5rem; padding-left: 1.25rem;">
+              <li style="margin-bottom: 0.6rem;">
+                <strong>Using HoYoPass on multiple PCs or Chrome profiles</strong><br>
+                For privacy, redemption history is stored locally in each browser and is not synced across devices. If HoYoPass is enabled on multiple PCs or profiles for the same HoYoverse account, each browser will submit new codes independently.<br>
+                → <strong>Workaround</strong>: Keep Auto Code Redeemer turned ON in <strong>only one primary browser/profile</strong>, and turn the code redemption toggle OFF on other devices.
+              </li>
+              <li style="margin-bottom: 0.6rem;">
+                <strong>Manually redeeming new codes before HoYoPass runs</strong><br>
+                Auto-checks run every 3 hours, and HoYoverse does not provide an API to check whether a code was already redeemed beforehand. If you enter a new code manually in-game or on the official site first, HoYoPass will not know and may submit it on the next cycle.<br>
+                → <strong>Workaround</strong>: Let HoYoPass handle new codes automatically, or use HoYoPass's "<strong>↻</strong>" manual trigger button once codes are listed so your local history stays in sync.
+              </li>
+              <li>
+                <strong>Exclusive codes sharing the same reward group</strong><br>
+                Occasionally, multiple distinct codes (such as creator or campaign codes) share a single reward group where only one can be claimed per account. Because the code strings differ, HoYoPass treats them as new and the game server may send a duplicate-use notice.
+              </li>
+            </ul>
           </div>
         </details>
 
@@ -258,6 +275,27 @@
         </details>
       </div>
     </section>
+
+    <!-- Support & Feedback -->
+    <section class="card" id="support">
+      <h2 class="card-title-lg">
+        <span aria-hidden="true">💬</span>
+        <span>Bug Reports &amp; Feature Requests</span>
+      </h2>
+      <p class="support-intro">
+        We welcome bug reports, feature requests, and general feedback for HoYoPass. Before submitting, please check the <a href="#faq">Frequently Asked Questions</a> above.
+      </p>
+      <div class="notice-box info">
+        <strong>ℹ️ Important Notice Before Submitting</strong><br>
+        • This form is completely anonymous (no Google sign-in required), so we cannot reply individually.<br>
+        • Never enter personal or sensitive information such as your game UID, cookies, passwords, or email address.
+      </div>
+      <div class="support-actions">
+        <a href="https://forms.gle/CTRpwLNRu42jMKZv9" id="feedback-form-link" class="support-btn" target="_blank" rel="noopener noreferrer">
+          Open Bug Report &amp; Feedback Form ↗
+        </a>
+      </div>
+    </section>
   </main>
 
   <!-- Footer -->
@@ -265,13 +303,14 @@
     <div class="footer-inner">
       <nav class="footer-nav">
         <a href="index_en.html">User Guide</a>
+        <a href="#support">Support</a>
         <a href="privacy_en.html">Privacy Policy</a>
         <a href="https://github.com/zyanpoyo/HoYoPass" target="_blank" rel="noopener noreferrer">Source Code ↗</a>
         <a href="index.html">日本語</a>
       </nav>
       <p class="footer-disclaimer">
         HoYoPass is an unofficial fan-made tool and is not affiliated with COGNOSPHERE PTE. LTD. or miHoYo Co., Ltd. (HoYoverse).<br>
-        Use entirely at your own risk with full understanding of potential Terms of Service risks. For inquiries or support, please visit our Chrome Web Store support page.
+        Use entirely at your own risk with full understanding of potential Terms of Service risks. For bug reports or feature requests, please use the <a href="#support">Feedback Form</a> on this page.
       </p>
     </div>
   </footer>

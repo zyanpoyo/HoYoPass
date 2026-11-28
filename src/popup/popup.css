@@ -702,6 +702,13 @@ input:focus-visible + .slider {
   user-select: none;
 }
 
+.footer-version {
+  margin-top: 4px;
+  font-size: 10px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
 .link-inline {
   color: #60a5fa;
   text-decoration: underline;

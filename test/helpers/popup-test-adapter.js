@@ -54,6 +54,7 @@ export function createPopupTestAdapter(options = {}) {
 
   let nowMs = options.initialNowMs ?? Date.parse('2026-10-17T03:00:00Z');
   let uiLanguage = options.uiLanguage ?? 'ja';
+  const appVersion = options.appVersion ?? '1.3.7';
   let messageHandler = options.messageHandler ?? null;
   let clipboardError = null;
 
@@ -137,6 +138,9 @@ export function createPopupTestAdapter(options = {}) {
     runtime: {
       get uiLanguage() {
         return uiLanguage;
+      },
+      get version() {
+        return appVersion;
       },
       sendMessage: async (message) => {
         sentMessages.push(message);

@@ -21,6 +21,7 @@ import {
   formatDailySignTimeLocal,
   getPrivacyPolicyUrl,
   getGuideUrl,
+  getSupportUrl,
   t
 } from '../utils/i18n.js';
 import { toGaGameKey } from '../services/analytics-service.js';
@@ -379,6 +380,7 @@ export function createPopupController(adapter) {
     return {
       lang: currentLang,
       languageSetting,
+      appVersion: runtime?.version || '',
       flavorBadgeText: config.FLAVOR_UI?.badgeText || '',
       isDev: Boolean(config.IS_DEV),
       enabledGames: [...enabledGames],
@@ -421,6 +423,7 @@ export function createPopupController(adapter) {
       policyUpdateVersion: PRIVACY_POLICY_VERSION,
       privacyPolicyUrl: getPrivacyPolicyUrl(currentLang),
       guideUrl: getGuideUrl(currentLang),
+      supportUrl: getSupportUrl(currentLang),
       settingsModal: {
         open: settingsModal.open,
         enabledGames: [...settingsModal.enabledGames],
@@ -1037,6 +1040,10 @@ export function createPopupController(adapter) {
     tabs.open(getGuideUrl(currentLang));
   }
 
+  function openSupport() {
+    tabs.open(getSupportUrl(currentLang));
+  }
+
   function openPrivacyPolicy() {
     tabs.open(getPrivacyPolicyUrl(currentLang));
   }
@@ -1151,6 +1158,7 @@ export function createPopupController(adapter) {
     openCheckinSite,
     openGiftSite,
     openGuide,
+    openSupport,
     openPrivacyPolicy,
     copyUid,
     recordLogsOpened,

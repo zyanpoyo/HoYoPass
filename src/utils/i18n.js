@@ -65,6 +65,15 @@ export function getGuideUrl(lang = 'ja') {
   return lang === 'en' ? DOCS_URLS.README_EN : DOCS_URLS.README;
 }
 
+/**
+ * 言語別のサポート・お問い合わせ導線URLを取得する
+ * @param {'ja'|'en'} [lang]
+ * @returns {string}
+ */
+export function getSupportUrl(lang = 'ja') {
+  return `${getGuideUrl(lang)}#support`;
+}
+
 export function formatDailySignTimeLocal() {
   const d = new Date();
   d.setUTCHours(16, 5, 0, 0);
@@ -198,6 +207,7 @@ export const MESSAGES = {
 
     // フッター
     footerGuide: '使い方ガイド',
+    footerSupport: '不具合・要望',
     footerDisclaimer: '非公式ファンメイドツール<br>（COGNOSPHERE / HoYoverseとは関係ありません）',
 
     // 通知 & ログ
@@ -404,6 +414,7 @@ export const MESSAGES = {
 
     // Footer
     footerGuide: 'User Guide',
+    footerSupport: 'Feedback',
     footerDisclaimer: 'Unofficial Fan-made Tool<br>(Not affiliated with COGNOSPHERE / HoYoverse)',
 
     // Notifications & Logs

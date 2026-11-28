@@ -658,3 +658,52 @@ a:hover {
   font-size: 0.875rem;
   color: var(--text-body);
 }
+
+/* お問い合わせ・ご要望セクション */
+.support-intro {
+  color: var(--text-body);
+  margin-bottom: 1rem;
+  font-size: 0.925rem;
+}
+
+.support-intro a,
+.footer-disclaimer a {
+  color: var(--accent-link);
+  text-decoration: underline;
+}
+
+.support-intro a:hover,
+.footer-disclaimer a:hover {
+  color: var(--accent-link-hover);
+}
+
+.support-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.support-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.35rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--primary);
+  color: #ffffff;
+  font-size: 0.925rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.support-btn:hover {
+  background-color: var(--primary-hover);
+}
+
+.support-btn:focus-visible {
+  outline: 2px solid var(--accent-link);
+  outline-offset: 2px;
+}
