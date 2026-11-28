@@ -20,6 +20,7 @@
       </a>
       <nav class="site-nav">
         <a href="index.html" class="nav-link active">使い方</a>
+        <a href="#support" class="nav-link">お問い合わせ</a>
         <a href="privacy.html" class="nav-link">プライバシーポリシー</a>
         <a href="https://github.com/zyanpoyo/HoYoPass" class="nav-link" target="_blank" rel="noopener noreferrer">ソースコード ↗</a>
         <a href="index_en.html" class="nav-link lang-switch-link" hreflang="en">English</a>
@@ -196,14 +197,30 @@
         </details>
 
         <details class="faq-item">
-          <summary class="faq-question">初回利用時、ゲーム内に「交換コードは既に使用されています」というメールが届きました</summary>
+          <summary class="faq-question">ゲーム内に「使用済みコードの複数利用」や「交換コードは既に使用されています」というメールが届きます</summary>
           <div class="faq-answer">
             <p>
-              本ツールの初回実行時は、現在公開されている有効な交換コードをすべて巡回して引き換えを行います。事前にゲーム内などでご自身で手動入力済みのコードがあった場合、確認のためにゲーム内へ「使用済み（重複）」という通知メールが届くことがあります。
+              本拡張機能の初回実行時は、公開中の有効な交換コードをまとめて引き換えるため、過去に手動入力済みのコードがあるとゲーム内に「使用済み（重複）」の通知メールが届くことがあります。これは公式API側の正常な処理であり、アカウントへの悪影響はありません。一度処理されたコードはブラウザ内に記録され、同じ環境から再送されることはありません。
             </p>
-            <p style="margin-top: 0.5rem;">
-              これはゲーム公式側の正常な受付通知であり、アカウントへの悪影響は一切ありません。一度確認されたコードはツール内に保存されるため、次回以降に同じメールが届くことはありませんのでご安心ください。
+            <p style="margin-top: 0.75rem;">
+              <strong>初回以降も繰り返し届く場合は、以下のいずれかに該当している可能性があります：</strong>
             </p>
+            <ul style="margin-top: 0.5rem; padding-left: 1.25rem;">
+              <li style="margin-bottom: 0.6rem;">
+                <strong>複数のPCやChromeプロファイルで併用している</strong><br>
+                引き換え履歴はプライバシー保護のため各ブラウザ内（ローカル）にのみ保存され、端末間では同期されません。同じHoYoverseアカウントに対して複数のPC・プロファイルでHoYoPassを有効にしていると、新着コードのたびに各端末から重複送信されます。<br>
+                → <strong>回避策</strong>: 交換コードの自動引き換えをONにするのは<strong>メインの1環境のみ</strong>にし、他のPC・プロファイルでは交換コードのトグルをOFFにしてください。
+              </li>
+              <li style="margin-bottom: 0.6rem;">
+                <strong>新着コードをHoYoPassより先に手動入力している</strong><br>
+                自動チェックは3時間周期で行われ、公式側には「使用済みかを事前に照会するAPI」が存在しません。そのため、ゲーム内や公式サイトで先に手動入力したコードがあると、その後の自動巡回時に重複送信されることがあります。<br>
+                → <strong>回避策</strong>: 基本的に手動入力はせずHoYoPassにお任せいただくか、急ぎで受け取りたい場合は（コード公開反映後に）HoYoPassの「<strong>↻</strong>」ボタンから手動実行していただくと、履歴が正しく記録され重複メールを防げます。
+              </li>
+              <li>
+                <strong>同じ報酬グループの別コードが公開された</strong><br>
+                キャンペーンやクリエイター配布などで、文字列は異なるものの「1アカウントにつきいずれか1つのみ有効」なコードが複数公開されることがあります。別文字列のため未処理として送信され、ゲーム側の判定で重複メールが届く場合があります。
+              </li>
+            </ul>
           </div>
         </details>
 
@@ -258,6 +275,27 @@
         </details>
       </div>
     </section>
+
+    <!-- お問い合わせ・ご要望 -->
+    <section class="card" id="support">
+      <h2 class="card-title-lg">
+        <span aria-hidden="true">💬</span>
+        <span>不具合報告・ご要望</span>
+      </h2>
+      <p class="support-intro">
+        HoYoPass に関する不具合のご報告や機能改善のご要望・ご意見を受け付けています。送信前に、上記の「<a href="#faq">よくある質問</a>」もあわせてご確認ください。
+      </p>
+      <div class="notice-box info">
+        <strong>ℹ️ ご投稿にあたっての注意事項</strong><br>
+        ・本フォームは完全匿名（Googleログイン不要）のため、原則として個別の返信はいたしかねます。<br>
+        ・ゲームの UID、Cookie、パスワード、メールアドレスなどの個人情報・機密情報は絶対に入力しないでください。
+      </div>
+      <div class="support-actions">
+        <a href="https://forms.gle/CTRpwLNRu42jMKZv9" id="feedback-form-link" class="support-btn" target="_blank" rel="noopener noreferrer">
+          不具合報告・改善要望フォームを開く ↗
+        </a>
+      </div>
+    </section>
   </main>
 
   <!-- フッター -->
@@ -265,13 +303,14 @@
     <div class="footer-inner">
       <nav class="footer-nav">
         <a href="index.html">使い方ガイド</a>
+        <a href="#support">お問い合わせ</a>
         <a href="privacy.html">プライバシーポリシー</a>
         <a href="https://github.com/zyanpoyo/HoYoPass" target="_blank" rel="noopener noreferrer">ソースコード ↗</a>
         <a href="index_en.html">English</a>
       </nav>
       <p class="footer-disclaimer">
         本拡張機能は非公式のファンメイドツールであり、COGNOSPHERE PTE. LTD. および miHoYo Co., Ltd.（HoYoverse）とは一切関係ありません。<br>
-        利用に伴う規約上のリスクをご理解の上、自己責任でご利用ください。不具合報告やお問い合わせは、Chrome ウェブストアのサポートページよりご連絡ください。
+        利用に伴う規約上のリスクをご理解の上、自己責任でご利用ください。不具合報告やご要望は、本ページ内の<a href="#support">お問い合わせフォーム</a>よりご連絡ください。
       </p>
     </div>
   </footer>

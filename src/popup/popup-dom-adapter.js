@@ -20,7 +20,7 @@ export function setupCheckboxMinimumValidation(checkboxes) {
 }
 
 function applyStaticI18n(doc, snapshot) {
-  const { lang, privacyPolicyUrl, guideUrl } = snapshot;
+  const { lang, privacyPolicyUrl, guideUrl, supportUrl } = snapshot;
   doc.documentElement.lang = lang;
 
   doc.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -52,6 +52,10 @@ function applyStaticI18n(doc, snapshot) {
   const footerReadmeLink = doc.getElementById('footer-link-readme');
   if (footerReadmeLink) {
     footerReadmeLink.href = guideUrl;
+  }
+  const footerSupportLink = doc.getElementById('footer-link-support');
+  if (footerSupportLink && supportUrl) {
+    footerSupportLink.href = supportUrl;
   }
   const footerPrivacyLink = doc.getElementById('footer-link-privacy');
   if (footerPrivacyLink) {
@@ -132,7 +136,9 @@ export function mountPopupDom(controller, { doc = document, win = window } = {})
   const reviewDismissBtn = doc.getElementById('review-prompt-dismiss-btn');
 
   const footerReadmeLink = doc.getElementById('footer-link-readme');
+  const footerSupportLink = doc.getElementById('footer-link-support');
   const footerPrivacyLink = doc.getElementById('footer-link-privacy');
+  const appVersionEl = doc.getElementById('app-version');
 
   if (optinCheckboxes.length > 0) {
     setupCheckboxMinimumValidation(optinCheckboxes);
@@ -386,6 +392,11 @@ export function mountPopupDom(controller, { doc = document, win = window } = {})
       applyStaticI18n(doc, snapshot);
       lastAppliedLang = snapshot.lang;
     }
+    if (appVersionEl) {
+      const hasVersion = Boolean(snapshot.appVersion);
+      appVersionEl.textContent = hasVersion ? `v${snapshot.appVersion}` : '';
+      appVersionEl.classList.toggle('hidden', !hasVersion);
+    }
     renderTabs(snapshot);
     renderGameHeader(snapshot);
     renderAuthAndCards(snapshot);
@@ -428,6 +439,10 @@ export function mountPopupDom(controller, { doc = document, win = window } = {})
   footerReadmeLink?.addEventListener('click', (e) => {
     e.preventDefault();
     controller.openGuide();
+  });
+  footerSupportLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    controller.openSupport();
   });
   footerPrivacyLink?.addEventListener('click', (e) => {
     e.preventDefault();

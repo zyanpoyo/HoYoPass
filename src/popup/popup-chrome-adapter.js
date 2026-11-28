@@ -25,6 +25,13 @@ export function createChromePopupAdapter({
           return '';
         }
       },
+      get version() {
+        try {
+          return chromeApi?.runtime?.getManifest?.()?.version || '';
+        } catch {
+          return '';
+        }
+      },
       sendMessage: (message) => chromeApi.runtime.sendMessage(message),
       syncConsentBadge
     },

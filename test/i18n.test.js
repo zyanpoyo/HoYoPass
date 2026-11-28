@@ -4,6 +4,7 @@ import {
   resolveLanguage,
   getPrivacyPolicyUrl,
   getGuideUrl,
+  getSupportUrl,
   formatDailySignTimeLocal,
   getGameLocalized,
   getExchangeApiLang,
@@ -53,6 +54,17 @@ test('getGuideUrl: 言語別の使い方ガイドURL解決', () => {
   assert.equal(getGuideUrl('ja'), 'https://hoyopass.pages.dev/');
   assert.equal(getGuideUrl('en'), 'https://hoyopass.pages.dev/index_en');
   assert.equal(getGuideUrl(), 'https://hoyopass.pages.dev/', 'デフォルトは日本語URL');
+});
+
+test('getSupportUrl: 言語別の問い合わせ導線URL解決', () => {
+  assert.equal(getSupportUrl('ja'), 'https://hoyopass.pages.dev/#support');
+  assert.equal(getSupportUrl('en'), 'https://hoyopass.pages.dev/index_en#support');
+  assert.equal(getSupportUrl(), 'https://hoyopass.pages.dev/#support', 'デフォルトは日本語URL');
+});
+
+test('t: footerSupport の日英翻訳', () => {
+  assert.equal(t('footerSupport', [], 'ja'), '不具合・要望');
+  assert.equal(t('footerSupport', [], 'en'), 'Feedback');
 });
 
 test('formatDailySignTimeLocal: 形式検証 (HH:mm)', () => {

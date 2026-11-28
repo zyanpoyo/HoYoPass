@@ -714,9 +714,11 @@ test('PopupController: 公式サイト遷移・UIDコピー・ログ展開・レ
   controller.openCheckinSite();
   controller.openGiftSite();
   controller.openGuide();
+  controller.openSupport();
   controller.openPrivacyPolicy();
   controller.recordLogsOpened();
-  assert.equal(adapter.openedUrls.length, 4);
+  assert.equal(adapter.openedUrls.length, 5);
+  assert.ok(adapter.openedUrls.includes('https://hoyopass.pages.dev/#support'));
 
   // DEVリセット -> 表示 -> あとで -> 再度リセット -> 書く
   await controller.resetReviewPromptForDev();
@@ -745,4 +747,32 @@ test('PopupController: 公式サイト遷移・UIDコピー・ログ展開・レ
     assert.equal(dispatched.handled, true, `${type} が background-runner で受理されること`);
     await dispatched.promise;
   }
+});
+
+test('popupController: runtime.version がスナップショットの appVersion に反映されること', () => {
+  const withVersion = createPopupController(createPopupTestAdapter({ appVersion: '1.3.7' }));
+  assert.equal(withVersion.getSnapshot().appVersion, '1.3.7');
+  withVersion.dispose();
+
+  const withoutVersion = createPopupController(createPopupTestAdapter({ appVersion: '' }));
+  assert.equal(withoutVersion.getSnapshot().appVersion, '');
+  withoutVersion.dispose();
+});
+
+test('popupController: supportUrl と openSupport が言語設定に応じて解決されること', async () => {
+  const jaAdapter = createPopupTestAdapter({ settings: { optInAccepted: true, language: 'ja' } });
+  const jaCtrl = createPopupController(jaAdapter);
+  await jaCtrl.init();
+  assert.equal(jaCtrl.getSnapshot().supportUrl, 'https://hoyopass.pages.dev/#support');
+  jaCtrl.openSupport();
+  assert.deepEqual(jaAdapter.openedUrls, ['https://hoyopass.pages.dev/#support']);
+  jaCtrl.dispose();
+
+  const enAdapter = createPopupTestAdapter({ settings: { optInAccepted: true, language: 'en' } });
+  const enCtrl = createPopupController(enAdapter);
+  await enCtrl.init();
+  assert.equal(enCtrl.getSnapshot().supportUrl, 'https://hoyopass.pages.dev/index_en#support');
+  enCtrl.openSupport();
+  assert.deepEqual(enAdapter.openedUrls, ['https://hoyopass.pages.dev/index_en#support']);
+  enCtrl.dispose();
 });
